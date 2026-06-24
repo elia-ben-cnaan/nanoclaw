@@ -49,6 +49,14 @@ Deleted the 3 stale wirings for `mg-1782237721177-cf3ba9` via SQL, leaving only 
 - ASSUMPTION: The getUpdates network errors in `nanoclaw.error.log` are transient (VM network intermittency, not a 409 conflict). Confirmed no 409 in error log.
 - ASSUMPTION: Old pilot agent groups (pilot-867125, pilot-097c28, etc.) remain in the DB with slug as `assistant_name`. They are superseded by exclusive binding — future `/start` codes will overwrite the wiring to whatever new agent the provision creates.
 
+## Bug Fix (post-Phase A): Registered Name in Greeting
+
+**Bug:** Greeting used Telegram profile name ("Elia Ben Cnaan") instead of the form-registered name ("עדי לוסקי").
+
+**Root cause:** `const userName = consumed.consumed!.name || 'User';` at line 161 pulled `ConsumedDetails.name` (Telegram senderName) before `intent` was declared (line 194). `intent.userName` was never read.
+
+**Fix:** Hoisted `intent` extraction above `userName`. Now uses `intent.userName?.trim()` with fallback to Telegram profile name → `'User'`. Verified: `data/telegram-pairings.json` shows `intent.userName = "עדי לוסקי"` for a test provision with that name.
+
 ## [VERIFY] Items for Human Review
 
 - [VERIFY] Tap a fresh deepLink and confirm the bot sends the Hebrew template greeting (not the old "חיבור הצליח" message)

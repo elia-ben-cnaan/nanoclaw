@@ -158,7 +158,10 @@ function createPilotPairingInterceptor(
       }
 
       const now = new Date().toISOString();
-      const userName = consumed.consumed!.name || 'User';
+      const intent = consumed.intent;
+      // Prefer the registered name from the provisioning form; fall back to the Telegram profile name.
+      const registeredName = intent !== 'main' && intent.kind === 'new-agent' ? intent.userName?.trim() || '' : '';
+      const userName = registeredName || consumed.consumed!.name || 'User';
 
       // 1. Upsert messaging group
       let mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId);
@@ -191,7 +194,6 @@ function createPilotPairingInterceptor(
       }
 
       // 4. Wire to agent if this was a new-agent provisioning intent
-      const intent = consumed.intent;
       if (intent !== 'main' && intent.kind === 'new-agent' && intent.folder) {
         const agentGroup = getAgentGroupByFolder(intent.folder);
         if (agentGroup && mg) {
