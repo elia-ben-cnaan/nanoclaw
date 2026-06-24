@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { initTestSessionDb, closeSessionDb, getInboundDb, getOutboundDb } from './db/connection.js';
-import { getPendingMessages, markCompleted } from './db/messages-in.js';
-import { getUndeliveredMessages } from './db/messages-out.js';
+import { getPendingMessages, markCompleted, markProcessing } from './db/messages-in.js';
+import { getUndeliveredMessages, writeMessageOut } from './db/messages-out.js';
 import { formatMessages, extractRouting } from './formatter.js';
-import { isCorruptionError } from './poll-loop.js';
+import { isCorruptionError, processQuery } from './poll-loop.js';
 import { MockProvider } from './providers/mock.js';
 
 beforeEach(() => {
@@ -376,6 +376,71 @@ describe('end-to-end with mock provider', () => {
     expect(outMessages).toHaveLength(1);
     expect(JSON.parse(outMessages[0].content).text).toBe('The answer is 4');
     expect(outMessages[0].in_reply_to).toBe('m1');
+  });
+});
+
+describe('false "not delivered" nudge regression', () => {
+  it('does not nudge (or duplicate) when the agent already sent via an MCP tool this turn', async () => {
+    insertMessage('m1', 'chat', { sender: 'User', text: 'ping' });
+    const messages = getPendingMessages();
+    const routing = extractRouting(messages);
+    markProcessing(['m1']);
+
+    // Simulates an agent turn that calls send_message (writes straight to
+    // outbound.db, bypassing <message to="..."> block parsing) and then
+    // signs off with plain unwrapped text — the exact shape that used to
+    // trip the "your response was not delivered" nudge even though the
+    // message had already gone out.
+    let toolCalls = 0;
+    const provider = new MockProvider({}, () => {
+      toolCalls++;
+      writeMessageOut({
+        id: `tool-send-${toolCalls}`,
+        in_reply_to: routing.inReplyTo,
+        kind: 'chat',
+        platform_id: routing.platformId,
+        channel_type: routing.channelType,
+        thread_id: routing.threadId,
+        content: JSON.stringify({ text: `delivered via tool (call ${toolCalls})` }),
+      });
+      return 'Done, I let them know.';
+    });
+
+    const query = provider.query({ prompt: formatMessages(messages), cwd: '/tmp' });
+    setTimeout(() => query.end(), 80);
+
+    await processQuery(query, routing, ['m1'], 'mock');
+
+    // A false nudge would have pushed a <system> correction back into the
+    // query, causing the mock agent to be invoked a second time — i.e. it
+    // would "resend" and toolCalls/outbound rows would double.
+    expect(toolCalls).toBe(1);
+    expect(getUndeliveredMessages()).toHaveLength(1);
+  });
+
+  it('still nudges when nothing was sent at all this turn', async () => {
+    insertMessage('m1', 'chat', { sender: 'User', text: 'ping' });
+    const messages = getPendingMessages();
+    const routing = extractRouting(messages);
+    markProcessing(['m1']);
+
+    // Genuinely bare text, no MCP-tool send, no <message> block.
+    let calls = 0;
+    const provider = new MockProvider({}, () => {
+      calls++;
+      return 'just some unwrapped text';
+    });
+
+    const query = provider.query({ prompt: formatMessages(messages), cwd: '/tmp' });
+    setTimeout(() => query.end(), 80);
+
+    await processQuery(query, routing, ['m1'], 'mock');
+
+    // The nudge still fires for a genuine failure: the mock agent gets
+    // invoked a second time (in response to the <system> correction).
+    expect(calls).toBe(2);
+    // And the real failure case is preserved: nothing was ever delivered.
+    expect(getUndeliveredMessages()).toHaveLength(0);
   });
 });
 

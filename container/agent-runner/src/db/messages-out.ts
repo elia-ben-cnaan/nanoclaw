@@ -32,6 +32,9 @@ export interface WriteMessageOut {
   content: string;
 }
 
+/** Re-sends within this window of an identical prior send are treated as duplicates. */
+const DEDUP_WINDOW = '-60 seconds';
+
 /**
  * Write a new outbound message, auto-assigning an odd seq number.
  * Container uses odd seq (1, 3, 5...), host uses even (2, 4, 6...).
@@ -45,6 +48,35 @@ export interface WriteMessageOut {
 export function writeMessageOut(msg: WriteMessageOut): number {
   const outbound = getOutboundDb();
   const inbound = getInboundDb();
+
+  // Safety net against duplicate user-visible sends — e.g. the agent being
+  // told (possibly wrongly) that its last response "was not delivered" and
+  // resending the same content. Same channel/platform/in_reply_to/content
+  // within the window is treated as a resend of the same message rather
+  // than a new one, and the existing row's seq is returned so callers
+  // (send_message, etc.) still get a valid reference.
+  const dup = outbound
+    .prepare(
+      `SELECT seq FROM messages_out
+       WHERE channel_type IS $channel_type
+         AND platform_id IS $platform_id
+         AND in_reply_to IS $in_reply_to
+         AND content = $content
+         AND timestamp >= datetime('now', $window)
+       ORDER BY seq DESC LIMIT 1`,
+    )
+    .get({
+      $channel_type: msg.channel_type ?? null,
+      $platform_id: msg.platform_id ?? null,
+      $in_reply_to: msg.in_reply_to ?? null,
+      $content: msg.content,
+      $window: DEDUP_WINDOW,
+    }) as { seq: number } | undefined;
+
+  if (dup?.seq != null) {
+    console.error(`[messages-out] Skipping duplicate outbound write — matches seq #${dup.seq} within ${DEDUP_WINDOW}`);
+    return dup.seq;
+  }
 
   // Read max seq from both DBs to maintain global ordering.
   // Safe: each side only reads the other DB, never writes to it.
@@ -129,6 +161,16 @@ export function getRoutingBySeq(
     .prepare('SELECT channel_type, platform_id, thread_id FROM messages_out WHERE seq = ?')
     .get(seq) as { channel_type: string | null; platform_id: string | null; thread_id: string | null } | undefined;
   return outRow ?? null;
+}
+
+/**
+ * Total rows ever written to messages_out this session. Used to detect
+ * whether a message was already sent (e.g. via the send_message MCP tool)
+ * during the current agent turn, independent of <message to="..."> block
+ * parsing — see poll-loop.ts's unwrapped-output nudge.
+ */
+export function getOutboundCount(): number {
+  return (getOutboundDb().prepare('SELECT COUNT(*) AS c FROM messages_out').get() as { c: number }).c;
 }
 
 /** Get undelivered messages (for host polling — reads from outbound.db). */

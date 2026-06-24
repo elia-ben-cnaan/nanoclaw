@@ -1,6 +1,6 @@
 import { findByName, getAllDestinations, type DestinationEntry } from './destinations.js';
 import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } from './db/messages-in.js';
-import { writeMessageOut } from './db/messages-out.js';
+import { writeMessageOut, getOutboundCount } from './db/messages-out.js';
 import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
 import { clearContinuation, migrateLegacyContinuation, setContinuation } from './db/session-state.js';
 import { clearCurrentInReplyTo, setCurrentInReplyTo } from './current-batch.js';
@@ -308,7 +308,7 @@ interface QueryResult {
   continuation?: string;
 }
 
-async function processQuery(
+export async function processQuery(
   query: AgentQuery,
   routing: RoutingContext,
   initialBatchIds: string[],
@@ -317,6 +317,17 @@ async function processQuery(
   let queryContinuation: string | undefined;
   let done = false;
   let unwrappedNudged = false;
+
+  // One outbound-row-count snapshot per push to the query (FIFO, 1:1 with
+  // 'result' events), taken right before each push. Diffing against the
+  // count at the matching 'result' tells us whether the agent already
+  // delivered something this turn via an MCP tool (send_message, etc.) —
+  // those write straight to outbound.db and never appear in the <message
+  // to="..."> blocks that dispatchResultText parses, so without this a
+  // turn that calls send_message and then signs off with unwrapped text
+  // ("Done, I let them know.") looks indistinguishable from one that sent
+  // nothing at all.
+  const outboundSnapshots: number[] = [getOutboundCount()];
 
   // Concurrent polling: push follow-ups into the active query as they arrive.
   // We do NOT force-end the stream on silence — keeping the query open avoids
@@ -392,6 +403,7 @@ async function processQuery(
         const prompt = formatMessages(keep);
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
+        outboundSnapshots.push(getOutboundCount());
         query.push(prompt);
         markCompleted(keptIds);
       } catch (err) {
@@ -454,12 +466,23 @@ async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
+        // Pop the snapshot taken before this turn's prompt was pushed. Falls
+        // back to the current count (i.e. "nothing sent yet") if the queue
+        // is ever empty, which only happens if pushes and results drift out
+        // of the 1:1 order the provider contract guarantees.
+        const outboundBeforeTurn = outboundSnapshots.shift() ?? getOutboundCount();
         if (event.text) {
           const { hasUnwrapped } = dispatchResultText(event.text, routing);
-          if (hasUnwrapped && !unwrappedNudged) {
+          // dispatchResultText writes zero outbound rows when hasUnwrapped is
+          // true (sent === 0), so any growth in the count here came from an
+          // MCP tool (send_message, ask_user_question, etc.) called earlier
+          // in this same turn — a real delivery that block-parsing can't see.
+          const deliveredViaToolThisTurn = hasUnwrapped && getOutboundCount() > outboundBeforeTurn;
+          if (hasUnwrapped && !deliveredViaToolThisTurn && !unwrappedNudged) {
             unwrappedNudged = true;
             const destinations = getAllDestinations();
             const names = destinations.map((d) => d.name).join(', ');
+            outboundSnapshots.push(getOutboundCount());
             query.push(
               `<system>Your response was not delivered — it was not wrapped in <message to="name">...</message> blocks. ` +
                 `All output must be wrapped: use <message to="name"> for content to send, or <internal> for scratchpad. ` +
