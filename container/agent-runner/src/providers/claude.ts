@@ -446,7 +446,12 @@ export class ClaudeProvider implements AgentProvider {
         if (message.type === 'system' && message.subtype === 'init') {
           yield { type: 'init', continuation: message.session_id };
         } else if (message.type === 'result') {
-          const text = 'result' in message ? (message as { result?: string }).result ?? null : null;
+          // `result` text exists only on subtype:"success"; error subtypes
+          // (e.g. a non-retryable 403 billing_error) carry their message in
+          // `errors[]` instead. Surface either so the poll-loop can deliver a
+          // billing/quota notice to the user rather than dropping the turn.
+          const m = message as { result?: string; is_error?: boolean; errors?: string[] };
+          const text = m.result ?? (m.errors && m.errors.length > 0 ? m.errors.join('\n') : null);
           const u = (
             message as {
               usage?: {
@@ -468,7 +473,7 @@ export class ClaudeProvider implements AgentProvider {
           // The SDK result carries the authoritative turn cost — capture it
           // into metering (usage_events.cost_usd) for accurate per-turn spend.
           const costUsd = (message as { total_cost_usd?: number }).total_cost_usd;
-          yield { type: 'result', text, usage, model: providerModel, costUsd };
+          yield { type: 'result', text, isError: m.is_error === true, usage, model: providerModel, costUsd };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
           yield { type: 'error', message: 'API retry', retryable: true };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'rate_limit_event') {

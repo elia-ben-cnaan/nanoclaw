@@ -6,6 +6,7 @@ import { getUndeliveredMessages, writeMessageOut } from './db/messages-out.js';
 import { formatMessages, extractRouting } from './formatter.js';
 import { isCorruptionError, processQuery } from './poll-loop.js';
 import { MockProvider } from './providers/mock.js';
+import type { AgentQuery, ProviderEvent } from './providers/types.js';
 
 beforeEach(() => {
   initTestSessionDb();
@@ -409,7 +410,7 @@ describe('false "not delivered" nudge regression', () => {
     const query = provider.query({ prompt: formatMessages(messages), cwd: '/tmp' });
     setTimeout(() => query.end(), 80);
 
-    await processQuery(query, routing, ['m1'], 'mock');
+    await processQuery(query, routing, ['m1'], 'mock', undefined, 'prompt', undefined);
 
     // A false nudge would have pushed a <system> correction back into the
     // query, causing the mock agent to be invoked a second time — i.e. it
@@ -434,13 +435,71 @@ describe('false "not delivered" nudge regression', () => {
     const query = provider.query({ prompt: formatMessages(messages), cwd: '/tmp' });
     setTimeout(() => query.end(), 80);
 
-    await processQuery(query, routing, ['m1'], 'mock');
+    await processQuery(query, routing, ['m1'], 'mock', undefined, 'prompt', undefined);
 
     // The nudge still fires for a genuine failure: the mock agent gets
     // invoked a second time (in response to the <system> correction).
     expect(calls).toBe(2);
     // And the real failure case is preserved: nothing was ever delivered.
     expect(getUndeliveredMessages()).toHaveLength(0);
+  });
+});
+
+/**
+ * Build a one-shot stub query that yields init + a single result event, then
+ * ends. `pushes` records any follow-ups the loop tried to inject (e.g. the
+ * re-wrap nudge), so a test can assert the loop did NOT re-hammer.
+ */
+function makeResultQuery(result: ProviderEvent): { query: AgentQuery; pushes: string[] } {
+  const pushes: string[] = [];
+  async function* events(): AsyncGenerator<ProviderEvent> {
+    yield { type: 'init', continuation: 'sess-1' };
+    yield result;
+  }
+  return {
+    pushes,
+    query: {
+      push: (m: string) => {
+        pushes.push(m);
+      },
+      end: () => {},
+      events: events(),
+      abort: () => {},
+    },
+  };
+}
+
+const ERR_ROUTING = {
+  platformId: 'chan-1',
+  channelType: 'discord',
+  threadId: null,
+  inReplyTo: 'm1',
+};
+
+describe('error result with no <message> envelope', () => {
+  it('delivers a budget/billing error to the triggering channel and does not nudge', async () => {
+    const budgetText = 'Spending limit reached. Add your own key at https://example.com/keys';
+    const { query, pushes } = makeResultQuery({ type: 'result', text: budgetText, isError: true });
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toBe(budgetText);
+    expect(out[0].platform_id).toBe('chan-1');
+    expect(out[0].channel_type).toBe('discord');
+    // No re-wrap nudge — an error result must not re-hammer the gateway.
+    expect(pushes).toHaveLength(0);
+  });
+
+  it('still nudges (and does not deliver) a normal unwrapped result', async () => {
+    const { query, pushes } = makeResultQuery({ type: 'result', text: 'bare text, no envelope' });
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    expect(getUndeliveredMessages()).toHaveLength(0);
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toContain('was not delivered');
   });
 });
 
