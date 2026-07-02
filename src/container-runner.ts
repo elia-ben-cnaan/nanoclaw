@@ -15,6 +15,7 @@ import {
   CONTAINER_INSTALL_LABEL,
   DATA_DIR,
   GROUPS_DIR,
+  MAX_CONCURRENT_CONTAINERS,
   ONECLI_API_KEY,
   ONECLI_URL,
   TIMEZONE,
@@ -70,6 +71,16 @@ export function isContainerRunning(sessionId: string): boolean {
   return activeContainers.has(sessionId);
 }
 
+/** Test hooks — seed/clear fake active containers to exercise the concurrency cap. */
+export function _seedActiveContainersForTest(n: number): void {
+  for (let i = 0; i < n; i++) {
+    activeContainers.set(`__capfake-${i}`, { process: undefined as never, containerName: `__capfake-${i}` });
+  }
+}
+export function _clearActiveContainersForTest(): void {
+  for (const k of [...activeContainers.keys()]) if (k.startsWith('__capfake-')) activeContainers.delete(k);
+}
+
 /**
  * Wake up a container for a session. If already running or mid-spawn, no-op
  * (the in-flight wake promise is reused).
@@ -91,6 +102,19 @@ export function wakeContainer(session: Session): Promise<boolean> {
   if (existing) {
     log.debug('Container wake already in-flight — joining existing promise', { sessionId: session.id });
     return existing;
+  }
+  // Concurrency cap. This is a genuinely new container (not already running,
+  // not mid-spawn). Count running + in-flight; if at the cap, defer — return
+  // false so the inbound row stays pending and host-sweep retries on its next
+  // tick. Protects the droplet from OOM under a burst of fresh pilots.
+  if (activeContainers.size + wakePromises.size >= MAX_CONCURRENT_CONTAINERS) {
+    log.info('Container concurrency cap reached — wake deferred (host-sweep will retry)', {
+      sessionId: session.id,
+      active: activeContainers.size,
+      inFlight: wakePromises.size,
+      cap: MAX_CONCURRENT_CONTAINERS,
+    });
+    return Promise.resolve(false);
   }
   const promise = spawnContainer(session)
     .then(() => true)

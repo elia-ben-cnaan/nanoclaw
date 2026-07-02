@@ -45,6 +45,7 @@ import {
 import { log } from './log.js';
 import { openInboundDb, openOutboundDb, openOutboundDbRw, inboundDbPath, heartbeatPath } from './session-manager.js';
 import { isContainerRunning, killContainer, wakeContainer } from './container-runner.js';
+import { sweepOrphanPilots } from './pilot-orphan-sweep.js';
 import type { Session } from './types.js';
 
 /**
@@ -139,6 +140,14 @@ async function sweep(): Promise<void> {
     }
   } catch (err) {
     log.error('Host sweep error', { err });
+  }
+
+  // Clean up pilots registered but never started (own try/catch so it can
+  // never disrupt the session sweep above).
+  try {
+    await sweepOrphanPilots();
+  } catch (err) {
+    log.error('Orphan pilot sweep error', { err });
   }
 
   setTimeout(sweep, SWEEP_INTERVAL_MS);

@@ -537,6 +537,75 @@ describe('router', () => {
     expect(getSessionsByAgentGroup('ag-2')).toHaveLength(1);
   });
 
+  it('exclusive pilot channel never fans out — one inbound = one run, even with duplicate wirings', async () => {
+    const { routeInbound } = await import('./router.js');
+    const { wakeContainer } = await import('./container-runner.js');
+    (wakeContainer as unknown as ReturnType<typeof vi.fn>).mockClear();
+
+    // Regression: a telegram-pilot messaging group that accumulated TWO
+    // wirings (stale rows from a prior pairing). The router's fan-out used to
+    // run the single inbound message through every wired agent, so one user
+    // message produced N independent agent runs → N different replies (e.g.
+    // "what's your name?" answered with N different names). The exclusive
+    // guard must collapse to exactly one agent.
+    createAgentGroup({ id: 'agp-1', name: 'Nano A', folder: 'nano-a', agent_provider: null, created_at: now() });
+    createAgentGroup({ id: 'agp-2', name: 'Nano B', folder: 'nano-b', agent_provider: null, created_at: now() });
+    createMessagingGroup({
+      id: 'mg-pilot',
+      channel_type: 'telegram-pilot',
+      platform_id: 'telegram:pilot-1',
+      name: 'Pilot',
+      is_group: 0,
+      unknown_sender_policy: 'public',
+      created_at: now(),
+    });
+    // Older wiring first, newer wiring second — the guard keeps the most
+    // recently wired agent (the active pilot from the latest pairing).
+    createMessagingGroupAgent({
+      id: 'mgap-1',
+      messaging_group_id: 'mg-pilot',
+      agent_group_id: 'agp-1',
+      engage_mode: 'pattern',
+      engage_pattern: '.',
+      sender_scope: 'all',
+      ignored_message_policy: 'drop',
+      session_mode: 'shared',
+      priority: 0,
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    createMessagingGroupAgent({
+      id: 'mgap-2',
+      messaging_group_id: 'mg-pilot',
+      agent_group_id: 'agp-2',
+      engage_mode: 'pattern',
+      engage_pattern: '.',
+      sender_scope: 'all',
+      ignored_message_policy: 'drop',
+      session_mode: 'shared',
+      priority: 0,
+      created_at: '2026-02-01T00:00:00.000Z',
+    });
+
+    await routeInbound({
+      channelType: 'telegram-pilot',
+      platformId: 'telegram:pilot-1',
+      threadId: null,
+      message: {
+        id: 'pilot-msg-1',
+        kind: 'chat',
+        content: JSON.stringify({ text: 'what is your name?' }),
+        timestamp: now(),
+      },
+    });
+
+    // Exactly one agent run, despite two wirings.
+    expect(wakeContainer).toHaveBeenCalledTimes(1);
+
+    const { getSessionsByAgentGroup } = await import('./db/sessions.js');
+    expect(getSessionsByAgentGroup('agp-2')).toHaveLength(1); // most recent wiring kept
+    expect(getSessionsByAgentGroup('agp-1')).toHaveLength(0); // older wiring dropped
+  });
+
   it('accumulates without waking when engage fails + ignored_message_policy=accumulate', async () => {
     const { routeInbound } = await import('./router.js');
     const { wakeContainer } = await import('./container-runner.js');
@@ -594,6 +663,52 @@ describe('router', () => {
     expect(wakeContainer).not.toHaveBeenCalled();
     // No session should have been created for this agent.
     expect(findSession('mg-1', null)).toBeUndefined();
+  });
+
+  it('rate-limits a chat once it exceeds the per-window token budget', async () => {
+    const { routeInbound, _resetRateLimitForTest } = await import('./router.js');
+    const { wakeContainer } = await import('./container-runner.js');
+    (wakeContainer as unknown as ReturnType<typeof vi.fn>).mockClear();
+    _resetRateLimitForTest();
+
+    // Dedicated wired chat (unique platform_id, doesn't drain other tests' buckets).
+    createMessagingGroup({
+      id: 'mg-rl',
+      channel_type: 'discord',
+      platform_id: 'chan-rl',
+      name: 'RateLimit',
+      is_group: 1,
+      unknown_sender_policy: 'public',
+      created_at: now(),
+    });
+    createMessagingGroupAgent({
+      id: 'mga-rl',
+      messaging_group_id: 'mg-rl',
+      agent_group_id: 'ag-1',
+      engage_mode: 'pattern',
+      engage_pattern: '.',
+      sender_scope: 'all',
+      ignored_message_policy: 'drop',
+      session_mode: 'shared',
+      priority: 0,
+      created_at: now(),
+    });
+
+    for (let i = 0; i < 25; i++) {
+      await routeInbound({
+        channelType: 'discord',
+        platformId: 'chan-rl',
+        threadId: null,
+        message: { id: `rl-${i}`, kind: 'chat', content: JSON.stringify({ text: 'hi' }), timestamp: now() },
+      });
+    }
+
+    const woke = (wakeContainer as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+    // 25 fired, bucket capacity 20 → rate-limiting must have dropped some,
+    // and roughly a bucketful got through (tolerate negligible refill jitter).
+    expect(woke).toBeLessThan(25);
+    expect(woke).toBeGreaterThanOrEqual(20);
+    _resetRateLimitForTest();
   });
 });
 

@@ -263,4 +263,18 @@ CREATE TABLE IF NOT EXISTS container_state (
   tool_started_at          TEXT,
   updated_at               TEXT NOT NULL
 );
+
+-- Append-only per-turn token usage for the operator dashboard's metering.
+-- Container is the sole writer (one row per provider result); host reads it
+-- read-only when building /admin views. The container also CREATEs this on
+-- demand (connection.ts) so sessions predating metering pick it up on respawn.
+CREATE TABLE IF NOT EXISTS usage_events (
+  id                    TEXT PRIMARY KEY,
+  ts                    TEXT NOT NULL,
+  model                 TEXT,
+  input_tokens          INTEGER NOT NULL DEFAULT 0,
+  output_tokens         INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens     INTEGER NOT NULL DEFAULT 0
+);
 `;

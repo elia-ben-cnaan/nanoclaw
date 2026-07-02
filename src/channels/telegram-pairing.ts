@@ -45,10 +45,23 @@ export interface PairingRecord {
   code: string;
   intent: PairingIntent;
   createdAt: string;
+  /** ISO timestamp after which a pending code is rejected. Optional for
+   *  backward-compat with records written before TTL (those fall back to
+   *  createdAt + PAIRING_TTL_MS at read time). */
+  expiresAt?: string;
   status: Exclude<PairingStatus, 'unknown'>;
   consumed?: ConsumedDetails;
   /** Recent pairing attempts observed while this record was pending. Capped. */
   attempts?: PairingAttempt[];
+}
+
+/** Pairing codes are valid for 15 minutes from creation; a fresh code is
+ *  minted on each new provision / "send new code" action. */
+export const PAIRING_TTL_MS = 15 * 60 * 1000;
+
+/** Effective expiry epoch-ms for a record (handles pre-TTL records). */
+function expiryMs(r: PairingRecord): number {
+  return r.expiresAt ? Date.parse(r.expiresAt) : Date.parse(r.createdAt) + PAIRING_TTL_MS;
 }
 
 const MAX_ATTEMPTS_PER_RECORD = 10;
@@ -62,7 +75,7 @@ interface Store {
   pairings: PairingRecord[];
 }
 
-/** Pairing codes do not expire — they are consumed on match or invalidated by wrong guesses. */
+/** Pairing codes expire after PAIRING_TTL_MS, and are also consumed on match or invalidated by wrong guesses. */
 const FILE_NAME = 'telegram-pairings.json';
 
 let storePathOverride: string | null = null;
@@ -132,10 +145,12 @@ export async function createPairing(intent: PairingIntent): Promise<PairingRecor
       }
     }
     const active = new Set(store.pairings.filter((r) => r.status === 'pending').map((r) => r.code));
+    const createdMs = Date.now();
     const record: PairingRecord = {
       code: generateCode(active),
       intent,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(createdMs).toISOString(),
+      expiresAt: new Date(createdMs + PAIRING_TTL_MS).toISOString(),
       status: 'pending',
     };
     store.pairings.push(record);
@@ -216,6 +231,12 @@ export async function tryConsume(input: ConsumeInput): Promise<PairingRecord | n
       }
       return null;
     }
+    if (now > expiryMs(record)) {
+      record.status = 'invalidated';
+      writeStore(store);
+      log.info('Pairing rejected — code expired', { code, platformId: input.platformId });
+      return null;
+    }
     record.status = 'consumed';
     record.consumed = {
       platformId: input.platformId,
@@ -248,6 +269,24 @@ export function getPairing(code: string): PairingRecord | null {
   return store.pairings.find((p) => p.code === code) ?? null;
 }
 
+/** Snapshot of all stored pairing records (read-only). Used by the orphan
+ *  sweep to find pilots that were registered but never started. */
+export function listPairings(): PairingRecord[] {
+  return readStore().pairings;
+}
+
+/** Remove a pairing record by code. Returns true if a record was removed. */
+export async function deletePairing(code: string): Promise<boolean> {
+  return withLock(() => {
+    const store = readStore();
+    const before = store.pairings.length;
+    store.pairings = store.pairings.filter((p) => p.code !== code);
+    const removed = store.pairings.length < before;
+    if (removed) writeStore(store);
+    return removed;
+  });
+}
+
 export interface WaitForPairingOptions {
   /** Polling interval as a fallback when fs.watch misses an event. */
   pollMs?: number;
@@ -257,7 +296,7 @@ export interface WaitForPairingOptions {
 
 /**
  * Resolve when the pairing is consumed; reject when it is invalidated
- * (wrong code guess). Waits indefinitely — codes do not expire.
+ * (wrong code guess) or the code's 15-minute TTL elapses.
  * Uses fs.watch as the primary signal with a slow poll fallback.
  */
 export async function waitForPairing(code: string, opts: WaitForPairingOptions = {}): Promise<PairingRecord> {
@@ -308,6 +347,11 @@ export async function waitForPairing(code: string, opts: WaitForPairingOptions =
       if (r.status === 'consumed') {
         cleanup();
         resolve(r);
+        return;
+      }
+      if (r.status === 'pending' && Date.now() > expiryMs(r)) {
+        cleanup();
+        reject(new Error(`Pairing ${code} expired`));
         return;
       }
       if (r.status === 'invalidated') {

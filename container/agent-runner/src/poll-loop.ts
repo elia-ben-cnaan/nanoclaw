@@ -3,6 +3,7 @@ import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } 
 import { writeMessageOut, getOutboundCount } from './db/messages-out.js';
 import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
 import { clearContinuation, migrateLegacyContinuation, setContinuation } from './db/session-state.js';
+import { recordUsage } from './db/usage.js';
 import { clearCurrentInReplyTo, setCurrentInReplyTo } from './current-batch.js';
 import {
   formatMessages,
@@ -459,6 +460,15 @@ export async function processQuery(
         // Claude session with no prior context.
         setContinuation(providerName, event.continuation);
       } else if (event.type === 'result') {
+        // Record per-turn token usage for the operator dashboard. Best-effort:
+        // a metering write must never break the agent's turn.
+        if (event.usage) {
+          try {
+            recordUsage(event.usage, event.model ?? null, event.costUsd ?? 0);
+          } catch (err) {
+            log(`usage record failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
         // A result — with or without text — means the turn is done. Mark
         // the initial batch completed now so the host sweep doesn't see
         // stale 'processing' claims while the query stays open for

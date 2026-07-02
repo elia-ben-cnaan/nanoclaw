@@ -30,6 +30,8 @@ import { findSessionForAgent } from './db/sessions.js';
 import { startTypingRefresh, stopTypingRefresh } from './modules/typing/index.js';
 import { log } from './log.js';
 import { resolveSession, writeSessionMessage, writeOutboundDirect } from './session-manager.js';
+import { dailyCostAction } from './db/usage-metering.js';
+import { getContainerConfig, updateContainerConfigScalars } from './db/container-configs.js';
 import { wakeContainer } from './container-runner.js';
 import { getSession } from './db/sessions.js';
 import type { AgentGroup, MessagingGroup, MessagingGroupAgent } from './types.js';
@@ -37,6 +39,70 @@ import type { InboundEvent } from './channels/adapter.js';
 
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Channels whose messaging groups are bound to exactly one agent group —
+ * "one chat = one agent". For these, the router never fans an inbound message
+ * out to multiple agents, even if duplicate/stale wirings exist. The pilot
+ * channel is exclusive by design (each provisioned user gets their own single
+ * Nano); without this guard, a messaging group that accumulated more than one
+ * wiring would run every inbound message through each wired agent and the user
+ * would receive several different replies to the same message. See the collapse
+ * guard in routeInbound. Creation-time exclusivity is enforced separately in
+ * telegram-pilot.ts (wireMessagingGroupToAgentExclusive); this set makes the
+ * 1:1 guarantee hold at route time even against stale data.
+ */
+const EXCLUSIVE_SINGLE_AGENT_CHANNELS = new Set<string>(['telegram-pilot']);
+
+// Cheapest model a pilot is downgraded to on its first day over the daily cap.
+const PILOT_CHEAPEST_MODEL = 'claude-haiku-4-5';
+
+// ── Per-chat inbound rate limit (token bucket, in-memory, no external deps) ──
+// Protects the shared hosted bot from floods / runaway loops before any heavy
+// work (fan-out, session create, container wake). ~RATE_LIMIT_POINTS messages
+// per RATE_LIMIT_WINDOW_MS per platform_id, with continuous refill.
+const RATE_LIMIT_POINTS = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_NOTIFY_MS = 60_000; // at most one "slow down" reply per chat per minute
+interface RateBucket {
+  tokens: number;
+  updated: number;
+  notifiedAt: number;
+}
+const rateBuckets = new Map<string, RateBucket>();
+
+/** Consume one token for `key`; returns false when the chat is over its rate. */
+function rateLimitAllows(key: string): boolean {
+  const now = Date.now();
+  const b = rateBuckets.get(key) ?? { tokens: RATE_LIMIT_POINTS, updated: now, notifiedAt: 0 };
+  b.tokens = Math.min(RATE_LIMIT_POINTS, b.tokens + ((now - b.updated) / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_POINTS);
+  b.updated = now;
+  // Opportunistic bound so a long-lived process can't accumulate a bucket per
+  // distinct chat forever. Pilot scale is tiny; this effectively never fires.
+  if (rateBuckets.size > 5000) rateBuckets.clear();
+  if (b.tokens < 1) {
+    rateBuckets.set(key, b);
+    return false;
+  }
+  b.tokens -= 1;
+  rateBuckets.set(key, b);
+  return true;
+}
+
+/** True at most once per RATE_LIMIT_NOTIFY_MS per key — gates the "slow down" reply. */
+function rateLimitShouldNotify(key: string): boolean {
+  const b = rateBuckets.get(key);
+  if (!b) return false;
+  const now = Date.now();
+  if (now - b.notifiedAt < RATE_LIMIT_NOTIFY_MS) return false;
+  b.notifiedAt = now;
+  return true;
+}
+
+/** Test hook — reset the rate-limit buckets. */
+export function _resetRateLimitForTest(): void {
+  rateBuckets.clear();
 }
 
 /**
@@ -167,6 +233,24 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     event = { ...event, threadId: null };
   }
 
+  // Per-chat rate limit — gate before any heavy work. On the first rejection
+  // in a window, send one warm "slow down" reply; subsequent floods are
+  // dropped silently until the bucket refills.
+  if (!rateLimitAllows(event.platformId)) {
+    if (rateLimitShouldNotify(event.platformId)) {
+      try {
+        await adapter?.deliver(event.platformId, event.threadId, {
+          kind: 'chat',
+          content: { text: 'יותר מדי הודעות בזמן קצר. המתן רגע ונמשיך 🙂' },
+        });
+      } catch (err) {
+        log.warn('Rate-limit notice failed', { platformId: event.platformId, err });
+      }
+    }
+    log.info('Inbound rate-limited', { channelType: event.channelType, platformId: event.platformId });
+    return;
+  }
+
   const isMention = event.message.isMention === true;
 
   // 1. Combined lookup: messaging_group row + count of wired agents in a
@@ -253,7 +337,28 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
 
   // 3. Fetch wired agents in full (we already know the count is > 0; now
   //    we need their actual rows for fan-out).
-  const agents = getMessagingGroupAgents(mg.id);
+  const wiredAgents = getMessagingGroupAgents(mg.id);
+
+  // 3b. Exclusive-channel guard. Pilot messaging groups are bound to exactly
+  //     one agent (one chat = one Nano). If a pilot group ever ends up with
+  //     more than one wiring (stale rows from a prior pairing, a race during
+  //     re-provisioning), the fan-out below would run this single inbound
+  //     message through every wired agent — the user gets N different replies
+  //     to one message. Collapse to the most recently wired agent so one
+  //     inbound message can only ever produce one agent run. Logged loudly so
+  //     the leftover wiring can be cleaned up.
+  let agents = wiredAgents;
+  if (EXCLUSIVE_SINGLE_AGENT_CHANNELS.has(mg.channel_type) && wiredAgents.length > 1) {
+    const keep = wiredAgents.reduce((a, b) => (b.created_at > a.created_at ? b : a));
+    log.warn('Exclusive channel wired to multiple agents — collapsing fan-out to one', {
+      channelType: mg.channel_type,
+      messagingGroupId: mg.id,
+      wiredCount: wiredAgents.length,
+      keptAgentGroupId: keep.agent_group_id,
+      droppedAgentGroupIds: wiredAgents.filter((a) => a.id !== keep.id).map((a) => a.agent_group_id),
+    });
+    agents = [keep];
+  }
 
   // 4. Fan-out: evaluate each wired agent independently against engage_mode,
   //    sender_scope, and access gate. An agent that engages gets its own
@@ -272,6 +377,7 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
 
   let engagedCount = 0;
   let accumulatedCount = 0;
+  let gatedCount = 0;
   let subscribed = false;
 
   for (const agent of agents) {
@@ -284,6 +390,43 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     const scopeOk = engages && (!senderScopeGate || senderScopeGate(event, userId, mg, agent).allowed);
 
     if (engages && accessOk && scopeOk) {
+      // Graduated daily-cost policy (pilots only). 1st day over the cap →
+      // downgrade to the cheapest model and keep serving. 2nd consecutive day
+      // over → soft-block with a fixed notice (no container wake; resets at
+      // UTC day). Under cap → proceed normally.
+      if (agentGroup.folder.startsWith('pilot-')) {
+        const action = dailyCostAction(agent.agent_group_id);
+        if (action === 'block') {
+          try {
+            await adapter?.deliver(event.platformId, event.threadId, {
+              kind: 'chat',
+              content: { text: 'הגעתי לתקרה היומית. היא מתאפסת מחר 🙂' },
+            });
+          } catch (err) {
+            log.warn('Daily cost cap reply failed', { agentGroupId: agent.agent_group_id, err });
+          }
+          gatedCount++;
+          log.info('Pilot daily cost cap reached (2nd consecutive day) — message gated', {
+            agentGroupId: agent.agent_group_id,
+          });
+          continue;
+        }
+        if (action === 'downgrade') {
+          // 1st day over: drop to the cheapest model if not already there, then
+          // keep serving (no block). Takes effect on the next container spawn.
+          const cfg = getContainerConfig(agent.agent_group_id);
+          if (cfg && cfg.model && cfg.model !== PILOT_CHEAPEST_MODEL) {
+            updateContainerConfigScalars(agent.agent_group_id, { model: PILOT_CHEAPEST_MODEL });
+            log.info('Pilot over daily cap (1st day) — downgraded model, still serving', {
+              agentGroupId: agent.agent_group_id,
+              from: cfg.model,
+              to: PILOT_CHEAPEST_MODEL,
+            });
+          }
+          // fall through — do NOT block on the first day over
+        }
+      }
+
       await deliverToAgent(agent, agentGroup, mg, event, userId, adapter?.supportsThreads === true, true);
       engagedCount++;
 
@@ -328,7 +471,7 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     }
   }
 
-  if (engagedCount + accumulatedCount === 0) {
+  if (engagedCount + accumulatedCount + gatedCount === 0) {
     recordDroppedMessage({
       channel_type: event.channelType,
       platform_id: event.platformId,

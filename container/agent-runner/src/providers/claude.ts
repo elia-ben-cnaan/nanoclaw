@@ -409,6 +409,11 @@ export class ClaudeProvider implements AgentProvider {
           ...Object.keys(this.mcpServers).map(mcpAllowPattern),
         ],
         disallowedTools: SDK_DISALLOWED_TOOLS,
+        // Bound the agentic loop per inbound message. The SDK has no dollar
+        // budget; capping turns is the lever that prevents a single message
+        // from spiraling into an unbounded (and unboundedly expensive) tool
+        // loop. Pilot cost control = this cap + the host daily gate.
+        maxTurns: 15,
         env: this.env,
         model: this.model,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -427,6 +432,7 @@ export class ClaudeProvider implements AgentProvider {
     });
 
     let aborted = false;
+    const providerModel = this.model; // `this` is not bound inside the generator below
 
     async function* translateEvents(): AsyncGenerator<ProviderEvent> {
       let messageCount = 0;
@@ -441,7 +447,28 @@ export class ClaudeProvider implements AgentProvider {
           yield { type: 'init', continuation: message.session_id };
         } else if (message.type === 'result') {
           const text = 'result' in message ? (message as { result?: string }).result ?? null : null;
-          yield { type: 'result', text };
+          const u = (
+            message as {
+              usage?: {
+                input_tokens?: number;
+                output_tokens?: number;
+                cache_creation_input_tokens?: number | null;
+                cache_read_input_tokens?: number | null;
+              };
+            }
+          ).usage;
+          const usage = u
+            ? {
+                inputTokens: u.input_tokens ?? 0,
+                outputTokens: u.output_tokens ?? 0,
+                cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+                cacheReadTokens: u.cache_read_input_tokens ?? 0,
+              }
+            : undefined;
+          // The SDK result carries the authoritative turn cost — capture it
+          // into metering (usage_events.cost_usd) for accurate per-turn spend.
+          const costUsd = (message as { total_cost_usd?: number }).total_cost_usd;
+          yield { type: 'result', text, usage, model: providerModel, costUsd };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
           yield { type: 'error', message: 'API retry', retryable: true };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'rate_limit_event') {

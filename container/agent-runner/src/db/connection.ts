@@ -108,6 +108,29 @@ export function getOutboundDb(): Database {
         updated_at               TEXT NOT NULL
       );
     `);
+    // usage_events: append-only per-turn token usage for the operator
+    // dashboard's metering. Container is the sole writer; the host reads it
+    // read-only when building /admin views. Forward-compat for older
+    // outbound.db files that predate metering.
+    _outbound.exec(`
+      CREATE TABLE IF NOT EXISTS usage_events (
+        id                    TEXT PRIMARY KEY,
+        ts                    TEXT NOT NULL,
+        model                 TEXT,
+        input_tokens          INTEGER NOT NULL DEFAULT 0,
+        output_tokens         INTEGER NOT NULL DEFAULT 0,
+        cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens     INTEGER NOT NULL DEFAULT 0,
+        cost_usd              REAL NOT NULL DEFAULT 0
+      );
+    `);
+    // Forward-compat: add cost_usd to a usage_events table created before
+    // per-turn cost capture. ALTER throws if the column already exists — ignore.
+    try {
+      _outbound.exec('ALTER TABLE usage_events ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0');
+    } catch {
+      /* column already present */
+    }
   }
   return _outbound;
 }

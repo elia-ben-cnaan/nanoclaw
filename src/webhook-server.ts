@@ -12,6 +12,8 @@ import http from 'http';
 import type { Chat } from 'chat';
 
 import { log } from './log.js';
+import { handleProvision } from './provision-handler.js';
+import { handleAdmin } from './admin-dashboard.js';
 
 const DEFAULT_PORT = 3000;
 
@@ -83,6 +85,37 @@ function ensureServer(): void {
 
   server = http.createServer(async (req, res) => {
     const url = req.url || '/';
+
+    // Route: /admin* — operator dashboard (gated behind ?key=ADMIN_KEY)
+    if (url === '/admin' || url.startsWith('/admin/') || url.startsWith('/admin?')) {
+      try {
+        await handleAdmin(req, res);
+      } catch (err) {
+        log.error('Admin handler error', { err });
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal error' }));
+        }
+      }
+      return;
+    }
+
+    // Route: POST /provision — per-user agent provisioning
+    if (url === '/provision' || url.startsWith('/provision?')) {
+      if (req.method !== 'POST') {
+        res.writeHead(405, { 'Content-Type': 'text/plain' });
+        res.end('Method Not Allowed');
+        return;
+      }
+      try {
+        await handleProvision(req, res);
+      } catch (err) {
+        log.error('Provision handler error', { err });
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+      return;
+    }
 
     // Route: /webhook/{adapterName}
     const match = url.match(/^\/webhook\/([^/?]+)/);
