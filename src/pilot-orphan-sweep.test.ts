@@ -4,12 +4,7 @@ import os from 'os';
 import path from 'path';
 
 import { initTestDb, closeDb, runMigrations, createAgentGroup, getAgentGroupByFolder } from './db/index.js';
-import {
-  createPairing,
-  listPairings,
-  _setStorePathForTest,
-  type PairingRecord,
-} from './channels/telegram-pairing.js';
+import { createPairing, listPairings, _setStorePathForTest, type PairingRecord } from './channels/telegram-pairing.js';
 import { isOrphanPilotPairing, sweepOrphanPilots, ORPHAN_PILOT_GRACE_MS } from './pilot-orphan-sweep.js';
 
 const now = () => new Date().toISOString();

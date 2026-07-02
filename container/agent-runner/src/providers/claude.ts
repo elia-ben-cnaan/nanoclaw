@@ -337,6 +337,7 @@ export class ClaudeProvider implements AgentProvider {
   private additionalDirectories?: string[];
   private model?: string;
   private effort?: string;
+  private maxTurns: number;
 
   constructor(options: ProviderOptions = {}) {
     this.assistantName = options.assistantName;
@@ -344,6 +345,7 @@ export class ClaudeProvider implements AgentProvider {
     this.additionalDirectories = options.additionalDirectories;
     this.model = options.model;
     this.effort = options.effort;
+    this.maxTurns = options.maxTurns ?? 15;
     this.env = {
       ...(options.env ?? {}),
       CLAUDE_CODE_AUTO_COMPACT_WINDOW,
@@ -413,7 +415,8 @@ export class ClaudeProvider implements AgentProvider {
         // budget; capping turns is the lever that prevents a single message
         // from spiraling into an unbounded (and unboundedly expensive) tool
         // loop. Pilot cost control = this cap + the host daily gate.
-        maxTurns: 15,
+        // Overridable per agent group via container config (max_turns).
+        maxTurns: this.maxTurns,
         env: this.env,
         model: this.model,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

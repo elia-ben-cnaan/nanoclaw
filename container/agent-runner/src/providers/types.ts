@@ -79,6 +79,12 @@ export interface ProviderOptions {
    * through to the underlying SDK. If omitted, the SDK default is used.
    */
   effort?: string;
+  /**
+   * Cap on agentic-loop turns per inbound message. Cost-control lever: pilot
+   * agents stay at the provider default (claude: 15); trusted dev agents can
+   * be raised via `ncl groups config update --max-turns N`.
+   */
+  maxTurns?: number;
 }
 
 export interface QueryInput {

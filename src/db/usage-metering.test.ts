@@ -25,9 +25,11 @@ beforeEach(() => {
   const db = initTestDb();
   runMigrations(db);
   // $1.00/day cap for the test agent.
-  db.prepare(
-    'INSERT OR REPLACE INTO agent_cost_caps (agent_group_id, cap_usd, updated_at) VALUES (?, ?, ?)',
-  ).run(AG, 1.0, new Date().toISOString());
+  db.prepare('INSERT OR REPLACE INTO agent_cost_caps (agent_group_id, cap_usd, updated_at) VALUES (?, ?, ?)').run(
+    AG,
+    1.0,
+    new Date().toISOString(),
+  );
 });
 
 afterEach(() => {

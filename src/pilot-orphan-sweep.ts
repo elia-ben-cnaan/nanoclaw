@@ -26,12 +26,7 @@ export const ORPHAN_PILOT_GRACE_MS = 24 * 60 * 60 * 1000;
  * session was ever created for the agent group, and the grace has elapsed
  * since registration. Pure predicate so the policy is unit-testable.
  */
-export function isOrphanPilotPairing(
-  r: PairingRecord,
-  now: number,
-  graceMs: number,
-  hasSession: boolean,
-): boolean {
+export function isOrphanPilotPairing(r: PairingRecord, now: number, graceMs: number, hasSession: boolean): boolean {
   if (r.status !== 'pending') return false;
   if (typeof r.intent !== 'object' || r.intent.kind !== 'new-agent') return false;
   if (!r.intent.folder.startsWith('pilot-')) return false;

@@ -262,9 +262,9 @@ export const DEFAULT_DAILY_COST_CAP_USD: number = (() => {
 
 /** Effective daily cost cap for an agent: per-agent override, else the default. */
 export function effectiveCostCapUsd(agentGroupId: string): number {
-  const row = getDb()
-    .prepare('SELECT cap_usd FROM agent_cost_caps WHERE agent_group_id = ?')
-    .get(agentGroupId) as { cap_usd: number } | undefined;
+  const row = getDb().prepare('SELECT cap_usd FROM agent_cost_caps WHERE agent_group_id = ?').get(agentGroupId) as
+    | { cap_usd: number }
+    | undefined;
   return row && row.cap_usd > 0 ? row.cap_usd : DEFAULT_DAILY_COST_CAP_USD;
 }
 

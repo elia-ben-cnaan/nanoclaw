@@ -41,6 +41,7 @@ export interface ContainerConfig {
   assistantName?: string;
   agentGroupId?: string;
   maxMessagesPerPrompt?: number;
+  maxTurns?: number;
   model?: string;
   effort?: string;
 }
@@ -61,6 +62,7 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     assistantName: row.assistant_name ?? group.name,
     agentGroupId: group.id,
     maxMessagesPerPrompt: row.max_messages_per_prompt ?? undefined,
+    maxTurns: row.max_turns ?? undefined,
     model: row.model ?? undefined,
     effort: row.effort ?? undefined,
   };

@@ -366,7 +366,9 @@ function deleteAgent(agentGroupId: string): { deleted: string; removed: Record<s
       .prepare('DELETE FROM agent_group_members WHERE agent_group_id = ?')
       .run(groupId).changes;
     removed.user_roles = db.prepare('DELETE FROM user_roles WHERE agent_group_id = ?').run(groupId).changes;
-    removed.container_configs = db.prepare('DELETE FROM container_configs WHERE agent_group_id = ?').run(groupId).changes;
+    removed.container_configs = db
+      .prepare('DELETE FROM container_configs WHERE agent_group_id = ?')
+      .run(groupId).changes;
     removed.agent_groups = db.prepare('DELETE FROM agent_groups WHERE id = ?').run(groupId).changes;
     return removed;
   });
