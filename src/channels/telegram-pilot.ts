@@ -33,6 +33,9 @@ import { getUserRoles } from '../modules/permissions/db/user-roles.js';
 import { upsertUser } from '../modules/permissions/db/users.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
+import { provisionPilotAtPress } from '../provision-handler.js';
+import { tryActivatePilot, type ActivationContext } from '../modules/pilot-activation/activation.js';
+import type { PilotActivation, PilotLang } from '../modules/pilot-activation/db.js';
 import { tryConsume, extractCode } from './telegram-pairing.js';
 import { registerChannelAdapter } from './channel-registry.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage, OutboundMessage } from './adapter.js';
@@ -165,8 +168,8 @@ async function sendPairingConfirmation(
   try {
     const text =
       lang === 'en'
-        ? `Hi ${userName}! 👋 I'm your Nano, a personal AI agent, just for you.\n\nSimple way to work together: we chat here, no setup, no technical language. Whatever you need, just ask, in your language, however is comfortable. When I need something to move forward, I'll tell you exactly what. And when you're not sure what's possible, ask me "can you X?" and I'll say if and how.\n\nOver time I'll also be able to connect to your systems — email, calendar and more — with a click, only when you want, always in your control.\n\nBut let's start from where you are: what's on your mind today? 🙂\n(And by the way, you can call me whatever you like. Just say so.)`
-        : `אהלן ${userName}! 👋 אני הננו שלך, סוכן AI אישי, שלך בלבד.\n\nהדרך שלנו פשוטה: עובדים יחד בשיחה, כאן, בלי הגדרות ובלי שפה טכנית. מה שתצטרך, פשוט תבקש, בשפה שלך, איך שנוח לך. כשאני אצטרך משהו כדי להתקדם, אגיד לך בדיוק מה. וכשלא בטוח מה אפשר, תשאל אותי "אתה יכול X?", ואני אגיד אם ואיך.\n\nעם הזמן אוכל גם להתחבר למערכות שלך, מייל, יומן ועוד, בלחיצה, רק כשתרצה, ותמיד בשליטה שלך.\n\nאבל בוא נתחיל מאיפה שאתה: מה על הראש שלך היום? משהו בעבודה, בבית, כל דבר, ונראה איך אני עוזר. אני איתך. תרגיש חופשי. 🙂\n\n(ואגב, אפשר לקרוא לי איך שתרצה. רק תגיד.)`;
+        ? `Hi ${userName}! 👋 I'm Jenny (ג'ני), your personal AI agent, just for you.\n\nSimple way to work together: we chat here, no setup, no technical language. Whatever you need, just ask, in your language, however is comfortable. When I need something to move forward, I'll tell you exactly what. And when you're not sure what's possible, ask me "can you X?" and I'll say if and how.\n\nOver time I'll also be able to connect to your systems — email, calendar and more — with a click, only when you want, always in your control.\n\nBut let's start from where you are: what's on your mind today? 🙂`
+        : `אהלן ${userName}! 👋 אני ג'ני, סוכנת AI אישית, שלך בלבד.\n\nהדרך שלנו פשוטה: עובדים יחד בשיחה, כאן, בלי הגדרות ובלי שפה טכנית. מה שתצטרך, פשוט תבקש, בשפה שלך, איך שנוח לך. כשאני אצטרך משהו כדי להתקדם, אגיד לך בדיוק מה. וכשלא בטוח מה אפשר, תשאל אותי "את יכולה X?", ואני אגיד אם ואיך.\n\nעם הזמן אוכל גם להתחבר למערכות שלך, מייל, יומן ועוד, בלחיצה, רק כשתרצה, ותמיד בשליטה שלך.\n\nאבל בוא נתחיל מאיפה שאתה: מה על הראש שלך היום? משהו בעבודה, בבית, כל דבר, ונראה איך אני עוזרת. אני איתך. תרגיש חופשי. 🙂`;
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -201,6 +204,68 @@ function wireMessagingGroupToAgentExclusive(mgId: string, agentGroupId: string):
   });
 }
 
+/**
+ * Chat-side wiring for a pilot chat: messaging group upsert, user upsert,
+ * membership, and exclusive wiring to the given agent group. Shared by the
+ * activation-v2 path; idempotent, so re-activation is safe.
+ */
+function wirePilotChat(platformId: string, agentGroupId: string, userId: string, userName: string): void {
+  const now = new Date().toISOString();
+  let mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId);
+  if (!mg) {
+    const mgId = `mg-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    createMessagingGroup({
+      id: mgId,
+      channel_type: CHANNEL_TYPE,
+      platform_id: platformId,
+      name: userName,
+      is_group: 0,
+      unknown_sender_policy: 'strict',
+      created_at: now,
+    });
+    mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId)!;
+  }
+  upsertUser({ id: userId, kind: CHANNEL_TYPE, display_name: userName, created_at: now });
+  wireMessagingGroupToAgentExclusive(mg.id, agentGroupId);
+  const hasAccess = getUserRoles(userId).some((r) => r.agent_group_id === agentGroupId);
+  if (!hasAccess) {
+    addMember({ user_id: userId, agent_group_id: agentGroupId, added_by: null, added_at: now });
+  }
+}
+
+/**
+ * Hooks handed to tryActivatePilot — provisioning + chat wiring + greeting
+ * for the deep-link activation flow. Kept here (not in the module) so all
+ * pilot-stack specifics (model, cost caps, supervisor, greeting copy) stay
+ * in one place.
+ */
+function buildActivationHooks(token: string) {
+  return {
+    async activate(consumed: PilotActivation, ctx: ActivationContext): Promise<string> {
+      const prov = provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
+      wirePilotChat(ctx.platformId, prov.agentGroupId, ctx.userId, prov.userName);
+      await sendPairingConfirmation(token, ctx.platformId, prov.userName, prov.lang);
+      return prov.agentGroupId;
+    },
+    async alreadyActive(existing: PilotActivation, ctx: ActivationContext): Promise<void> {
+      const agentGroupId = existing.agent_group_id!;
+      const userName = ctx.displayName ?? 'User';
+      // Idempotent — points this chat at the user's existing agent (covers
+      // the same user activating again from a fresh chat after clearing
+      // history) without ever creating a duplicate.
+      wirePilotChat(ctx.platformId, agentGroupId, ctx.userId, userName);
+      const lang: PilotLang = existing.lang === 'en' ? 'en' : 'he';
+      await sendPilotText(
+        token,
+        ctx.platformId,
+        lang === 'en'
+          ? "Your agent ג'ני is already active here — just keep chatting 🙂"
+          : "הסוכנת שלך ג'ני כבר פעילה כאן — אפשר פשוט להמשיך לדבר איתה 🙂",
+      );
+    },
+  };
+}
+
 function createPilotPairingInterceptor(
   botUsernamePromise: Promise<string | null>,
   hostOnInbound: ChannelSetup['onInbound'],
@@ -218,6 +283,21 @@ function createPilotPairingInterceptor(
         hostOnInbound(platformId, threadId, message);
         return;
       }
+
+      // Activation v2 (deep-link 20-char codes) — checked before the legacy
+      // 4-digit pairing path; the two code formats are disjoint. Handled
+      // attempts are fully consumed here and never reach an agent.
+      const activated = await tryActivatePilot({
+        text,
+        platformId,
+        userId: authorUserId ? `${CHANNEL_TYPE}:${authorUserId}` : null,
+        displayName: senderName,
+        isGroup: isGroupPlatformId(platformId),
+        sendText: (t) => sendPilotText(token, platformId, t),
+        hooks: buildActivationHooks(token),
+      });
+      if (activated) return;
+
       const consumed = await tryConsume({
         text,
         botUsername,

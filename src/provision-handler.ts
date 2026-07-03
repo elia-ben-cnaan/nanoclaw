@@ -1,10 +1,13 @@
 /**
- * POST /provision — per-user agent provisioning for the NanoCo pilot.
+ * POST /provision — pilot registration (activation v2, deep-link codes).
  *
- * Receives a registration payload from the signup app (nanohubdemo.vercel.app),
- * spins a new isolated NanoClaw agent for the user, mints a Telegram pairing
- * code on the shared @shellanoo_bot, and returns the deep-link so the user
- * can complete onboarding in one tap.
+ * Receives a registration payload from the signup app, mints a one-time
+ * 20-char activation code (24h TTL) and returns the Telegram deep-link.
+ * NOTHING is created at registration time: the agent is provisioned when
+ * the user actually presses START (provisionPilotAtPress below), and binds
+ * to the Telegram identity of whoever pressed — never to the phone/email
+ * from the form, which stay contact metadata on the activation row. This
+ * also kills the orphan-agent problem (registrations that never press).
  *
  * Expected body (JSON):
  *   { name, phone, email, gender, lang, ts }
@@ -13,7 +16,7 @@
  *   Authorization: Bearer <HOST_PROVISION_TOKEN>
  *
  * Returns:
- *   200  { "deepLink": "https://t.me/shellanoo_bot?start=<code>" }
+ *   200  { "deepLink": "https://t.me/<pilot-bot>?start=<code>" }
  *   401  { "error": "Unauthorized" }
  *   400  { "error": "Bad request" }
  *   500  { "error": "Internal error" }
@@ -31,7 +34,7 @@ import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
 import { initGroupFilesystem } from './group-init.js';
 import { log } from './log.js';
-import { createPairing } from './channels/telegram-pairing.js';
+import { createActivation, PILOT_WINDOW_DAYS, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
 import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
 import { writeDestinations } from './modules/agent-to-agent/write-destinations.js';
 
@@ -112,15 +115,14 @@ const PROVISION_TOKEN: string | undefined = (() => {
 const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'hosted_agent_template.md');
 
 /**
- * Warm, non-technical default name every freshly-provisioned pilot introduces
- * itself with. This is the user-facing display name + the agent's own name
+ * Fixed name every pilot agent introduces itself with (per the pilot spec:
+ * a single, consistent identity — no rename invitation in the greeting).
+ * This is the user-facing display name + the agent's own name
  * (`assistant_name`) — NOT the slug. The slug (`generateSlug()`) stays an
- * internal id only: it's the folder, the supervisor-wiring local_name, and the
- * log key, and is never surfaced to the user. The user can rename the agent at
- * any time ("call me anything you like"); the agent then adopts the new name
- * and persists it (see hosted_agent_template.md → "## איך קוראים לי").
+ * internal id only: it's the folder, the supervisor-wiring local_name, and
+ * the log key, and is never surfaced to the user.
  */
-const DEFAULT_ASSISTANT_NAME = "ג'וני";
+const DEFAULT_ASSISTANT_NAME = "ג'ני";
 
 /**
  * Pilot cost config — LOCKED. Every freshly-provisioned hosted agent is pinned
@@ -216,65 +218,119 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
 
   const userName = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'User';
   const gender = typeof body.gender === 'string' ? body.gender : 'm';
-  const lang = typeof body.lang === 'string' ? body.lang : 'he';
+  const lang: PilotLang = body.lang === 'en' ? 'en' : 'he';
 
   try {
-    // 3. Choose a unique slug / folder
-    let slug = generateSlug();
-    let attempts = 0;
-    while (getAgentGroupByFolder(slug) && attempts++ < 20) {
-      slug = generateSlug();
-    }
-
-    // 4. Create the agent group. Display name = warm default (never the slug);
-    //    folder = slug, which stays the internal id only.
-    const agentGroupId = `ag-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-    const now = new Date().toISOString();
-    createAgentGroup({
-      id: agentGroupId,
-      name: DEFAULT_ASSISTANT_NAME,
-      folder: slug,
-      agent_provider: null,
-      created_at: now,
+    // Mint a one-time activation code (24h TTL). The agent itself is created
+    // only when the user presses START — see provisionPilotAtPress.
+    const activation = createActivation({
+      lang,
+      metadata: {
+        name: userName,
+        gender,
+        phone: typeof body.phone === 'string' ? body.phone : null,
+        email: typeof body.email === 'string' ? body.email : null,
+      },
     });
 
-    // 5. Initialize filesystem with the seeded instructions
-    const instructions =
-      buildUserIdentityBlock(userName, gender, lang) +
-      '\n\n' +
-      buildInstructions(userName, 'Telegram', DEFAULT_ASSISTANT_NAME);
-    initGroupFilesystem(
-      { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
-      { instructions },
-    );
-
-    // 6. Set model + pilot cost config (LOCKED, see PILOT_MODEL /
-    //    PILOT_DAILY_COST_CAP_USD). Model goes into container_configs; the daily
-    //    cap is written as a per-agent agent_cost_caps row so it is pinned in
-    //    the DB and the router's isOverDailyCostCap gate enforces it from the
-    //    first turn, independent of the env default.
-    ensureContainerConfig(agentGroupId);
-    updateContainerConfigScalars(agentGroupId, {
-      model: PILOT_MODEL,
-      assistant_name: DEFAULT_ASSISTANT_NAME,
-    });
-    setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
-
-    // 6b. Wire the pilot bidirectionally to Daniela (supervisor visibility +
-    //     reachability). Applies automatically to every provisioned agent.
-    wirePilotToSupervisor(agentGroupId, slug);
-
-    // 7. Mint a Telegram pairing code
-    const pairing = await createPairing({ kind: 'new-agent', folder: slug, lang, userName });
-    const code = pairing.code;
-
-    // 8. Build and return the deep-link
     const botUsername = await PILOT_BOT_USERNAME_PROMISE;
-    const deepLink = `https://t.me/${botUsername}?start=${code}`;
-    log.info('Provision: agent created', { slug, agentGroupId, userName, code });
+    const deepLink = `https://t.me/${botUsername}?start=${activation.code}`;
+    log.info('Provision: activation created', { code: activation.code, userName, lang });
     json(res, 200, { deepLink });
   } catch (err) {
     log.error('Provision: failed', { err, userName });
     json(res, 500, { error: 'Internal error' });
   }
+}
+
+/** Contact metadata captured by the signup form (never used for routing). */
+interface ActivationMetadata {
+  name?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
+function parseActivationMetadata(activation: PilotActivation): ActivationMetadata {
+  try {
+    return activation.metadata ? (JSON.parse(activation.metadata) as ActivationMetadata) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** One line the agent can answer "when does my pilot end?" from. */
+function pilotWindowBlock(lang: PilotLang, pilotEndsAt: string | null): string {
+  const endDate = (pilotEndsAt ?? '').slice(0, 10) || 'unknown';
+  return lang === 'en'
+    ? `## Pilot window\nThis is a ${PILOT_WINDOW_DAYS}-day pilot. The pilot window ends on ${endDate}. If asked how long the pilot lasts or when it ends, answer from this date.`
+    : `## תקופת הפיילוט\nזהו פיילוט של ${PILOT_WINDOW_DAYS} ימים. תקופת הפיילוט מסתיימת בתאריך ${endDate}. אם שואלים כמה זמן הפיילוט נמשך או מתי הוא מסתיים — עני לפי התאריך הזה.`;
+}
+
+export interface PressProvisionResult {
+  agentGroupId: string;
+  slug: string;
+  userName: string;
+  lang: PilotLang;
+}
+
+/**
+ * Press-time provisioning — everything handleProvision used to do up front,
+ * now deferred to the moment the user presses START in Telegram. Creates the
+ * agent group (fixed name ג'ני), seeds instructions (user identity + pilot
+ * window + hosted template), pins the pilot model + daily cost cap, and wires
+ * the agent to the supervisor. Chat-side wiring (messaging group, membership,
+ * greeting) stays with the caller in telegram-pilot.ts.
+ */
+export function provisionPilotAtPress(input: {
+  activation: PilotActivation;
+  /** Telegram profile name — fallback when the form carried no name. */
+  fallbackName?: string | null;
+}): PressProvisionResult {
+  const meta = parseActivationMetadata(input.activation);
+  const userName = meta.name?.trim() || input.fallbackName?.trim() || 'User';
+  const gender = meta.gender === 'f' ? 'f' : 'm';
+  const lang: PilotLang = input.activation.lang === 'en' ? 'en' : 'he';
+
+  // Unique slug / folder — internal id only, never user-facing.
+  let slug = generateSlug();
+  let attempts = 0;
+  while (getAgentGroupByFolder(slug) && attempts++ < 20) {
+    slug = generateSlug();
+  }
+
+  const agentGroupId = `ag-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const now = new Date().toISOString();
+  createAgentGroup({
+    id: agentGroupId,
+    name: DEFAULT_ASSISTANT_NAME,
+    folder: slug,
+    agent_provider: null,
+    created_at: now,
+  });
+
+  const instructions =
+    buildUserIdentityBlock(userName, gender, lang) +
+    '\n\n' +
+    pilotWindowBlock(lang, input.activation.pilot_ends_at) +
+    '\n\n' +
+    buildInstructions(userName, 'Telegram', DEFAULT_ASSISTANT_NAME);
+  initGroupFilesystem(
+    { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
+    { instructions },
+  );
+
+  // Pilot cost config (LOCKED, see PILOT_MODEL / PILOT_DAILY_COST_CAP_USD).
+  ensureContainerConfig(agentGroupId);
+  updateContainerConfigScalars(agentGroupId, {
+    model: PILOT_MODEL,
+    assistant_name: DEFAULT_ASSISTANT_NAME,
+  });
+  setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
+
+  // Supervisor visibility + reachability.
+  wirePilotToSupervisor(agentGroupId, slug);
+
+  log.info('Provision: pilot agent created at press', { slug, agentGroupId, userName, lang });
+  return { agentGroupId, slug, userName, lang };
 }
