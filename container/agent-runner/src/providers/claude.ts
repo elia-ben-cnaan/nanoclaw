@@ -5,6 +5,7 @@ import path from 'path';
 import { query as sdkQuery, type HookCallback, type PreCompactHookInput } from '@anthropic-ai/claude-agent-sdk';
 
 import { clearContainerToolInFlight, setContainerToolInFlight } from '../db/connection.js';
+import { QUOTA_ERROR_RE } from '../quota.js';
 import { registerProvider } from './provider-registry.js';
 import type { AgentProvider, AgentQuery, McpServerConfig, ProviderEvent, ProviderOptions, QueryInput } from './types.js';
 
@@ -455,32 +456,50 @@ export class ClaudeProvider implements AgentProvider {
           // billing/quota notice to the user rather than dropping the turn.
           const m = message as { result?: string; is_error?: boolean; errors?: string[] };
           const text = m.result ?? (m.errors && m.errors.length > 0 ? m.errors.join('\n') : null);
-          const u = (
-            message as {
-              usage?: {
-                input_tokens?: number;
-                output_tokens?: number;
-                cache_creation_input_tokens?: number | null;
-                cache_read_input_tokens?: number | null;
-              };
-            }
-          ).usage;
-          const usage = u
-            ? {
-                inputTokens: u.input_tokens ?? 0,
-                outputTokens: u.output_tokens ?? 0,
-                cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
-                cacheReadTokens: u.cache_read_input_tokens ?? 0,
+          const isError = m.is_error === true;
+          if (isError && text && QUOTA_ERROR_RE.test(text)) {
+            // Usage-limit / out-of-quota turn ("Claude AI usage limit
+            // reached|<ts>" and friends). Surface as a quota error so the
+            // poll-loop can fall back to the secondary provider instead of
+            // delivering the raw error text.
+            yield { type: 'error', message: text, retryable: false, classification: 'quota' };
+          } else {
+            const u = (
+              message as {
+                usage?: {
+                  input_tokens?: number;
+                  output_tokens?: number;
+                  cache_creation_input_tokens?: number | null;
+                  cache_read_input_tokens?: number | null;
+                };
               }
-            : undefined;
-          // The SDK result carries the authoritative turn cost — capture it
-          // into metering (usage_events.cost_usd) for accurate per-turn spend.
-          const costUsd = (message as { total_cost_usd?: number }).total_cost_usd;
-          yield { type: 'result', text, isError: m.is_error === true, usage, model: providerModel, costUsd };
+            ).usage;
+            const usage = u
+              ? {
+                  inputTokens: u.input_tokens ?? 0,
+                  outputTokens: u.output_tokens ?? 0,
+                  cacheCreationTokens: u.cache_creation_input_tokens ?? 0,
+                  cacheReadTokens: u.cache_read_input_tokens ?? 0,
+                }
+              : undefined;
+            // The SDK result carries the authoritative turn cost — capture it
+            // into metering (usage_events.cost_usd) for accurate per-turn spend.
+            const costUsd = (message as { total_cost_usd?: number }).total_cost_usd;
+            yield { type: 'result', text, isError, usage, model: providerModel, costUsd };
+          }
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
           yield { type: 'error', message: 'API retry', retryable: true };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'rate_limit_event') {
-          yield { type: 'error', message: 'Rate limit', retryable: false, classification: 'quota' };
+          // rate_limit_event fires with a status field on every check —
+          // only `rejected` means the request was actually blocked. Treating
+          // informational statuses (allowed/allowed_warning) as quota would
+          // trigger the fallback on perfectly healthy turns.
+          const status = (message as { rate_limit?: { status?: string } }).rate_limit?.status;
+          if (status === 'rejected') {
+            yield { type: 'error', message: 'Rate limit exceeded', retryable: false, classification: 'quota' };
+          } else {
+            yield { type: 'progress', message: `Rate limit status: ${status ?? 'unknown'}` };
+          }
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'compact_boundary') {
           const meta = (message as { compact_metadata?: { pre_tokens?: number } }).compact_metadata;
           const detail = meta?.pre_tokens ? ` (${meta.pre_tokens.toLocaleString()} tokens compacted)` : '';

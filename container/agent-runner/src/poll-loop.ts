@@ -2,8 +2,9 @@ import { findByName, getAllDestinations, type DestinationEntry } from './destina
 import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } from './db/messages-in.js';
 import { writeMessageOut, getOutboundCount } from './db/messages-out.js';
 import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
-import { clearContinuation, migrateLegacyContinuation, setContinuation } from './db/session-state.js';
+import { clearContinuation, getContinuation, migrateLegacyContinuation, setContinuation } from './db/session-state.js';
 import { recordUsage } from './db/usage.js';
+import { QuotaExhaustedError, isQuotaErrorMessage } from './quota.js';
 import { clearCurrentInReplyTo, setCurrentInReplyTo } from './current-batch.js';
 import {
   formatMessages,
@@ -70,7 +71,29 @@ export interface PollLoopConfig {
    * polling forever and stealing messages from the next test's DB.
    */
   signal?: AbortSignal;
+  /**
+   * Optional overflow provider. When the primary provider fails a turn with
+   * a quota-exhaustion error, the unanswered prompt is retried once on this
+   * provider and the user is notified of the switch. Every new turn starts
+   * on the primary again, so recovery back to the primary is automatic.
+   */
+  fallback?: {
+    provider: AgentProvider;
+    providerName: string;
+  };
 }
+
+// User-facing notices for the fallback flow. Sent to the same destination
+// the failed turn was routed to.
+const FALLBACK_SWITCH_NOTICE =
+  '⚠️ מכסת Claude נגמרה כרגע — ממשיך לענות דרך Codex (OpenAI). אחזור ל-Claude אוטומטית כשהמכסה תתחדש.';
+const FALLBACK_RETURN_NOTICE = '✅ מכסת Claude התחדשה — חזרתי לענות דרך Claude.';
+const FALLBACK_FAILED_NOTICE = '❌ גם מנוע הגיבוי (Codex) לא הצליח לענות כרגע. נסו שוב מאוחר יותר.';
+
+// Set when a turn was served by the fallback provider; the next successful
+// primary result sends FALLBACK_RETURN_NOTICE so the user knows they're
+// back on the primary engine.
+let pendingReturnNotice = false;
 
 /**
  * Main poll loop. Runs indefinitely until the process is killed.
@@ -257,24 +280,45 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
       const errMsg = err instanceof Error ? err.message : String(err);
       log(`Query error: ${errMsg}`);
 
-      // Stale/corrupt continuation recovery: ask the provider whether
-      // this error means the stored continuation is unusable, and clear
-      // it so the next attempt starts fresh.
-      if (continuation && config.provider.isSessionInvalid(err)) {
-        log(`Stale session detected (${continuation}) — clearing for next retry`);
-        continuation = undefined;
-        clearContinuation(config.providerName);
-      }
+      // Quota exhaustion on the primary → retry the unanswered prompt on the
+      // fallback provider. QuotaExhaustedError carries the exact prompt
+      // segment that went unanswered; a plain thrown error that reads like
+      // quota (SDK subprocess died on a usage-limit response) retries the
+      // batch's initial prompt.
+      const quotaPrompt =
+        err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? prompt : null;
 
-      // Write error response so the user knows something went wrong
-      writeMessageOut({
-        id: generateId(),
-        kind: 'chat',
-        platform_id: routing.platformId,
-        channel_type: routing.channelType,
-        thread_id: routing.threadId,
-        content: JSON.stringify({ text: `Error: ${errMsg}` }),
-      });
+      if (quotaPrompt !== null && config.fallback) {
+        log(`Primary quota exhausted — retrying on fallback provider '${config.fallback.providerName}'`);
+        writeNotice(routing, FALLBACK_SWITCH_NOTICE);
+        try {
+          await runFallbackTurn(config.fallback, quotaPrompt, routing, config.cwd, config.systemContext);
+          pendingReturnNotice = true;
+        } catch (fbErr) {
+          const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
+          log(`Fallback turn failed: ${fbMsg}`);
+          writeNotice(routing, FALLBACK_FAILED_NOTICE);
+        }
+      } else {
+        // Stale/corrupt continuation recovery: ask the provider whether
+        // this error means the stored continuation is unusable, and clear
+        // it so the next attempt starts fresh.
+        if (continuation && config.provider.isSessionInvalid(err)) {
+          log(`Stale session detected (${continuation}) — clearing for next retry`);
+          continuation = undefined;
+          clearContinuation(config.providerName);
+        }
+
+        // Write error response so the user knows something went wrong
+        writeMessageOut({
+          id: generateId(),
+          kind: 'chat',
+          platform_id: routing.platformId,
+          channel_type: routing.channelType,
+          thread_id: routing.threadId,
+          content: JSON.stringify({ text: `Error: ${errMsg}` }),
+        });
+      }
     } finally {
       clearCurrentInReplyTo();
     }
@@ -352,6 +396,11 @@ export async function processQuery(
   // ("Done, I let them know.") looks indistinguishable from one that sent
   // nothing at all.
   const outboundSnapshots: number[] = [getOutboundCount()];
+
+  // Most recent user-content prompt segment sent into the query (initial
+  // batch or follow-up push — not system nudges). On quota exhaustion this
+  // is the segment that went unanswered, handed to the fallback provider.
+  let lastPrompt = initialPrompt;
 
   // Concurrent polling: push follow-ups into the active query as they arrive.
   // We do NOT force-end the stream on silence — keeping the query open avoids
@@ -431,6 +480,7 @@ export async function processQuery(
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
         outboundSnapshots.push(getOutboundCount());
+        lastPrompt = prompt;
         query.push(prompt);
         archivePrompts.push(prompt);
         markCompleted(keptIds);
@@ -486,6 +536,12 @@ export async function processQuery(
         // effectively orphaned and the next message started a blank
         // Claude session with no prior context.
         setContinuation(providerName, event.continuation);
+      } else if (event.type === 'error' && event.classification === 'quota') {
+        // Provider is out of quota — this query cannot answer the current
+        // segment. Abort and surface to runPollLoop, which retries the
+        // segment on the fallback provider (when one is configured).
+        query.abort();
+        throw new QuotaExhaustedError(event.message, lastPrompt);
       } else if (event.type === 'result') {
         // Record per-turn token usage for the operator dashboard. Best-effort:
         // a metering write must never break the agent's turn.
@@ -503,6 +559,12 @@ export async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
+        // A prior turn ran on the fallback provider; this successful
+        // primary turn means quota recovered — tell the user once.
+        if (pendingReturnNotice) {
+          pendingReturnNotice = false;
+          writeNotice(routing, FALLBACK_RETURN_NOTICE);
+        }
         // Pop the snapshot taken before this turn's prompt was pushed. Falls
         // back to the current count (i.e. "nothing sent yet") if the queue
         // is ever empty, which only happens if pushes and results drift out
@@ -584,6 +646,85 @@ function notifyExchangeComplete(
     hook(exchange);
   } catch (err) {
     log(`onExchangeComplete failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** Write a short system notice to the turn's origin destination. */
+function writeNotice(routing: RoutingContext, text: string): void {
+  writeMessageOut({
+    id: generateId(),
+    in_reply_to: routing.inReplyTo,
+    kind: 'chat',
+    platform_id: routing.platformId,
+    channel_type: routing.channelType,
+    thread_id: routing.threadId,
+    content: JSON.stringify({ text }),
+  });
+}
+
+/**
+ * Run a single turn on the fallback provider: retry the unanswered prompt,
+ * dispatch the result, persist the fallback's own continuation (kept in its
+ * own per-provider slot so the fallback conversation also has memory), and
+ * close the query so the outer loop returns to the primary provider on the
+ * next batch.
+ *
+ * Exported for tests.
+ */
+export async function runFallbackTurn(
+  fallback: { provider: AgentProvider; providerName: string },
+  prompt: string,
+  routing: RoutingContext,
+  cwd: string,
+  systemContext?: { instructions?: string },
+): Promise<void> {
+  const continuation = getContinuation(fallback.providerName);
+  // Snapshot the outbound row count before the turn: if it grows, the agent
+  // delivered via an MCP tool (send_message, ...) and a bare unwrapped final
+  // text is scratchpad — re-nudging would produce a duplicate reply.
+  const outboundBefore = getOutboundCount();
+  const query = fallback.provider.query({ prompt, continuation, cwd, systemContext });
+
+  let nudged = false;
+  let gotResult = false;
+  try {
+    for await (const event of query.events) {
+      touchHeartbeat();
+      if (event.type === 'init') {
+        setContinuation(fallback.providerName, event.continuation);
+      } else if (event.type === 'error' && event.classification === 'quota') {
+        query.abort();
+        throw new Error(`Fallback provider quota exhausted: ${event.message}`);
+      } else if (event.type === 'result') {
+        gotResult = true;
+        if (event.text) {
+          const { hasUnwrapped } = dispatchResultText(event.text, routing);
+          const alreadySentThisTurn = getOutboundCount() > outboundBefore;
+          if (hasUnwrapped && !alreadySentThisTurn && !nudged) {
+            // Same one-shot re-wrap nudge as the primary path — give the
+            // fallback one chance to deliver, then close regardless.
+            nudged = true;
+            gotResult = false;
+            const names = getAllDestinations()
+              .map((d) => d.name)
+              .join(', ');
+            query.push(
+              `<system>Your response was not delivered — it was not wrapped in <message to="name">...</message> blocks. ` +
+                `Your destinations: ${names}. Please re-send your response with the correct wrapping.</system>`,
+            );
+            continue;
+          }
+        }
+        // Turn answered — close the stream so control returns to the
+        // primary provider for the next batch.
+        query.end();
+      }
+    }
+  } finally {
+    if (!gotResult) query.abort();
+  }
+  if (!gotResult) {
+    throw new Error('Fallback provider produced no result');
   }
 }
 
@@ -679,6 +820,12 @@ function dispatchResultText(text: string, routing: RoutingContext): { sent: numb
 function sendToDestination(dest: DestinationEntry, body: string, routing: RoutingContext): void {
   const platformId = dest.type === 'channel' ? dest.platformId! : dest.agentGroupId!;
   const channelType = dest.type === 'channel' ? dest.channelType! : 'agent';
+  const content = JSON.stringify({ text: body });
+
+  // Duplicate sends (same text already sent via the send_message MCP tool
+  // this turn) are suppressed centrally in writeMessageOut — see
+  // findRecentDuplicateSeq in db/messages-out.ts.
+
   // Resolve thread_id per-destination from the most recent inbound message
   // that came from this same channel+platform. In agent-shared sessions,
   // different destinations have different thread contexts — using a single
@@ -691,7 +838,7 @@ function sendToDestination(dest: DestinationEntry, body: string, routing: Routin
     platform_id: platformId,
     channel_type: channelType,
     thread_id: destRouting?.threadId ?? null,
-    content: JSON.stringify({ text: body }),
+    content,
   });
 }
 

@@ -21,6 +21,7 @@ function presentConfig(row: ContainerConfigRow): Record<string, unknown> {
   return {
     agent_group_id: row.agent_group_id,
     provider: row.provider,
+    fallback_provider: row.fallback_provider,
     model: row.model,
     effort: row.effort,
     max_turns: row.max_turns,
@@ -244,7 +245,7 @@ registerResource({
       access: 'approval',
       description:
         'Update container config scalar fields. Changes are saved but do NOT take effect until you run `ncl groups restart`. ' +
-        'Use --id <group-id> and any of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope.',
+        'Use --id <group-id> and any of: --provider, --fallback-provider (or "none" to clear), --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope.',
       handler: async (args) => {
         const id = args.id as string;
         if (!id) throw new Error('--id is required');
@@ -255,6 +256,7 @@ registerResource({
           Pick<
             ContainerConfigRow,
             | 'provider'
+            | 'fallback_provider'
             | 'model'
             | 'effort'
             | 'image_tag'
@@ -265,6 +267,11 @@ registerResource({
           >
         > = {};
         if (args.provider !== undefined) updates.provider = args.provider as string;
+        if (args['fallback-provider'] !== undefined || args.fallback_provider !== undefined) {
+          const fb = (args['fallback-provider'] ?? args.fallback_provider) as string;
+          // "none" clears the fallback (CLI flags can't pass null directly)
+          updates.fallback_provider = fb === 'none' ? null : fb;
+        }
         if (args.model !== undefined) updates.model = args.model as string;
         if (args.effort !== undefined) updates.effort = args.effort as string;
         if (args.image_tag !== undefined) updates.image_tag = args.image_tag as string;
@@ -286,7 +293,7 @@ registerResource({
 
         if (Object.keys(updates).length === 0) {
           throw new Error(
-            'Nothing to update — provide at least one of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope',
+            'Nothing to update — provide at least one of: --provider, --fallback-provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope',
           );
         }
 
