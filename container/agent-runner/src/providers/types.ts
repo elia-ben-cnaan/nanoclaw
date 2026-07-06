@@ -149,6 +149,21 @@ export type ProviderEvent =
   | { type: 'error'; message: string; retryable: boolean; classification?: string }
   | { type: 'progress'; message: string }
   /**
+   * Plan/usage rate-limit telemetry from the provider (Claude's SDK
+   * `rate_limit_event`). Fires informationally as usage climbs — the poll-loop
+   * uses it to send a proactive "nearing the limit" heads-up before the quota
+   * actually runs out and the fallback kicks in. `utilization` is 0-100 for the
+   * window; `status` is the SDK's own classification; `resetsAt` keys per-window
+   * dedup. A `rejected` status is surfaced as a quota error, not here.
+   */
+  | {
+      type: 'rate_limit';
+      status: 'allowed' | 'allowed_warning' | 'rejected';
+      utilization?: number;
+      resetsAt?: number;
+      rateLimitType?: string;
+    }
+  /**
    * Liveness signal. Providers MUST yield this on every underlying SDK
    * event (tool call, thinking, partial message, anything) so the
    * poll-loop's idle timer stays honest during long tool runs.

@@ -9,6 +9,8 @@ import {
   setContinuation,
   loadFallbackState,
   saveFallbackState,
+  getRateLimitWarnedAt,
+  setRateLimitWarnedAt,
 } from './db/session-state.js';
 import { recordUsage } from './db/usage.js';
 import { QuotaExhaustedError, isQuotaErrorMessage } from './quota.js';
@@ -96,6 +98,32 @@ const FALLBACK_SWITCH_NOTICE =
   '⚠️ מכסת Claude נגמרה כרגע — ממשיך לענות דרך Codex (OpenAI). אחזור ל-Claude אוטומטית כשהמכסה תתחדש.';
 const FALLBACK_RETURN_NOTICE = '✅ מכסת Claude התחדשה — חזרתי לענות דרך Claude.';
 const FALLBACK_FAILED_NOTICE = '❌ גם מנוע הגיבוי (Codex) לא הצליח לענות כרגע. נסו שוב מאוחר יותר.';
+
+// Proactive heads-up sent once per rate-limit window when Claude's own usage
+// crosses the warning line — BEFORE the quota actually runs out and the
+// fallback kicks in. Gives the user a chance to wrap up on Claude.
+const RATE_LIMIT_WARN_THRESHOLD = 90;
+
+function nearingLimitNotice(utilization?: number): string {
+  const pct = typeof utilization === 'number' ? `~${Math.round(utilization)}%` : 'רוב המכסה';
+  return `🔔 ניצול מכסת Claude עומד על ${pct} מהחלון הנוכחי — מתקרבים למכסה. אם היא תיגמר אעבור זמנית ל-Codex ואחזור אוטומטית כשתתחדש.`;
+}
+
+/**
+ * Should we send the proactive "nearing the limit" heads-up for this rate-limit
+ * telemetry? True when usage crosses the warning line (SDK `allowed_warning`
+ * status or utilization ≥ threshold) AND we haven't already warned for this
+ * window (identified by its `resetsAt`). Pure — the caller persists the window.
+ */
+export function shouldWarnNearingLimit(
+  ev: { status: string; utilization?: number; resetsAt?: number },
+  lastWarnedResetsAt: number | undefined,
+): boolean {
+  const nearing = ev.status === 'allowed_warning' || (ev.utilization ?? 0) >= RATE_LIMIT_WARN_THRESHOLD;
+  if (!nearing) return false;
+  // New window (different resetsAt) → warn again; same window → stay quiet.
+  return (ev.resetsAt ?? 0) !== (lastWarnedResetsAt ?? -1);
+}
 
 // How long to keep serving from the fallback after a primary quota-exhaustion
 // before re-probing the primary. During this window every message is routed
@@ -634,6 +662,15 @@ export async function processQuery(
         // segment on the fallback provider (when one is configured).
         query.abort();
         throw new QuotaExhaustedError(event.message, lastPrompt);
+      } else if (event.type === 'rate_limit') {
+        // Proactive heads-up: Claude's own usage is climbing. Warn once per
+        // window (deduped + persisted by resetsAt) before the quota actually
+        // runs out and the fallback takes over.
+        if (shouldWarnNearingLimit(event, getRateLimitWarnedAt())) {
+          setRateLimitWarnedAt(event.resetsAt ?? 0);
+          log(`Claude usage nearing limit (${event.utilization ?? '?'}%, status=${event.status}) — sending heads-up`);
+          writeNotice(routing, nearingLimitNotice(event.utilization));
+        }
       } else if (event.type === 'result') {
         // Record per-turn token usage for the operator dashboard. Best-effort:
         // a metering write must never break the agent's turn.
@@ -897,6 +934,9 @@ function handleEvent(event: ProviderEvent, _routing: RoutingContext): void {
       break;
     case 'progress':
       log(`Progress: ${event.message}`);
+      break;
+    case 'rate_limit':
+      log(`Rate limit: status=${event.status}, utilization=${event.utilization ?? '?'}%, type=${event.rateLimitType ?? '?'}`);
       break;
   }
 }

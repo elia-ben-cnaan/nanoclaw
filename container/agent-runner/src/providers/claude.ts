@@ -493,16 +493,38 @@ export class ClaudeProvider implements AgentProvider {
           }
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'api_retry') {
           yield { type: 'error', message: 'API retry', retryable: true };
-        } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'rate_limit_event') {
-          // rate_limit_event fires with a status field on every check —
-          // only `rejected` means the request was actually blocked. Treating
-          // informational statuses (allowed/allowed_warning) as quota would
-          // trigger the fallback on perfectly healthy turns.
-          const status = (message as { rate_limit?: { status?: string } }).rate_limit?.status;
+        } else if (message.type === 'rate_limit_event') {
+          // Plan rate-limit telemetry. NOTE: this is a TOP-LEVEL message type
+          // (`rate_limit_event`), not a `system` subtype — the old handler that
+          // matched `type==='system' && subtype==='rate_limit_event'` never
+          // fired (wrong shape) and was dead code. The real payload lives on
+          // `rate_limit_info` (SDKRateLimitInfo): status / utilization /
+          // resetsAt / rateLimitType.
+          const info = (
+            message as {
+              rate_limit_info?: {
+                status?: 'allowed' | 'allowed_warning' | 'rejected';
+                utilization?: number;
+                resetsAt?: number;
+                rateLimitType?: string;
+              };
+            }
+          ).rate_limit_info;
+          const status = info?.status;
           if (status === 'rejected') {
+            // Actually blocked — surface as quota so the poll-loop falls back.
             yield { type: 'error', message: 'Rate limit exceeded', retryable: false, classification: 'quota' };
-          } else {
-            yield { type: 'progress', message: `Rate limit status: ${status ?? 'unknown'}` };
+          } else if (status) {
+            // Informational (allowed / allowed_warning): hand the poll-loop the
+            // full telemetry so it can decide whether to send a proactive
+            // heads-up before the quota runs out.
+            yield {
+              type: 'rate_limit',
+              status,
+              utilization: info?.utilization,
+              resetsAt: info?.resetsAt,
+              rateLimitType: info?.rateLimitType,
+            };
           }
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'compact_boundary') {
           const meta = (message as { compact_metadata?: { pre_tokens?: number } }).compact_metadata;
