@@ -34,7 +34,12 @@ import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
 import { initGroupFilesystem } from './group-init.js';
 import { log } from './log.js';
-import { createActivation, PILOT_WINDOW_DAYS, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
+import {
+  createActivation,
+  PILOT_WINDOW_DAYS,
+  type PilotActivation,
+  type PilotLang,
+} from './modules/pilot-activation/db.js';
 import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
 import { writeDestinations } from './modules/agent-to-agent/write-destinations.js';
 
@@ -112,7 +117,10 @@ const PROVISION_TOKEN: string | undefined = (() => {
   return fromEnv['HOST_PROVISION_TOKEN'] || process.env['HOST_PROVISION_TOKEN'] || undefined;
 })();
 
-const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'hosted_agent_template.md');
+// Johnny (ג'וני) is the active pilot agent as of 2026-07-06: every provisioned
+// agent is born from this approved v2 script (Elia #16256). Replaces the older
+// hosted_agent_template.md (ג'ני). Existing Jenny agents keep their own files.
+const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'pilot_agent_script_v2.md');
 
 /**
  * Fixed name every pilot agent introduces itself with (per the pilot spec:
@@ -122,7 +130,7 @@ const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'hosted_ag
  * internal id only: it's the folder, the supervisor-wiring local_name, and
  * the log key, and is never surfaced to the user.
  */
-const DEFAULT_ASSISTANT_NAME = "ג'ני";
+const DEFAULT_ASSISTANT_NAME = "ג'וני";
 
 /**
  * Pilot cost config — LOCKED. Every freshly-provisioned hosted agent is pinned
@@ -134,19 +142,27 @@ const DEFAULT_ASSISTANT_NAME = "ג'ני";
  * place, not per request.
  */
 const PILOT_MODEL = 'claude-haiku-4-5';
+// Overflow provider for pilots: when the Claude account hits its plan/session
+// limit, the pilot keeps answering via Codex instead of surfacing a raw
+// "session limit" error to the user (and returns to Claude automatically when
+// quota renews). Mirrors Daniela's config so app-created agents survive an
+// outage the same way.
+const PILOT_FALLBACK_PROVIDER = 'codex';
 const PILOT_DAILY_COST_CAP_USD = 1.0;
 
-// Resolved once at startup from the pilot bot token via getMe.
+// Resolved once at startup from the Johnny bot token via getMe. The /provision
+// deep link points at @joni_agent_bot as of 2026-07-06 (Johnny replaces the
+// pilot in provisioning). Falls back to the literal username if getMe fails.
 const PILOT_BOT_USERNAME_PROMISE: Promise<string> = (async () => {
-  const env = readEnvFile(['PILOT_TELEGRAM_BOT_TOKEN']);
-  const token = env['PILOT_TELEGRAM_BOT_TOKEN'];
-  if (!token) return 'banielaclowbot'; // fallback until pilot bot is configured
+  const env = readEnvFile(['JONI_TELEGRAM_BOT_TOKEN']);
+  const token = env['JONI_TELEGRAM_BOT_TOKEN'];
+  if (!token) return 'joni_agent_bot'; // fallback until Johnny bot token is set
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
     const data = (await res.json()) as { ok?: boolean; result?: { username?: string } };
-    return data.ok && data.result?.username ? data.result.username : 'banielaclowbot';
+    return data.ok && data.result?.username ? data.result.username : 'joni_agent_bot';
   } catch {
-    return 'banielaclowbot';
+    return 'joni_agent_bot';
   }
 })();
 
@@ -324,6 +340,7 @@ export function provisionPilotAtPress(input: {
   ensureContainerConfig(agentGroupId);
   updateContainerConfigScalars(agentGroupId, {
     model: PILOT_MODEL,
+    fallback_provider: PILOT_FALLBACK_PROVIDER,
     assistant_name: DEFAULT_ASSISTANT_NAME,
   });
   setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
