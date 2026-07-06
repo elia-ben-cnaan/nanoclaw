@@ -82,7 +82,12 @@ export class CodexProvider implements AgentProvider {
 
   constructor(options: ProviderOptions = {}) {
     this.mcpServers = options.mcpServers ?? {};
-    this.model = (options.env?.CODEX_MODEL as string | undefined) ?? 'gpt-5.4-mini';
+    // Per-group model wins (the group's `model` config, for agents whose
+    // PRIMARY provider is codex — e.g. a dedicated dev agent). The global
+    // CODEX_MODEL env is the quota-fallback default: index.ts creates the
+    // fallback codex with model:undefined, so a claude group's fallback lands
+    // here and uses CODEX_MODEL, never its (claude) model field.
+    this.model = options.model ?? (options.env?.CODEX_MODEL as string | undefined) ?? 'gpt-5.4-mini';
     this.baseUrl = options.env?.OPENAI_BASE_URL as string | undefined;
   }
 
