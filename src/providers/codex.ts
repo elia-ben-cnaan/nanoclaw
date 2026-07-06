@@ -19,6 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 
+import { readEnvFile } from '../env.js';
 import { registerProviderContainerConfig } from './provider-container-registry.js';
 
 registerProviderContainerConfig('codex', (ctx) => {
@@ -36,10 +37,15 @@ registerProviderContainerConfig('codex', (ctx) => {
     }
   }
 
+  // Read from .env (not process.env — this host keeps secrets out of the
+  // process environment; readEnvFile is the same path the claude provider
+  // uses). OPENAI_API_KEY is a non-empty placeholder here: the OneCLI
+  // gateway rewrites the Authorization header for api.openai.com calls with
+  // the real vaulted OpenAI secret, so the raw key never enters the container.
+  const dotenv = readEnvFile(['OPENAI_API_KEY', 'CODEX_MODEL', 'OPENAI_BASE_URL']);
   const env: Record<string, string> = {};
   for (const key of ['OPENAI_API_KEY', 'CODEX_MODEL', 'OPENAI_BASE_URL'] as const) {
-    const value = ctx.hostEnv[key];
-    if (value) env[key] = value;
+    if (dotenv[key]) env[key] = dotenv[key];
   }
 
   return {
