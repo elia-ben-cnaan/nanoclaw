@@ -7,9 +7,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { initTestSessionDb, closeSessionDb } from './db/connection.js';
 import { getUndeliveredMessages } from './db/messages-out.js';
-import { getContinuation } from './db/session-state.js';
+import { getContinuation, loadFallbackState, saveFallbackState } from './db/session-state.js';
 import { isQuotaErrorMessage, QuotaExhaustedError } from './quota.js';
-import { runFallbackTurn } from './poll-loop.js';
+import {
+  runFallbackTurn,
+  newFallbackState,
+  isPrimaryInCooldown,
+  registerPrimaryQuota,
+  registerPrimaryRecovery,
+} from './poll-loop.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, QueryInput } from './providers/types.js';
 import type { Database } from 'bun:sqlite';
 
@@ -142,5 +148,78 @@ describe('runFallbackTurn', () => {
     await expect(runFallbackTurn(fallbackOf(provider), 'prompt', ROUTING, '/workspace/agent')).rejects.toThrow(
       /no result/i,
     );
+  });
+});
+
+describe('quota-fallback outage state machine', () => {
+  const T0 = 1_000_000; // arbitrary fixed "now" — no real clock, fully deterministic
+  const COOLDOWN_MS = 10 * 60 * 1000;
+
+  it('announces the switch once per outage, not once per message', () => {
+    const s = newFallbackState();
+
+    // First quota hit of the outage → announce.
+    expect(registerPrimaryQuota(s, T0).announce).toBe(true);
+    // Every subsequent quota hit while still down → stay silent.
+    expect(registerPrimaryQuota(s, T0 + 1_000).announce).toBe(false);
+    expect(registerPrimaryQuota(s, T0 + 5_000).announce).toBe(false);
+  });
+
+  it('opens and keeps extending the primary cooldown on repeated quota hits', () => {
+    const s = newFallbackState();
+
+    registerPrimaryQuota(s, T0);
+    // Inside the window → skip the primary (only when a fallback exists).
+    expect(isPrimaryInCooldown(s, true, T0 + COOLDOWN_MS - 1)).toBe(true);
+    // No fallback configured → never skip the primary, even mid-cooldown.
+    expect(isPrimaryInCooldown(s, false, T0 + COOLDOWN_MS - 1)).toBe(false);
+    // Past the window → probe the primary again.
+    expect(isPrimaryInCooldown(s, true, T0 + COOLDOWN_MS + 1)).toBe(false);
+
+    // A later quota hit refreshes the window from the new "now".
+    registerPrimaryQuota(s, T0 + COOLDOWN_MS + 1);
+    expect(isPrimaryInCooldown(s, true, T0 + COOLDOWN_MS + 2)).toBe(true);
+  });
+
+  it('sends the recovery notice once when the primary comes back, then goes quiet', () => {
+    const s = newFallbackState();
+    registerPrimaryQuota(s, T0);
+
+    // Primary succeeds → notify return exactly once and clear the cooldown.
+    const first = registerPrimaryRecovery(s);
+    expect(first.notifyReturn).toBe(true);
+    expect(isPrimaryInCooldown(s, true, T0 + 1)).toBe(false);
+
+    // Further successes while already recovered → no repeat notice.
+    expect(registerPrimaryRecovery(s).notifyReturn).toBe(false);
+  });
+
+  it('never announces recovery if no switch was ever announced', () => {
+    const s = newFallbackState();
+    expect(registerPrimaryRecovery(s).notifyReturn).toBe(false);
+  });
+});
+
+describe('fallback state persistence (survives container restart)', () => {
+  it('round-trips onFallback + cooldown through the session store', () => {
+    expect(loadFallbackState()).toBeUndefined(); // fresh session — nothing stored
+
+    const s = newFallbackState();
+    registerPrimaryQuota(s, 1_000_000);
+    saveFallbackState(s);
+
+    // A restart re-reads the same outage state instead of starting clean.
+    const restored = loadFallbackState();
+    expect(restored).toEqual({ onFallback: true, primaryCooldownUntil: 1_000_000 + 10 * 60 * 1000 });
+  });
+
+  it('persists recovery so a restart after recovery does not think it is still down', () => {
+    const s = newFallbackState();
+    registerPrimaryQuota(s, 1_000_000);
+    saveFallbackState(s);
+    registerPrimaryRecovery(s);
+    saveFallbackState(s);
+
+    expect(loadFallbackState()).toEqual({ onFallback: false, primaryCooldownUntil: 0 });
   });
 });

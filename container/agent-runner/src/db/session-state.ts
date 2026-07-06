@@ -66,6 +66,36 @@ export function migrateLegacyContinuation(providerName: string): string | undefi
   return legacy;
 }
 
+const FALLBACK_STATE_KEY = 'fallback_state';
+
+/**
+ * Persisted quota-fallback outage state. Kept on disk (not just in the loop's
+ * memory) so a container restart mid-outage — e.g. the host watchdog bouncing
+ * us — resumes the same state instead of re-announcing the switch to the user.
+ */
+export interface PersistedFallbackState {
+  onFallback: boolean;
+  primaryCooldownUntil: number;
+}
+
+export function loadFallbackState(): PersistedFallbackState | undefined {
+  const raw = getValue(FALLBACK_STATE_KEY);
+  if (raw === undefined) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedFallbackState>;
+    if (typeof parsed?.onFallback === 'boolean' && typeof parsed?.primaryCooldownUntil === 'number') {
+      return { onFallback: parsed.onFallback, primaryCooldownUntil: parsed.primaryCooldownUntil };
+    }
+  } catch {
+    // Corrupt/legacy row — ignore and start from a clean outage state.
+  }
+  return undefined;
+}
+
+export function saveFallbackState(state: PersistedFallbackState): void {
+  setValue(FALLBACK_STATE_KEY, JSON.stringify(state));
+}
+
 export function getContinuation(providerName: string): string | undefined {
   return getValue(continuationKey(providerName));
 }

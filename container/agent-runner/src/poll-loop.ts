@@ -2,7 +2,14 @@ import { findByName, getAllDestinations, type DestinationEntry } from './destina
 import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } from './db/messages-in.js';
 import { writeMessageOut, getOutboundCount } from './db/messages-out.js';
 import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
-import { clearContinuation, getContinuation, migrateLegacyContinuation, setContinuation } from './db/session-state.js';
+import {
+  clearContinuation,
+  getContinuation,
+  migrateLegacyContinuation,
+  setContinuation,
+  loadFallbackState,
+  saveFallbackState,
+} from './db/session-state.js';
 import { recordUsage } from './db/usage.js';
 import { QuotaExhaustedError, isQuotaErrorMessage } from './quota.js';
 import { clearCurrentInReplyTo, setCurrentInReplyTo } from './current-batch.js';
@@ -90,10 +97,67 @@ const FALLBACK_SWITCH_NOTICE =
 const FALLBACK_RETURN_NOTICE = '✅ מכסת Claude התחדשה — חזרתי לענות דרך Claude.';
 const FALLBACK_FAILED_NOTICE = '❌ גם מנוע הגיבוי (Codex) לא הצליח לענות כרגע. נסו שוב מאוחר יותר.';
 
-// Set when a turn was served by the fallback provider; the next successful
-// primary result sends FALLBACK_RETURN_NOTICE so the user knows they're
-// back on the primary engine.
-let pendingReturnNotice = false;
+// How long to keep serving from the fallback after a primary quota-exhaustion
+// before re-probing the primary. During this window every message is routed
+// straight to the fallback instead of paying a guaranteed-failing primary
+// attempt first — faster replies during an outage and no wasted primary calls.
+// Trade-off: recovery back to the primary lags the real quota reset by at most
+// this window, but the fallback serves meanwhile so it's not user-facing
+// downtime.
+const PRIMARY_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Per-loop quota-fallback state. Instantiated once per runPollLoop call (NOT
+ * module-global) so concurrent or sequential loops — and tests — never bleed
+ * outage state into one another.
+ */
+export interface FallbackState {
+  // True from the moment we announce a switch to the fallback until a primary
+  // turn succeeds again. Gates the switch notice so the outage is announced
+  // ONCE (not once per message) and drives the one-shot FALLBACK_RETURN_NOTICE
+  // when the primary recovers.
+  onFallback: boolean;
+  // Epoch-ms until which the primary is treated as quota-exhausted and skipped
+  // in favour of the fallback. 0 = primary is live. Refreshed on every primary
+  // quota error, so a still-down primary keeps extending the window.
+  primaryCooldownUntil: number;
+}
+
+/** Fresh outage state — primary live, nothing announced. */
+export function newFallbackState(): FallbackState {
+  return { onFallback: false, primaryCooldownUntil: 0 };
+}
+
+/**
+ * Should this batch skip the primary and go straight to the fallback? True
+ * while a fallback is configured and the primary is inside its quota cooldown.
+ */
+export function isPrimaryInCooldown(fbState: FallbackState, hasFallback: boolean, now: number): boolean {
+  return hasFallback && now < fbState.primaryCooldownUntil;
+}
+
+/**
+ * Record a primary quota exhaustion: open (or extend) the cooldown and report
+ * whether the switch should be announced. `announce` is true only on the first
+ * turn of an outage — so the user is told once, not once per message.
+ */
+export function registerPrimaryQuota(fbState: FallbackState, now: number): { announce: boolean } {
+  fbState.primaryCooldownUntil = now + PRIMARY_COOLDOWN_MS;
+  if (fbState.onFallback) return { announce: false };
+  fbState.onFallback = true;
+  return { announce: true };
+}
+
+/**
+ * Record a successful primary turn: clear the outage state and report whether
+ * the recovery notice should be sent (true only if we had switched away).
+ */
+export function registerPrimaryRecovery(fbState: FallbackState): { notifyReturn: boolean } {
+  if (!fbState.onFallback) return { notifyReturn: false };
+  fbState.onFallback = false;
+  fbState.primaryCooldownUntil = 0;
+  return { notifyReturn: true };
+}
 
 /**
  * Main poll loop. Runs indefinitely until the process is killed.
@@ -133,6 +197,18 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
   // Clear leftover 'processing' acks from a previous crashed container.
   // This lets the new container re-process those messages.
   clearStaleProcessingAcks();
+
+  // Quota-fallback outage state, scoped to this loop instance. Rehydrate from
+  // disk so a mid-outage restart (e.g. the host watchdog) resumes the same
+  // state instead of re-announcing the switch. A cooldown that already elapsed
+  // during downtime simply reads as expired and the primary is re-probed.
+  const fbState = newFallbackState();
+  const persistedFb = loadFallbackState();
+  if (persistedFb) {
+    fbState.onFallback = persistedFb.onFallback;
+    fbState.primaryCooldownUntil = persistedFb.primaryCooldownUntil;
+    if (fbState.onFallback) log(`Resuming fallback outage state (cooldown until ${new Date(fbState.primaryCooldownUntil).toISOString()})`);
+  }
 
   let pollCount = 0;
   let isFirstPoll = true;
@@ -249,75 +325,90 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
     log(`Processing ${keep.length} message(s), kinds: ${[...new Set(keep.map((m) => m.kind))].join(',')}`);
 
-    const query = config.provider.query({
-      prompt,
-      continuation,
-      cwd: config.cwd,
-      systemContext: config.systemContext,
-    });
-
-    // Process the query while concurrently polling for new messages
     const skippedSet = new Set(skipped);
     const processingIds = ids.filter((id) => !commandIds.includes(id) && !skippedSet.has(id));
     // Publish the batch's in_reply_to so MCP tools (send_message, send_file)
     // can stamp it on outbound rows — needed for a2a return-path routing.
     setCurrentInReplyTo(routing.inReplyTo);
     try {
-      const result = await processQuery(
-        query,
-        routing,
-        processingIds,
-        config.providerName,
-        config.provider.onExchangeComplete?.bind(config.provider),
-        prompt,
-        continuation,
-      );
-      if (result.continuation && result.continuation !== continuation) {
-        continuation = result.continuation;
-        setContinuation(config.providerName, continuation);
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      log(`Query error: ${errMsg}`);
-
-      // Quota exhaustion on the primary → retry the unanswered prompt on the
-      // fallback provider. QuotaExhaustedError carries the exact prompt
-      // segment that went unanswered; a plain thrown error that reads like
-      // quota (SDK subprocess died on a usage-limit response) retries the
-      // batch's initial prompt.
-      const quotaPrompt =
-        err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? prompt : null;
-
-      if (quotaPrompt !== null && config.fallback) {
-        log(`Primary quota exhausted — retrying on fallback provider '${config.fallback.providerName}'`);
-        writeNotice(routing, FALLBACK_SWITCH_NOTICE);
-        try {
-          await runFallbackTurn(config.fallback, quotaPrompt, routing, config.cwd, config.systemContext);
-          pendingReturnNotice = true;
-        } catch (fbErr) {
-          const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
-          log(`Fallback turn failed: ${fbMsg}`);
-          writeNotice(routing, FALLBACK_FAILED_NOTICE);
-        }
+      if (config.fallback && isPrimaryInCooldown(fbState, true, Date.now())) {
+        // Primary is in a quota cooldown — serve this batch straight from the
+        // fallback rather than re-probing a primary we already know is out of
+        // quota. Skips the guaranteed-failing primary attempt (latency + a
+        // wasted SDK subprocess) that this batch would otherwise pay, and
+        // avoids re-announcing the switch. Recovery is handled below: once the
+        // cooldown lapses the next batch takes the primary path again.
+        log(`Primary in quota cooldown — serving via fallback '${config.fallback.providerName}'`);
+        await serveViaFallback(config.fallback, prompt, routing, config.cwd, config.systemContext);
       } else {
-        // Stale/corrupt continuation recovery: ask the provider whether
-        // this error means the stored continuation is unusable, and clear
-        // it so the next attempt starts fresh.
-        if (continuation && config.provider.isSessionInvalid(err)) {
-          log(`Stale session detected (${continuation}) — clearing for next retry`);
-          continuation = undefined;
-          clearContinuation(config.providerName);
-        }
-
-        // Write error response so the user knows something went wrong
-        writeMessageOut({
-          id: generateId(),
-          kind: 'chat',
-          platform_id: routing.platformId,
-          channel_type: routing.channelType,
-          thread_id: routing.threadId,
-          content: JSON.stringify({ text: `Error: ${errMsg}` }),
+        // Process the query while concurrently polling for new messages
+        const query = config.provider.query({
+          prompt,
+          continuation,
+          cwd: config.cwd,
+          systemContext: config.systemContext,
         });
+        try {
+          const result = await processQuery(
+            query,
+            routing,
+            processingIds,
+            config.providerName,
+            config.provider.onExchangeComplete?.bind(config.provider),
+            prompt,
+            continuation,
+            fbState,
+          );
+          if (result.continuation && result.continuation !== continuation) {
+            continuation = result.continuation;
+            setContinuation(config.providerName, continuation);
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          log(`Query error: ${errMsg}`);
+
+          // Quota exhaustion on the primary → retry the unanswered prompt on the
+          // fallback provider. QuotaExhaustedError carries the exact prompt
+          // segment that went unanswered; a plain thrown error that reads like
+          // quota (SDK subprocess died on a usage-limit response) retries the
+          // batch's initial prompt.
+          const quotaPrompt =
+            err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? prompt : null;
+
+          if (quotaPrompt !== null && config.fallback) {
+            // Open (or extend) the cooldown so subsequent messages skip the
+            // primary entirely until it likely recovers, and announce the
+            // switch exactly once per outage.
+            const { announce } = registerPrimaryQuota(fbState, Date.now());
+            saveFallbackState(fbState);
+            if (announce) {
+              log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m`);
+              writeNotice(routing, FALLBACK_SWITCH_NOTICE);
+            } else {
+              log(`Primary still quota-exhausted — extending fallback cooldown (switch already announced)`);
+            }
+            await serveViaFallback(config.fallback, quotaPrompt, routing, config.cwd, config.systemContext);
+          } else {
+            // Stale/corrupt continuation recovery: ask the provider whether
+            // this error means the stored continuation is unusable, and clear
+            // it so the next attempt starts fresh.
+            if (continuation && config.provider.isSessionInvalid(err)) {
+              log(`Stale session detected (${continuation}) — clearing for next retry`);
+              continuation = undefined;
+              clearContinuation(config.providerName);
+            }
+
+            // Write error response so the user knows something went wrong
+            writeMessageOut({
+              id: generateId(),
+              kind: 'chat',
+              platform_id: routing.platformId,
+              channel_type: routing.channelType,
+              thread_id: routing.threadId,
+              content: JSON.stringify({ text: `Error: ${errMsg}` }),
+            });
+          }
+        }
       }
     } finally {
       clearCurrentInReplyTo();
@@ -376,6 +467,7 @@ export async function processQuery(
   onExchangeComplete: ((exchange: ProviderExchange) => void) | undefined,
   initialPrompt: string,
   initialContinuation: string | undefined,
+  fbState?: FallbackState,
 ): Promise<QueryResult> {
   let queryContinuation: string | undefined;
   let done = false;
@@ -559,10 +651,10 @@ export async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
-        // A prior turn ran on the fallback provider; this successful
-        // primary turn means quota recovered — tell the user once.
-        if (pendingReturnNotice) {
-          pendingReturnNotice = false;
+        // We were serving via the fallback; this successful primary turn means
+        // quota recovered — clear the outage state and tell the user once.
+        if (fbState && registerPrimaryRecovery(fbState).notifyReturn) {
+          saveFallbackState(fbState);
           writeNotice(routing, FALLBACK_RETURN_NOTICE);
         }
         // Pop the snapshot taken before this turn's prompt was pushed. Falls
@@ -660,6 +752,29 @@ function writeNotice(routing: RoutingContext, text: string): void {
     thread_id: routing.threadId,
     content: JSON.stringify({ text }),
   });
+}
+
+/**
+ * Serve one batch on the fallback provider, swallowing a fallback failure into
+ * a user-facing "try again later" notice. Used both when the primary just hit
+ * quota and when we're inside the primary's quota cooldown. Kept separate from
+ * runFallbackTurn (which throws on failure) so the cooldown fast-path and the
+ * quota-catch path share identical failure handling.
+ */
+async function serveViaFallback(
+  fallback: { provider: AgentProvider; providerName: string },
+  prompt: string,
+  routing: RoutingContext,
+  cwd: string,
+  systemContext?: { instructions?: string },
+): Promise<void> {
+  try {
+    await runFallbackTurn(fallback, prompt, routing, cwd, systemContext);
+  } catch (fbErr) {
+    const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
+    log(`Fallback turn failed: ${fbMsg}`);
+    writeNotice(routing, FALLBACK_FAILED_NOTICE);
+  }
 }
 
 /**
