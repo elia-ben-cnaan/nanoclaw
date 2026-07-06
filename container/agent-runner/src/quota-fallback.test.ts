@@ -291,16 +291,22 @@ describe('proactive rate-limit warning (before Claude runs out)', () => {
   const WINDOW_A = 1_700_000_000;
   const WINDOW_B = 1_700_018_000;
 
-  it('warns when utilization crosses 90 or status is allowed_warning', () => {
+  it('warns only on real utilization crossing the line — NOT on allowed_warning status', () => {
     expect(shouldWarnNearingLimit({ status: 'allowed', utilization: 92, resetsAt: WINDOW_A }, undefined)).toBe(true);
+    // Regression guard: allowed_warning at low utilization must NOT fire — this
+    // is the ~1% false alarm we saw live.
+    expect(shouldWarnNearingLimit({ status: 'allowed_warning', utilization: 1, resetsAt: WINDOW_A }, undefined)).toBe(
+      false,
+    );
     expect(shouldWarnNearingLimit({ status: 'allowed_warning', utilization: 40, resetsAt: WINDOW_A }, undefined)).toBe(
-      true,
+      false,
     );
   });
 
   it('stays quiet while comfortably under the line', () => {
     expect(shouldWarnNearingLimit({ status: 'allowed', utilization: 70, resetsAt: WINDOW_A }, undefined)).toBe(false);
-    expect(shouldWarnNearingLimit({ status: 'allowed', resetsAt: WINDOW_A }, undefined)).toBe(false);
+    // No utilization number → no warning (never guess from status alone).
+    expect(shouldWarnNearingLimit({ status: 'allowed_warning', resetsAt: WINDOW_A }, undefined)).toBe(false);
   });
 
   it('warns once per window and again only when a new window opens', () => {
@@ -309,7 +315,7 @@ describe('proactive rate-limit warning (before Claude runs out)', () => {
     // Same window, still high → stay quiet.
     expect(shouldWarnNearingLimit({ status: 'allowed', utilization: 97, resetsAt: WINDOW_A }, WINDOW_A)).toBe(false);
     // New window crosses the line → warn again.
-    expect(shouldWarnNearingLimit({ status: 'allowed_warning', resetsAt: WINDOW_B }, WINDOW_A)).toBe(true);
+    expect(shouldWarnNearingLimit({ status: 'allowed', utilization: 93, resetsAt: WINDOW_B }, WINDOW_A)).toBe(true);
   });
 
   it('persists the warned window across restarts', () => {
@@ -317,7 +323,7 @@ describe('proactive rate-limit warning (before Claude runs out)', () => {
     setRateLimitWarnedAt(WINDOW_A);
     expect(getRateLimitWarnedAt()).toBe(WINDOW_A);
     // A restart re-reads it and stays quiet for the same window.
-    expect(shouldWarnNearingLimit({ status: 'allowed_warning', resetsAt: WINDOW_A }, getRateLimitWarnedAt())).toBe(
+    expect(shouldWarnNearingLimit({ status: 'allowed', utilization: 95, resetsAt: WINDOW_A }, getRateLimitWarnedAt())).toBe(
       false,
     );
   });

@@ -111,15 +111,19 @@ function nearingLimitNotice(utilization?: number): string {
 
 /**
  * Should we send the proactive "nearing the limit" heads-up for this rate-limit
- * telemetry? True when usage crosses the warning line (SDK `allowed_warning`
- * status or utilization ≥ threshold) AND we haven't already warned for this
- * window (identified by its `resetsAt`). Pure — the caller persists the window.
+ * telemetry? True ONLY when the real utilization crosses the threshold AND we
+ * haven't already warned for this window (identified by its `resetsAt`).
+ *
+ * We deliberately do NOT trigger on the SDK's `allowed_warning` status: observed
+ * live firing at ~1% utilization (it's a soft/plan-level flag, not a
+ * near-limit signal), which produced false alarms. Utilization is the only
+ * trustworthy "how close am I" number. Pure — the caller persists the window.
  */
 export function shouldWarnNearingLimit(
   ev: { status: string; utilization?: number; resetsAt?: number },
   lastWarnedResetsAt: number | undefined,
 ): boolean {
-  const nearing = ev.status === 'allowed_warning' || (ev.utilization ?? 0) >= RATE_LIMIT_WARN_THRESHOLD;
+  const nearing = (ev.utilization ?? 0) >= RATE_LIMIT_WARN_THRESHOLD;
   if (!nearing) return false;
   // New window (different resetsAt) → warn again; same window → stay quiet.
   return (ev.resetsAt ?? 0) !== (lastWarnedResetsAt ?? -1);
