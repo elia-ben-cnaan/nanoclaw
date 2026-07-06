@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { initTestSessionDb, closeSessionDb } from './db/connection.js';
 import { getUndeliveredMessages } from './db/messages-out.js';
-import { getContinuation, loadFallbackState, saveFallbackState } from './db/session-state.js';
+import { getContinuation, setContinuation, loadFallbackState, saveFallbackState } from './db/session-state.js';
 import { isQuotaErrorMessage, QuotaExhaustedError } from './quota.js';
 import {
   runFallbackTurn,
@@ -148,6 +148,61 @@ describe('runFallbackTurn', () => {
     await expect(runFallbackTurn(fallbackOf(provider), 'prompt', ROUTING, '/workspace/agent')).rejects.toThrow(
       /no result/i,
     );
+  });
+
+  it('self-heals a stuck fallback thread — clears it and retries on a fresh thread', async () => {
+    setContinuation('codex', 'stuck-thread'); // a poisoned resume id, as after a freeze
+
+    let attempts = 0;
+    const provider: AgentProvider = {
+      supportsNativeSlashCommands: false,
+      isSessionInvalid: (err) => /thread not found/i.test(err instanceof Error ? err.message : String(err)),
+      query(input) {
+        attempts++;
+        const resuming = input.continuation === 'stuck-thread';
+        const events: ProviderEvent[] = resuming
+          ? [{ type: 'error', message: 'thread not found', retryable: false }]
+          : [
+              { type: 'init', continuation: 'fresh-thread' },
+              { type: 'result', text: '<message to="user">healed</message>' },
+            ];
+        let ended = false;
+        return {
+          push() {},
+          end() {
+            ended = true;
+          },
+          abort() {
+            ended = true;
+          },
+          events: (async function* () {
+            for (const e of events) {
+              if (ended) return;
+              yield e;
+            }
+          })(),
+        };
+      },
+    };
+
+    await runFallbackTurn({ provider, providerName: 'codex' }, 'prompt', ROUTING, '/workspace/agent');
+
+    expect(attempts).toBe(2); // resumed (failed) then fresh
+    expect(getContinuation('codex')).toBe('fresh-thread'); // stuck cleared, fresh persisted
+    const texts = getUndeliveredMessages().map((r) => JSON.parse(r.content).text);
+    expect(texts).toContain('healed');
+  });
+
+  it('does NOT nuke a good thread on a transient (non-stale) fallback error', async () => {
+    setContinuation('codex', 'good-thread');
+    // Resuming errors transiently (not a stale-thread signal) and yields no result.
+    const provider = scriptedProvider([{ type: 'error', message: 'network blip', retryable: true }]);
+
+    await expect(
+      runFallbackTurn({ provider, providerName: 'codex' }, 'prompt', ROUTING, '/workspace/agent'),
+    ).rejects.toThrow();
+    // Continuity preserved — only stale-thread signals trigger a reset.
+    expect(getContinuation('codex')).toBe('good-thread');
   });
 });
 

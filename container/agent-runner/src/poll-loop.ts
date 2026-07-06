@@ -793,7 +793,40 @@ export async function runFallbackTurn(
   cwd: string,
   systemContext?: { instructions?: string },
 ): Promise<void> {
-  const continuation = getContinuation(fallback.providerName);
+  // Self-heal for a stuck/stale fallback thread — the failure mode that froze
+  // a sibling pilot: the fallback keeps resuming a Codex thread the server no
+  // longer knows about ("thread not found"), so every turn fails the same way.
+  // Try resuming the stored thread; if THAT attempt fails specifically because
+  // the thread is stale, drop it and retry once on a fresh thread. Other
+  // failures propagate unchanged (a transient hiccup shouldn't nuke a good
+  // thread's continuity).
+  const resumed = getContinuation(fallback.providerName);
+  try {
+    await runFallbackAttempt(fallback, prompt, routing, cwd, systemContext, resumed);
+  } catch (err) {
+    if (resumed && fallback.provider.isSessionInvalid(err)) {
+      log(`Fallback thread ${resumed} is stale — self-healing: clearing and retrying on a fresh thread`);
+      clearContinuation(fallback.providerName);
+      await runFallbackAttempt(fallback, prompt, routing, cwd, systemContext, undefined);
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
+ * A single fallback attempt against a specific continuation (or a fresh thread
+ * when `continuation` is undefined). Throws on stale-thread error events so the
+ * caller's self-heal can catch and retry.
+ */
+async function runFallbackAttempt(
+  fallback: { provider: AgentProvider; providerName: string },
+  prompt: string,
+  routing: RoutingContext,
+  cwd: string,
+  systemContext: { instructions?: string } | undefined,
+  continuation: string | undefined,
+): Promise<void> {
   // Snapshot the outbound row count before the turn: if it grows, the agent
   // delivered via an MCP tool (send_message, ...) and a bare unwrapped final
   // text is scratchpad — re-nudging would produce a duplicate reply.
@@ -810,6 +843,12 @@ export async function runFallbackTurn(
       } else if (event.type === 'error' && event.classification === 'quota') {
         query.abort();
         throw new Error(`Fallback provider quota exhausted: ${event.message}`);
+      } else if (event.type === 'error' && fallback.provider.isSessionInvalid(new Error(event.message))) {
+        // Stale/stuck-thread error — abort so runFallbackTurn's self-heal can
+        // clear the thread and retry fresh. Non-stale errors are left to the
+        // stream as before (they may be transient and recover on their own).
+        query.abort();
+        throw new Error(event.message);
       } else if (event.type === 'result') {
         gotResult = true;
         if (event.text) {
