@@ -179,14 +179,28 @@ export function getMaxOutboundSeq(): number {
 }
 
 /**
- * Was this exact content already delivered to this channel/platform LATER than
- * `sinceSeq`? Used to catch the same-turn double-send: the agent delivers a
- * reply via the send_message MCP tool mid-turn AND then repeats it in a
- * final <message> block. Those two writes get different in_reply_to values
- * (batch vs per-destination re-resolution), so writeMessageOut's in_reply_to-
- * keyed dedup misses them. Scoping to "since this turn started" means a
- * genuine identical reply in a LATER turn (seq below the fresh marker) is not
- * suppressed — no cross-turn over-suppression.
+ * Whitespace-normalize a message text for duplicate comparison. The agent
+ * RETYPES the reply when it repeats it in a final <message> block after a
+ * send_message call, and the regenerated string can differ by stray
+ * whitespace — confirmed live: one real duplicate pair differed ONLY by a
+ * single space before a "\n\n" mid-text, so byte equality (and even trim)
+ * missed it. Collapsing all whitespace runs keeps every semantic difference
+ * while making whitespace-only rewrites compare equal.
+ */
+export function normalizeForDedup(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Was this content (whitespace-normalized) already delivered to this
+ * channel/platform LATER than `sinceSeq`? Used to catch the same-turn
+ * double-send: the agent delivers a reply via the send_message MCP tool
+ * mid-turn AND then repeats it in a final <message> block. Those two writes
+ * get different in_reply_to values (batch vs per-destination re-resolution),
+ * so writeMessageOut's in_reply_to-keyed dedup misses them. Scoping to
+ * "since this turn started" means a genuine identical reply in a LATER turn
+ * (seq below the fresh marker) is not suppressed — no cross-turn
+ * over-suppression.
  */
 export function wasContentDeliveredSince(
   channelType: string | null,
@@ -194,19 +208,33 @@ export function wasContentDeliveredSince(
   content: string,
   sinceSeq: number,
 ): boolean {
-  const row = getOutboundDb()
+  let target: string;
+  try {
+    target = normalizeForDedup((JSON.parse(content) as { text?: string }).text ?? '');
+  } catch {
+    return false;
+  }
+  if (!target) return false;
+
+  const rows = getOutboundDb()
     .prepare(
-      `SELECT 1 FROM messages_out
+      `SELECT content FROM messages_out
        WHERE channel_type IS $channel_type AND platform_id IS $platform_id
-         AND content = $content AND seq > $since LIMIT 1`,
+         AND kind = 'chat' AND seq > $since`,
     )
-    .get({
+    .all({
       $channel_type: channelType ?? null,
       $platform_id: platformId ?? null,
-      $content: content,
       $since: sinceSeq,
-    });
-  return row != null;
+    }) as Array<{ content: string }>;
+
+  return rows.some((r) => {
+    try {
+      return normalizeForDedup((JSON.parse(r.content) as { text?: string }).text ?? '') === target;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Get undelivered messages (for host polling — reads from outbound.db). */

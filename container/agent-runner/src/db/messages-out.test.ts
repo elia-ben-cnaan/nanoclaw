@@ -120,4 +120,21 @@ describe('wasContentDeliveredSince — same-turn duplicate detection', () => {
     send('x', null, 'something');
     expect(wasContentDeliveredSince('telegram', 'chan-1', JSON.stringify({ text: 'other' }), turnStart)).toBe(false);
   });
+
+  it('catches a whitespace-only retype — the real missed pair (space before \\n\\n)', () => {
+    // Modeled on live pair 21803/21805: the agent RETYPED the reply in the
+    // final <message> block and the only difference was a single space
+    // before a "\n\n" mid-text. Byte equality missed it; normalization must not.
+    const turnStart = getMaxOutboundSeq();
+    send('viaTool', null, 'אני כאן! ההודעה שלי אולי לא הגיעה בזמן. \n\nשאלתי: להחליף את האייקון?');
+    const retyped = JSON.stringify({ text: 'אני כאן! ההודעה שלי אולי לא הגיעה בזמן.\n\nשאלתי: להחליף את האייקון?' });
+    expect(wasContentDeliveredSince('telegram', 'chan-1', retyped, turnStart)).toBe(true);
+  });
+
+  it('does NOT flag a semantically different reply in the same turn', () => {
+    const turnStart = getMaxOutboundSeq();
+    send('viaTool', null, 'הלוגו עלה בהצלחה');
+    const different = JSON.stringify({ text: 'הלוגו עלה בהצלחה — רוצה שאשנה גם את הפונט?' });
+    expect(wasContentDeliveredSince('telegram', 'chan-1', different, turnStart)).toBe(false);
+  });
 });
