@@ -25,6 +25,7 @@ import {
   type RoutingContext,
 } from './formatter.js';
 import { isUploadTraceCommand, uploadTrace } from './upload-trace.js';
+import { buildConversationRecap } from './conversation-recap.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, ProviderExchange } from './providers/types.js';
 
 const POLL_INTERVAL_MS = 1000;
@@ -153,11 +154,15 @@ export interface FallbackState {
   // in favour of the fallback. 0 = primary is live. Refreshed on every primary
   // quota error, so a still-down primary keeps extending the window.
   primaryCooldownUntil: number;
+  // Epoch-ms when the current outage began (first quota hit). Used to build
+  // the recovery recap — exactly the exchanges the primary's thread missed
+  // while the fallback was serving. 0 = no outage in progress.
+  outageStartedAt: number;
 }
 
 /** Fresh outage state — primary live, nothing announced. */
 export function newFallbackState(): FallbackState {
-  return { onFallback: false, primaryCooldownUntil: 0 };
+  return { onFallback: false, primaryCooldownUntil: 0, outageStartedAt: 0 };
 }
 
 /**
@@ -177,6 +182,7 @@ export function registerPrimaryQuota(fbState: FallbackState, now: number): { ann
   fbState.primaryCooldownUntil = now + PRIMARY_COOLDOWN_MS;
   if (fbState.onFallback) return { announce: false };
   fbState.onFallback = true;
+  fbState.outageStartedAt = now;
   return { announce: true };
 }
 
@@ -188,6 +194,7 @@ export function registerPrimaryRecovery(fbState: FallbackState): { notifyReturn:
   if (!fbState.onFallback) return { notifyReturn: false };
   fbState.onFallback = false;
   fbState.primaryCooldownUntil = 0;
+  fbState.outageStartedAt = 0;
   return { notifyReturn: true };
 }
 
@@ -239,6 +246,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
   if (persistedFb) {
     fbState.onFallback = persistedFb.onFallback;
     fbState.primaryCooldownUntil = persistedFb.primaryCooldownUntil;
+    fbState.outageStartedAt = persistedFb.outageStartedAt;
     if (fbState.onFallback) log(`Resuming fallback outage state (cooldown until ${new Date(fbState.primaryCooldownUntil).toISOString()})`);
   }
 
@@ -373,9 +381,26 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
         log(`Primary in quota cooldown — serving via fallback '${config.fallback.providerName}'`);
         await serveViaFallback(config.fallback, prompt, routing, config.cwd, config.systemContext);
       } else {
+        // Recovery probe after an outage: the primary's thread never saw the
+        // turns the fallback served (separate continuations — "two brains").
+        // Prepend a recap of exactly the outage-period exchanges so the
+        // primary picks the conversation back up instead of answering from a
+        // memory that stops at the moment quota ran out. If this probe still
+        // hits quota, the recap-prefixed prompt goes to the fallback, which
+        // tolerates it fine.
+        let effectivePrompt = prompt;
+        if (fbState.onFallback && config.fallback) {
+          const recap = buildConversationRecap(
+            fbState.outageStartedAt > 0 ? new Date(fbState.outageStartedAt).toISOString() : undefined,
+          );
+          if (recap) {
+            log('Recovery probe — prepending outage-period conversation recap');
+            effectivePrompt = `${recap}\n\n${prompt}`;
+          }
+        }
         // Process the query while concurrently polling for new messages
         const query = config.provider.query({
-          prompt,
+          prompt: effectivePrompt,
           continuation,
           cwd: config.cwd,
           systemContext: config.systemContext,
@@ -387,7 +412,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
             processingIds,
             config.providerName,
             config.provider.onExchangeComplete?.bind(config.provider),
-            prompt,
+            effectivePrompt,
             continuation,
             fbState,
           );
@@ -405,7 +430,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
           // quota (SDK subprocess died on a usage-limit response) retries the
           // batch's initial prompt.
           const quotaPrompt =
-            err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? prompt : null;
+            err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? effectivePrompt : null;
 
           if (quotaPrompt !== null && config.fallback) {
             // Open (or extend) the cooldown so subsequent messages skip the
@@ -413,13 +438,21 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
             // switch exactly once per outage.
             const { announce } = registerPrimaryQuota(fbState, Date.now());
             saveFallbackState(fbState);
+            let fallbackPrompt = quotaPrompt;
             if (announce) {
               log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m`);
               writeNotice(routing, FALLBACK_SWITCH_NOTICE);
+              // First fallback turn of this outage: the fallback's thread has
+              // never seen the primary-side conversation ("two brains" gap).
+              // Prepend a recap of the recent exchanges so it picks up
+              // mid-conversation instead of answering cold. Only on the first
+              // turn — the fallback's own thread carries continuity from here.
+              const recap = buildConversationRecap();
+              if (recap) fallbackPrompt = `${recap}\n\n${quotaPrompt}`;
             } else {
               log(`Primary still quota-exhausted — extending fallback cooldown (switch already announced)`);
             }
-            await serveViaFallback(config.fallback, quotaPrompt, routing, config.cwd, config.systemContext);
+            await serveViaFallback(config.fallback, fallbackPrompt, routing, config.cwd, config.systemContext);
           } else {
             // Stale/corrupt continuation recovery: ask the provider whether
             // this error means the stored continuation is unusable, and clear

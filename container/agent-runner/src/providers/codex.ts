@@ -151,6 +151,7 @@ export class CodexProvider implements AgentProvider {
           // from the app-server yields an `activity` first (so the
           // poll-loop's idle timer stays honest) and then, where relevant,
           // an init / result / progress event.
+          const totalBeforeTurn = cumulativeInputTokens;
           yield* runOneTurn(
             server,
             threadId!,
@@ -166,11 +167,18 @@ export class CodexProvider implements AgentProvider {
             },
           );
 
-          // Trigger native compaction between turns if we've crossed the
-          // threshold. Codex's compaction is deterministic enough to do
-          // inline — if it fails, we log and carry on uncompacted.
-          if (cumulativeInputTokens >= COMPACT_THRESHOLD && threadId) {
-            log(`Compacting thread (${cumulativeInputTokens} tokens)`);
+          // Trigger native compaction between turns when the CURRENT context
+          // has grown past the threshold. The app-server reports the thread's
+          // LIFETIME total input tokens, which only ever grows — comparing it
+          // directly to the threshold meant that once a thread had ever
+          // crossed 40k lifetime tokens, EVERY turn compacted forever (seen
+          // live at 23M lifetime tokens, compacting each turn and squashing
+          // conversational detail every time). The per-turn delta of the
+          // lifetime total ≈ the tokens fed into this turn ≈ current context
+          // size — that's the signal compaction should key on.
+          const turnContextTokens = cumulativeInputTokens - totalBeforeTurn;
+          if (turnContextTokens >= COMPACT_THRESHOLD && threadId) {
+            log(`Compacting thread (turn context ~${turnContextTokens} tokens)`);
             const compactResp = await sendCodexRequest(server, 'thread/compact/start', { threadId });
             if (compactResp.error) {
               log(`Compaction failed: ${compactResp.error.message} — continuing uncompacted`);

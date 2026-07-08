@@ -76,6 +76,9 @@ const FALLBACK_STATE_KEY = 'fallback_state';
 export interface PersistedFallbackState {
   onFallback: boolean;
   primaryCooldownUntil: number;
+  /** Epoch-ms of the current outage's first quota hit; 0 when not in outage.
+   *  Optional-with-default so rows persisted before this field parse fine. */
+  outageStartedAt: number;
 }
 
 export function loadFallbackState(): PersistedFallbackState | undefined {
@@ -84,7 +87,11 @@ export function loadFallbackState(): PersistedFallbackState | undefined {
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedFallbackState>;
     if (typeof parsed?.onFallback === 'boolean' && typeof parsed?.primaryCooldownUntil === 'number') {
-      return { onFallback: parsed.onFallback, primaryCooldownUntil: parsed.primaryCooldownUntil };
+      return {
+        onFallback: parsed.onFallback,
+        primaryCooldownUntil: parsed.primaryCooldownUntil,
+        outageStartedAt: typeof parsed.outageStartedAt === 'number' ? parsed.outageStartedAt : 0,
+      };
     }
   } catch {
     // Corrupt/legacy row — ignore and start from a clean outage state.

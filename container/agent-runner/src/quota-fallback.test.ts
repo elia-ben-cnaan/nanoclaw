@@ -273,7 +273,11 @@ describe('fallback state persistence (survives container restart)', () => {
 
     // A restart re-reads the same outage state instead of starting clean.
     const restored = loadFallbackState();
-    expect(restored).toEqual({ onFallback: true, primaryCooldownUntil: 1_000_000 + 10 * 60 * 1000 });
+    expect(restored).toEqual({
+      onFallback: true,
+      primaryCooldownUntil: 1_000_000 + 10 * 60 * 1000,
+      outageStartedAt: 1_000_000,
+    });
   });
 
   it('persists recovery so a restart after recovery does not think it is still down', () => {
@@ -283,7 +287,17 @@ describe('fallback state persistence (survives container restart)', () => {
     registerPrimaryRecovery(s);
     saveFallbackState(s);
 
-    expect(loadFallbackState()).toEqual({ onFallback: false, primaryCooldownUntil: 0 });
+    expect(loadFallbackState()).toEqual({ onFallback: false, primaryCooldownUntil: 0, outageStartedAt: 0 });
+  });
+
+  it('tracks the outage start for the recovery recap: set on first hit, kept on repeats, cleared on recovery', () => {
+    const s = newFallbackState();
+    registerPrimaryQuota(s, 1_000_000);
+    expect(s.outageStartedAt).toBe(1_000_000);
+    registerPrimaryQuota(s, 1_500_000); // still the SAME outage — keep the original start
+    expect(s.outageStartedAt).toBe(1_000_000);
+    registerPrimaryRecovery(s);
+    expect(s.outageStartedAt).toBe(0);
   });
 });
 
