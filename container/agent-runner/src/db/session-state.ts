@@ -103,24 +103,6 @@ export function saveFallbackState(state: PersistedFallbackState): void {
   setValue(FALLBACK_STATE_KEY, JSON.stringify(state));
 }
 
-const RATE_LIMIT_WARNED_KEY = 'rate_limit_warned_resets_at';
-
-/**
- * The `resetsAt` of the rate-limit window we've already sent a proactive
- * "nearing the limit" warning for. Used to send that heads-up at most once per
- * window (and survive restarts). `undefined` = no warning sent yet.
- */
-export function getRateLimitWarnedAt(): number | undefined {
-  const raw = getValue(RATE_LIMIT_WARNED_KEY);
-  if (raw === undefined) return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-export function setRateLimitWarnedAt(resetsAt: number): void {
-  setValue(RATE_LIMIT_WARNED_KEY, String(resetsAt));
-}
-
 export function getContinuation(providerName: string): string | undefined {
   return getValue(continuationKey(providerName));
 }

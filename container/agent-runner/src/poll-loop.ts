@@ -9,8 +9,6 @@ import {
   setContinuation,
   loadFallbackState,
   saveFallbackState,
-  getRateLimitWarnedAt,
-  setRateLimitWarnedAt,
 } from './db/session-state.js';
 import { recordUsage } from './db/usage.js';
 import { QuotaExhaustedError, isQuotaErrorMessage } from './quota.js';
@@ -84,8 +82,8 @@ export interface PollLoopConfig {
   /**
    * Optional overflow provider. When the primary provider fails a turn with
    * a quota-exhaustion error, the unanswered prompt is retried once on this
-   * provider and the user is notified of the switch. Every new turn starts
-   * on the primary again, so recovery back to the primary is automatic.
+   * provider, silently — the user is not told about the switch unless they
+   * ask. Every new turn starts on the primary again, so recovery is automatic.
    */
   fallback?: {
     provider: AgentProvider;
@@ -93,42 +91,14 @@ export interface PollLoopConfig {
   };
 }
 
-// User-facing notices for the fallback flow. Sent to the same destination
-// the failed turn was routed to.
-const FALLBACK_SWITCH_NOTICE =
-  '⚠️ מכסת Claude נגמרה כרגע — ממשיך לענות דרך Codex (OpenAI). אחזור ל-Claude אוטומטית כשהמכסה תתחדש.';
-const FALLBACK_RETURN_NOTICE = '✅ מכסת Claude התחדשה — חזרתי לענות דרך Claude.';
-const FALLBACK_FAILED_NOTICE = '❌ גם מנוע הגיבוי (Codex) לא הצליח לענות כרגע. נסו שוב מאוחר יותר.';
-
-// Proactive heads-up sent once per rate-limit window when Claude's own usage
-// crosses the warning line — BEFORE the quota actually runs out and the
-// fallback kicks in. Gives the user a chance to wrap up on Claude.
-const RATE_LIMIT_WARN_THRESHOLD = 90;
-
-function nearingLimitNotice(utilization?: number): string {
-  const pct = typeof utilization === 'number' ? `~${Math.round(utilization)}%` : 'רוב המכסה';
-  return `🔔 ניצול מכסת Claude עומד על ${pct} מהחלון הנוכחי — מתקרבים למכסה. אם היא תיגמר אעבור זמנית ל-Codex ואחזור אוטומטית כשתתחדש.`;
-}
-
-/**
- * Should we send the proactive "nearing the limit" heads-up for this rate-limit
- * telemetry? True ONLY when the real utilization crosses the threshold AND we
- * haven't already warned for this window (identified by its `resetsAt`).
- *
- * We deliberately do NOT trigger on the SDK's `allowed_warning` status: observed
- * live firing at ~1% utilization (it's a soft/plan-level flag, not a
- * near-limit signal), which produced false alarms. Utilization is the only
- * trustworthy "how close am I" number. Pure — the caller persists the window.
- */
-export function shouldWarnNearingLimit(
-  ev: { status: string; utilization?: number; resetsAt?: number },
-  lastWarnedResetsAt: number | undefined,
-): boolean {
-  const nearing = (ev.utilization ?? 0) >= RATE_LIMIT_WARN_THRESHOLD;
-  if (!nearing) return false;
-  // New window (different resetsAt) → warn again; same window → stay quiet.
-  return (ev.resetsAt ?? 0) !== (lastWarnedResetsAt ?? -1);
-}
+// The engine switch itself (primary→fallback, fallback→primary) is entirely
+// silent by design — the user should not learn which engine is answering
+// unless they explicitly ask, and the agent can answer that from its own
+// runtime context. The one notice kept is for TOTAL failure (both primary and
+// fallback down): without it the user's message just vanishes with no
+// explanation at all, which is worse than the plumbing staying invisible.
+// Deliberately provider-agnostic wording — no engine names.
+const BOTH_PROVIDERS_FAILED_NOTICE = '❌ לא הצלחתי לענות כרגע. נסו שוב בעוד כמה דקות.';
 
 // How long to keep serving from the fallback after a primary quota-exhaustion
 // before re-probing the primary. During this window every message is routed
@@ -145,10 +115,10 @@ const PRIMARY_COOLDOWN_MS = 10 * 60 * 1000;
  * outage state into one another.
  */
 export interface FallbackState {
-  // True from the moment we announce a switch to the fallback until a primary
-  // turn succeeds again. Gates the switch notice so the outage is announced
-  // ONCE (not once per message) and drives the one-shot FALLBACK_RETURN_NOTICE
-  // when the primary recovers.
+  // True from the moment we switch to the fallback until a primary turn
+  // succeeds again. The switch itself is silent (no user-facing notice) —
+  // this flag's job now is purely internal: gate the one-time recap injection
+  // to the FIRST turn of an outage (not every message) and detect recovery.
   onFallback: boolean;
   // Epoch-ms until which the primary is treated as quota-exhausted and skipped
   // in favour of the fallback. 0 = primary is live. Refreshed on every primary
@@ -175,8 +145,9 @@ export function isPrimaryInCooldown(fbState: FallbackState, hasFallback: boolean
 
 /**
  * Record a primary quota exhaustion: open (or extend) the cooldown and report
- * whether the switch should be announced. `announce` is true only on the first
- * turn of an outage — so the user is told once, not once per message.
+ * whether this is the FIRST turn of a new outage. `announce` is true only
+ * once per outage — used internally to gate the one-time recap injection (not
+ * a user-facing announcement; the switch itself is silent).
  */
 export function registerPrimaryQuota(fbState: FallbackState, now: number): { announce: boolean } {
   fbState.primaryCooldownUntil = now + PRIMARY_COOLDOWN_MS;
@@ -188,7 +159,8 @@ export function registerPrimaryQuota(fbState: FallbackState, now: number): { ann
 
 /**
  * Record a successful primary turn: clear the outage state and report whether
- * the recovery notice should be sent (true only if we had switched away).
+ * we were actually recovering from an outage (true only if we had switched
+ * away) — used internally to know a recap should be prepended; not user-facing.
  */
 export function registerPrimaryRecovery(fbState: FallbackState): { notifyReturn: boolean } {
   if (!fbState.onFallback) return { notifyReturn: false };
@@ -434,14 +406,16 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
           if (quotaPrompt !== null && config.fallback) {
             // Open (or extend) the cooldown so subsequent messages skip the
-            // primary entirely until it likely recovers, and announce the
-            // switch exactly once per outage.
+            // primary entirely until it likely recovers, and inject the recap
+            // exactly once per outage (on its first turn only).
             const { announce } = registerPrimaryQuota(fbState, Date.now());
             saveFallbackState(fbState);
             let fallbackPrompt = quotaPrompt;
             if (announce) {
-              log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m`);
-              writeNotice(routing, FALLBACK_SWITCH_NOTICE);
+              // Silent switch — the user should not be told which engine is
+              // answering unless they ask. Only the recap moves across; no
+              // user-facing notice.
+              log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m (silent)`);
               // First fallback turn of this outage: the fallback's thread has
               // never seen the primary-side conversation ("two brains" gap).
               // Prepend a recap of the recent exchanges so it picks up
@@ -700,14 +674,10 @@ export async function processQuery(
         query.abort();
         throw new QuotaExhaustedError(event.message, lastPrompt);
       } else if (event.type === 'rate_limit') {
-        // Proactive heads-up: Claude's own usage is climbing. Warn once per
-        // window (deduped + persisted by resetsAt) before the quota actually
-        // runs out and the fallback takes over.
-        if (shouldWarnNearingLimit(event, getRateLimitWarnedAt())) {
-          setRateLimitWarnedAt(event.resetsAt ?? 0);
-          log(`Claude usage nearing limit (${event.utilization ?? '?'}%, status=${event.status}) — sending heads-up`);
-          writeNotice(routing, nearingLimitNotice(event.utilization));
-        }
+        // Internal telemetry only — the user is never proactively told about
+        // engine/quota plumbing (only on request, which the agent answers
+        // from its own runtime context, independent of this event).
+        log(`Rate limit telemetry: status=${event.status}, utilization=${event.utilization ?? '?'}%`);
       } else if (event.type === 'result') {
         // Record per-turn token usage for the operator dashboard. Best-effort:
         // a metering write must never break the agent's turn.
@@ -726,10 +696,11 @@ export async function processQuery(
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
         // We were serving via the fallback; this successful primary turn means
-        // quota recovered — clear the outage state and tell the user once.
+        // quota recovered — clear the outage state silently (no user-facing
+        // notice; the recap above already carried continuity across).
         if (fbState && registerPrimaryRecovery(fbState).notifyReturn) {
           saveFallbackState(fbState);
-          writeNotice(routing, FALLBACK_RETURN_NOTICE);
+          log('Primary recovered — switched back silently');
         }
         // Pop the snapshot taken before this turn's prompt was pushed. Falls
         // back to the current count (i.e. "nothing sent yet") if the queue
@@ -847,7 +818,7 @@ async function serveViaFallback(
   } catch (fbErr) {
     const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
     log(`Fallback turn failed: ${fbMsg}`);
-    writeNotice(routing, FALLBACK_FAILED_NOTICE);
+    writeNotice(routing, BOTH_PROVIDERS_FAILED_NOTICE);
   }
 }
 
