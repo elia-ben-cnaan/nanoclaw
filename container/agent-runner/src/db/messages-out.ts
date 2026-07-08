@@ -173,6 +173,42 @@ export function getOutboundCount(): number {
   return (getOutboundDb().prepare('SELECT COUNT(*) AS c FROM messages_out').get() as { c: number }).c;
 }
 
+/** Highest outbound seq so far — a turn-start marker for same-turn dedup. */
+export function getMaxOutboundSeq(): number {
+  return (getOutboundDb().prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM messages_out').get() as { m: number }).m;
+}
+
+/**
+ * Was this exact content already delivered to this channel/platform LATER than
+ * `sinceSeq`? Used to catch the same-turn double-send: the agent delivers a
+ * reply via the send_message MCP tool mid-turn AND then repeats it in a
+ * final <message> block. Those two writes get different in_reply_to values
+ * (batch vs per-destination re-resolution), so writeMessageOut's in_reply_to-
+ * keyed dedup misses them. Scoping to "since this turn started" means a
+ * genuine identical reply in a LATER turn (seq below the fresh marker) is not
+ * suppressed — no cross-turn over-suppression.
+ */
+export function wasContentDeliveredSince(
+  channelType: string | null,
+  platformId: string | null,
+  content: string,
+  sinceSeq: number,
+): boolean {
+  const row = getOutboundDb()
+    .prepare(
+      `SELECT 1 FROM messages_out
+       WHERE channel_type IS $channel_type AND platform_id IS $platform_id
+         AND content = $content AND seq > $since LIMIT 1`,
+    )
+    .get({
+      $channel_type: channelType ?? null,
+      $platform_id: platformId ?? null,
+      $content: content,
+      $since: sinceSeq,
+    });
+  return row != null;
+}
+
 /** Get undelivered messages (for host polling — reads from outbound.db). */
 export function getUndeliveredMessages(): MessageOutRow[] {
   return getOutboundDb()

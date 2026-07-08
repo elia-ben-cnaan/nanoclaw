@@ -1,6 +1,6 @@
 import { findByName, getAllDestinations, type DestinationEntry } from './destinations.js';
 import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } from './db/messages-in.js';
-import { writeMessageOut, getOutboundCount } from './db/messages-out.js';
+import { writeMessageOut, getOutboundCount, getMaxOutboundSeq, wasContentDeliveredSince } from './db/messages-out.js';
 import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
 import {
   clearContinuation,
@@ -517,16 +517,17 @@ export async function processQuery(
   // doesn't implement `onExchangeComplete`.
   const archivePrompts: string[] = [initialPrompt];
 
-  // One outbound-row-count snapshot per push to the query (FIFO, 1:1 with
-  // 'result' events), taken right before each push. Diffing against the
-  // count at the matching 'result' tells us whether the agent already
-  // delivered something this turn via an MCP tool (send_message, etc.) —
-  // those write straight to outbound.db and never appear in the <message
-  // to="..."> blocks that dispatchResultText parses, so without this a
-  // turn that calls send_message and then signs off with unwrapped text
-  // ("Done, I let them know.") looks indistinguishable from one that sent
-  // nothing at all.
-  const outboundSnapshots: number[] = [getOutboundCount()];
+  // One outbound snapshot per push to the query (FIFO, 1:1 with 'result'
+  // events), taken right before each push. `count` diffed against the matching
+  // 'result' tells us whether the agent already delivered something this turn
+  // via an MCP tool (send_message, etc.) — those write straight to outbound.db
+  // and never appear in the <message to="..."> blocks that dispatchResultText
+  // parses. `maxSeq` marks the turn boundary so dispatchResultText can drop a
+  // final <message> block that merely repeats content already sent via
+  // send_message this turn (the duplicate-reply bug).
+  const outboundSnapshots: Array<{ count: number; maxSeq: number }> = [
+    { count: getOutboundCount(), maxSeq: getMaxOutboundSeq() },
+  ];
 
   // Most recent user-content prompt segment sent into the query (initial
   // batch or follow-up push — not system nudges). On quota exhaustion this
@@ -610,7 +611,7 @@ export async function processQuery(
         const prompt = formatMessages(keep);
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
-        outboundSnapshots.push(getOutboundCount());
+        outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
         lastPrompt = prompt;
         query.push(prompt);
         archivePrompts.push(prompt);
@@ -706,9 +707,12 @@ export async function processQuery(
         // back to the current count (i.e. "nothing sent yet") if the queue
         // is ever empty, which only happens if pushes and results drift out
         // of the 1:1 order the provider contract guarantees.
-        const outboundBeforeTurn = outboundSnapshots.shift() ?? getOutboundCount();
+        const outboundBeforeTurn = outboundSnapshots.shift() ?? {
+          count: getOutboundCount(),
+          maxSeq: getMaxOutboundSeq(),
+        };
         if (event.text) {
-          const { sent, hasUnwrapped } = dispatchResultText(event.text, routing);
+          const { sent, hasUnwrapped } = dispatchResultText(event.text, routing, outboundBeforeTurn.maxSeq);
           if (sent === 0 && event.isError === true) {
             // Non-retryable error turn (e.g. a 403 billing_error) with no
             // <message> envelope: deliver the notice instead of dropping it as
@@ -727,7 +731,7 @@ export async function processQuery(
             // true (sent === 0), so any growth in the count here came from an
             // MCP tool (send_message, ask_user_question, etc.) called earlier
             // in this same turn — a real delivery that block-parsing can't see.
-            const deliveredViaToolThisTurn = hasUnwrapped && getOutboundCount() > outboundBeforeTurn;
+            const deliveredViaToolThisTurn = hasUnwrapped && getOutboundCount() > outboundBeforeTurn.count;
             const willRetryWrapping = hasUnwrapped && !deliveredViaToolThisTurn && !unwrappedNudged;
             notifyExchangeComplete(onExchangeComplete, {
               prompt: archivePrompts[0] ?? initialPrompt,
@@ -740,7 +744,7 @@ export async function processQuery(
               const destinations = getAllDestinations();
               const names = destinations.map((d) => d.name).join(', ');
               // Keep the snapshot FIFO 1:1 with pushes into the query.
-              outboundSnapshots.push(getOutboundCount());
+              outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
               query.push(
                 `<system>Your response was not delivered — it was not wrapped in <message to="name">...</message> blocks. ` +
                   `All output must be wrapped: use <message to="name"> for content to send, or <internal> for scratchpad. ` +
@@ -874,8 +878,10 @@ async function runFallbackAttempt(
 ): Promise<void> {
   // Snapshot the outbound row count before the turn: if it grows, the agent
   // delivered via an MCP tool (send_message, ...) and a bare unwrapped final
-  // text is scratchpad — re-nudging would produce a duplicate reply.
+  // text is scratchpad — re-nudging would produce a duplicate reply. maxSeq
+  // marks the turn boundary for the same-turn duplicate-block drop.
   const outboundBefore = getOutboundCount();
+  const turnStartMaxSeq = getMaxOutboundSeq();
   const query = fallback.provider.query({ prompt, continuation, cwd, systemContext });
 
   let nudged = false;
@@ -897,7 +903,7 @@ async function runFallbackAttempt(
       } else if (event.type === 'result') {
         gotResult = true;
         if (event.text) {
-          const { hasUnwrapped } = dispatchResultText(event.text, routing);
+          const { hasUnwrapped } = dispatchResultText(event.text, routing, turnStartMaxSeq);
           const alreadySentThisTurn = getOutboundCount() > outboundBefore;
           if (hasUnwrapped && !alreadySentThisTurn && !nudged) {
             // Same one-shot re-wrap nudge as the primary path — give the
@@ -977,7 +983,11 @@ function deliverErrorResult(text: string, routing: RoutingContext): void {
  * The agent must always wrap output in <message to="name">...</message>
  * blocks, even with a single destination. Bare text is scratchpad only.
  */
-function dispatchResultText(text: string, routing: RoutingContext): { sent: number; hasUnwrapped: boolean } {
+function dispatchResultText(
+  text: string,
+  routing: RoutingContext,
+  turnStartMaxSeq = 0,
+): { sent: number; hasUnwrapped: boolean } {
   const MESSAGE_RE = /<message\s+to="([^"]+)"\s*>([\s\S]*?)<\/message>/g;
 
   let match: RegExpExecArray | null;
@@ -999,7 +1009,10 @@ function dispatchResultText(text: string, routing: RoutingContext): { sent: numb
       scratchpadParts.push(`[dropped: unknown destination "${toName}"] ${body}`);
       continue;
     }
-    sendToDestination(dest, body, routing);
+    // Count the block as delivered (sent++) so the re-wrap nudge doesn't fire,
+    // but skip the actual write when this exact content already went out this
+    // turn via send_message — that's the duplicate-reply bug.
+    sendToDestination(dest, body, routing, turnStartMaxSeq);
     sent++;
   }
   if (lastIndex < text.length) {
@@ -1019,14 +1032,26 @@ function dispatchResultText(text: string, routing: RoutingContext): { sent: numb
   return { sent, hasUnwrapped };
 }
 
-function sendToDestination(dest: DestinationEntry, body: string, routing: RoutingContext): void {
+function sendToDestination(
+  dest: DestinationEntry,
+  body: string,
+  routing: RoutingContext,
+  turnStartMaxSeq = 0,
+): void {
   const platformId = dest.type === 'channel' ? dest.platformId! : dest.agentGroupId!;
   const channelType = dest.type === 'channel' ? dest.channelType! : 'agent';
   const content = JSON.stringify({ text: body });
 
-  // Duplicate sends (same text already sent via the send_message MCP tool
-  // this turn) are suppressed centrally in writeMessageOut — see
-  // findRecentDuplicateSeq in db/messages-out.ts.
+  // Same-turn duplicate guard: if this exact content already went out to this
+  // destination since the turn started, the agent already delivered it via the
+  // send_message MCP tool and this final <message> block just repeats it. Drop
+  // the repeat. (writeMessageOut's own dedup misses this because the two writes
+  // carry different in_reply_to values.) Scoped to this turn, so an identical
+  // reply in a later turn is not suppressed.
+  if (wasContentDeliveredSince(channelType, platformId, content, turnStartMaxSeq)) {
+    log(`Skipping duplicate <message> block — already delivered this turn via send_message`);
+    return;
+  }
 
   // Resolve thread_id per-destination from the most recent inbound message
   // that came from this same channel+platform. In agent-shared sessions,

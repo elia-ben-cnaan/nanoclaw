@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 import { initTestSessionDb, closeSessionDb } from './connection.js';
-import { writeMessageOut, getUndeliveredMessages, getOutboundCount } from './messages-out.js';
+import {
+  writeMessageOut,
+  getUndeliveredMessages,
+  getOutboundCount,
+  getMaxOutboundSeq,
+  wasContentDeliveredSince,
+} from './messages-out.js';
 
 beforeEach(() => {
   initTestSessionDb();
@@ -76,5 +82,42 @@ describe('writeMessageOut dedup', () => {
     });
 
     expect(getOutboundCount()).toBe(2);
+  });
+});
+
+describe('wasContentDeliveredSince — same-turn duplicate detection', () => {
+  const send = (id: string, inReplyTo: string | null, text: string) =>
+    writeMessageOut({
+      id,
+      in_reply_to: inReplyTo,
+      kind: 'chat',
+      platform_id: 'chan-1',
+      channel_type: 'telegram',
+      content: JSON.stringify({ text }),
+    });
+
+  it('detects a repeat of content sent since the turn marker — even with a DIFFERENT in_reply_to', () => {
+    const turnStart = getMaxOutboundSeq();
+    // The send_message MCP tool writes with the batch in_reply_to (null here).
+    send('viaTool', null, 'הלוגו עלה');
+    const content = JSON.stringify({ text: 'הלוגו עלה' });
+    // The final <message> block would write the SAME text with a real
+    // in_reply_to — this is exactly the pair that writeMessageOut's own dedup
+    // misses. The turn-scoped check catches it.
+    expect(wasContentDeliveredSince('telegram', 'chan-1', content, turnStart)).toBe(true);
+  });
+
+  it('does NOT flag an identical reply from a PRIOR turn (no cross-turn over-suppression)', () => {
+    send('turn1', 'in-1', 'כן');
+    // A new turn starts — its marker is above turn 1's row.
+    const turn2Start = getMaxOutboundSeq();
+    const content = JSON.stringify({ text: 'כן' });
+    expect(wasContentDeliveredSince('telegram', 'chan-1', content, turn2Start)).toBe(false);
+  });
+
+  it('does not flag content that was never sent', () => {
+    const turnStart = getMaxOutboundSeq();
+    send('x', null, 'something');
+    expect(wasContentDeliveredSince('telegram', 'chan-1', JSON.stringify({ text: 'other' }), turnStart)).toBe(false);
   });
 });
