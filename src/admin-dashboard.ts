@@ -40,9 +40,11 @@ import {
   type DayUsage,
 } from './db/usage-metering.js';
 import { restartAgentGroupContainers } from './container-restart.js';
+import { listContainersByNamePrefix, stopContainer } from './container-runtime.js';
 import { inboundDbPath, outboundDbPath } from './session-manager.js';
 import { readEnvFile } from './env.js';
 import { log } from './log.js';
+import { getActivationByAgentGroup } from './modules/pilot-activation/db.js';
 
 const ADMIN_KEY: string = (() => {
   const fromEnv = readEnvFile(['ADMIN_KEY']);
@@ -135,6 +137,37 @@ function readPairingInfo(folder: string): PairingInfo {
   }
 }
 
+interface RegistrationInfo {
+  userName: string | null;
+  phone: string | null;
+  email: string | null;
+  source: string | null;
+}
+
+/**
+ * Real signup-form contact info for a pilot agent, read from the activation
+ * that created it (`pilot_activations.metadata`, set at /provision time).
+ * This is the actual source of truth for hosted pilots — the legacy
+ * telegram-pairings.json (readPairingInfo above) predates the activation
+ * flow and is never written to by it, so it's kept only as a fallback for
+ * any pre-activation-era agent.
+ */
+export function readRegistrationInfo(agentGroupId: string): RegistrationInfo {
+  try {
+    const activation = getActivationByAgentGroup(agentGroupId);
+    const meta = activation?.metadata ? (JSON.parse(activation.metadata) as Record<string, unknown>) : null;
+    const name = typeof meta?.name === 'string' ? meta.name.trim() : '';
+    return {
+      userName: name || null,
+      phone: typeof meta?.phone === 'string' && meta.phone.trim() ? meta.phone.trim() : null,
+      email: typeof meta?.email === 'string' && meta.email.trim() ? meta.email.trim() : null,
+      source: typeof meta?.src === 'string' && meta.src.trim() ? meta.src.trim() : null,
+    };
+  } catch {
+    return { userName: null, phone: null, email: null, source: null };
+  }
+}
+
 interface WiringRow {
   wiring_id: string;
   engage_pattern: string | null;
@@ -187,21 +220,113 @@ function countMessages(agentGroupId: string, sessionId: string): number | null {
   return sawAny ? total : null;
 }
 
+/** Minutes an inbound message can sit unanswered (with the container not
+ *  actively running) before the dashboard flags the agent as stuck. */
+const STUCK_UNANSWERED_MINUTES = 15;
+
+/**
+ * SQLite TIMESTAMP columns are inconsistently formatted across tables:
+ * messages_in uses ISO with a 'T'/'Z' (from the host's `new Date().toISOString()`),
+ * messages_out uses SQLite's own `datetime('now')` (space-separated, no zone
+ * marker). Comparing the raw strings is unsafe — ' ' (0x20) sorts below 'T'
+ * (0x54), so an outbound row can look "earlier" than an inbound row it was
+ * actually written after. Always compare parsed epoch ms instead.
+ */
+function parseTimestampMs(ts: string): number {
+  return Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(ts) ? ts : ts + 'Z');
+}
+
+/**
+ * Real, already-existing signals only — no new storage:
+ *   1. A message the host gave up retrying (`messages_in.status = 'failed'`,
+ *      set by markMessageFailed in session-db.ts after retries exhaust).
+ *   2. The last inbound message is newer than the last outbound reply by
+ *      more than STUCK_UNANSWERED_MINUTES, and the container isn't
+ *      currently running (so it's not just mid-turn).
+ * Unreadable DBs never flag as stuck — silence beats a false alarm.
+ */
+export function checkStuck(agentGroupId: string, sessionId: string, liveNow: boolean): boolean {
+  try {
+    const inP = inboundDbPath(agentGroupId, sessionId);
+    if (!fs.existsSync(inP)) return false;
+    const inDb = new Database(inP, { readonly: true });
+    let failedCount = 0;
+    let lastInboundTs: string | null = null;
+    try {
+      failedCount = (
+        inDb.prepare("SELECT COUNT(*) AS c FROM messages_in WHERE status = 'failed'").get() as { c: number }
+      ).c;
+      lastInboundTs = (
+        inDb.prepare("SELECT MAX(timestamp) AS t FROM messages_in WHERE kind = 'chat-sdk'").get() as {
+          t: string | null;
+        }
+      ).t;
+    } finally {
+      inDb.close();
+    }
+    if (failedCount > 0) return true;
+    if (!lastInboundTs || liveNow) return false;
+
+    const outP = outboundDbPath(agentGroupId, sessionId);
+    let lastOutboundTs: string | null = null;
+    if (fs.existsSync(outP)) {
+      const outDb = new Database(outP, { readonly: true });
+      try {
+        lastOutboundTs = (outDb.prepare('SELECT MAX(timestamp) AS t FROM messages_out').get() as { t: string | null })
+          .t;
+      } finally {
+        outDb.close();
+      }
+    }
+    if (lastOutboundTs && parseTimestampMs(lastOutboundTs) >= parseTimestampMs(lastInboundTs)) return false;
+
+    const ageMs = Date.now() - parseTimestampMs(lastInboundTs);
+    return ageMs > STUCK_UNANSWERED_MINUTES * 60 * 1000;
+  } catch (err) {
+    log.warn('admin: stuck check failed', { agentGroupId, sessionId, err });
+    return false;
+  }
+}
+
 function localDateKey(iso: string): string {
   return new Date(iso).toLocaleDateString('en-CA', { timeZone: TIMEZONE }); // YYYY-MM-DD
 }
 
-interface AgentView {
+type FunnelStage = 'not-talked' | 'talked-once' | 'returned';
+
+const FUNNEL_LABELS: Record<FunnelStage, string> = {
+  'not-talked': 'פתח ולא דיבר',
+  'talked-once': 'דיבר פעם אחת',
+  returned: 'חזר יום אחרי',
+};
+
+/**
+ * Derived purely from data already on the view — no new storage. "Returned"
+ * means the last message landed on a later calendar day than the agent was
+ * opened; anything short of that is either silence or a same-day chat.
+ */
+export function funnelStage(messageCount: number | null, createdAt: string | null, lastActiveAt: string | null): FunnelStage {
+  if (!messageCount) return 'not-talked';
+  if (createdAt && lastActiveAt && localDateKey(lastActiveAt) !== localDateKey(createdAt)) return 'returned';
+  return 'talked-once';
+}
+
+export interface AgentView {
   slug: string;
   agentGroupId: string;
   friendlyName: string | null;
   userName: string | null;
+  phone: string | null;
+  email: string | null;
+  source: string | null;
   telegramChat: string | null;
   status: 'pending-pair' | 'live' | 'paused';
   liveNow: boolean;
   createdAt: string | null;
   lastActiveAt: string | null;
   messageCount: number | null;
+  funnelStage: FunnelStage;
+  stuck: boolean;
   tokensTodayIn: number; // input-side tokens (incl. cache) used today (UTC)
   tokensTodayOut: number; // output tokens used today (UTC)
   tokensToday: number; // in + out
@@ -214,7 +339,7 @@ interface AgentView {
   connections: string[];
 }
 
-function buildAgentView(folder: string): AgentView | null {
+export function buildAgentView(folder: string): AgentView | null {
   const ag = getAgentGroupByFolder(folder);
   if (!ag) return null;
 
@@ -229,10 +354,15 @@ function buildAgentView(folder: string): AgentView | null {
   }
 
   const wiring = getPilotWiring(ag.id);
-  const pairing = readPairingInfo(folder);
+  const registration = readRegistrationInfo(ag.id);
+  // Legacy pairing file predates the activation flow — only consulted when
+  // the activation lookup comes up empty (pre-activation-era agents).
+  const userName = registration.userName ?? readPairingInfo(folder).userName;
 
   const sessions = getSessionsByAgentGroup(ag.id);
   const sess = sessions.find((s) => s.status === 'active') ?? sessions[0];
+  const messageCount = sess ? countMessages(ag.id, sess.id) : 0;
+  const lastActiveAt = sess?.last_active ?? null;
   const containerStatus = sess?.container_status ?? 'stopped';
   const liveNow = containerStatus === 'running' || containerStatus === 'idle';
 
@@ -256,13 +386,18 @@ function buildAgentView(folder: string): AgentView | null {
     slug: folder,
     agentGroupId: ag.id,
     friendlyName: config?.assistant_name || null,
-    userName: pairing.userName,
+    userName,
+    phone: registration.phone,
+    email: registration.email,
+    source: registration.source,
     telegramChat: wiring?.platform_id ?? null,
     status,
     liveNow,
     createdAt: ag.created_at ?? null,
-    lastActiveAt: sess?.last_active ?? null,
-    messageCount: sess ? countMessages(ag.id, sess.id) : 0,
+    lastActiveAt,
+    messageCount,
+    funnelStage: funnelStage(messageCount, ag.created_at ?? null, lastActiveAt),
+    stuck: sess ? checkStuck(ag.id, sess.id, liveNow) : false,
     tokensTodayIn: usage.inTokens,
     tokensTodayOut: usage.outTokens,
     tokensToday,
@@ -308,6 +443,34 @@ function buildKpis(agents: AgentView[]): Record<string, number | null> {
   };
 }
 
+const UNKNOWN_SOURCE_LABEL = 'לא ידוע';
+
+interface SourceBreakdownRow {
+  source: string;
+  count: number;
+}
+
+/**
+ * Group agents by signup source, largest first. No hardcoded channel list —
+ * any `src` value that shows up in the data appears here automatically, so
+ * new campaign links need no code change.
+ */
+export function buildSourceBreakdown(agents: AgentView[]): SourceBreakdownRow[] {
+  const counts = new Map<string, number>();
+  for (const a of agents) {
+    const key = a.source || UNKNOWN_SOURCE_LABEL;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+}
+
+/** Count of agents at each funnel stage. All three stages always present (0 if empty). */
+export function buildFunnelBreakdown(agents: AgentView[]): Record<FunnelStage, number> {
+  const counts: Record<FunnelStage, number> = { 'not-talked': 0, 'talked-once': 0, returned: 0 };
+  for (const a of agents) counts[a.funnelStage]++;
+  return counts;
+}
+
 // ─── actions ─────────────────────────────────────────────────────────────────
 
 function setEngagePattern(agentGroupId: string, pattern: string): number {
@@ -327,8 +490,38 @@ function resumeAgent(agentGroupId: string): { resumed: boolean; wiringsUpdated: 
   return { resumed: true, wiringsUpdated };
 }
 
+/**
+ * Stop any running container for this agent's folder that the current
+ * process has no in-memory record of. restartAgentGroupContainers only sees
+ * containers *this* process spawned (activeContainers is in-memory); after a
+ * host restart, a container from before that restart is invisible to it and
+ * would otherwise survive as an orphan once the agent row + disk folder are
+ * gone. Container names are deterministic (`nanoclaw-v2-<folder>-<ts>`), so
+ * a name-prefix sweep catches it regardless of process history.
+ */
+function stopOrphanedContainers(folder: string): string[] {
+  const stopped: string[] = [];
+  try {
+    const names = listContainersByNamePrefix(`nanoclaw-v2-${folder}-`);
+    for (const name of names) {
+      try {
+        stopContainer(name);
+        stopped.push(name);
+      } catch (err) {
+        log.warn('admin: failed to stop orphaned container', { folder, name, err });
+      }
+    }
+  } catch (err) {
+    log.warn('admin: orphaned-container sweep failed', { folder, err });
+  }
+  return stopped;
+}
+
 /** FK-ordered cascade delete (mirrors `ncl groups delete`) + container kill. */
-function deleteAgent(agentGroupId: string): { deleted: string; removed: Record<string, number> } {
+export function deleteAgent(
+  agentGroupId: string,
+  folder: string,
+): { deleted: string; removed: Record<string, number>; containersStopped: string[] } {
   // 0. Capture this agent's final usage into the durable rollup BEFORE its
   //    sessions (and their usage_events) are removed — so historical spend is
   //    retained in usage_daily even after the agent is gone.
@@ -339,7 +532,10 @@ function deleteAgent(agentGroupId: string): { deleted: string; removed: Record<s
   }
 
   // 1. Kill any running container first so it can't write mid-delete.
+  //    (a) containers this process itself spawned and still tracks;
+  //    (b) orphans from before a host restart, caught by name prefix.
   restartAgentGroupContainers(agentGroupId, 'deleted via admin dashboard');
+  const containersStopped = stopOrphanedContainers(folder);
 
   const db = getDb();
   const cascade = db.transaction((groupId: string) => {
@@ -369,17 +565,20 @@ function deleteAgent(agentGroupId: string): { deleted: string; removed: Record<s
     removed.container_configs = db
       .prepare('DELETE FROM container_configs WHERE agent_group_id = ?')
       .run(groupId).changes;
+    removed.pilot_activations = db
+      .prepare('DELETE FROM pilot_activations WHERE agent_group_id = ?')
+      .run(groupId).changes;
     removed.agent_groups = db.prepare('DELETE FROM agent_groups WHERE id = ?').run(groupId).changes;
     return removed;
   });
   const removed = cascade(agentGroupId);
   // On-disk cleanup is done by the caller via cleanupAgentDisk(folder) — it
   // needs the folder name, which the caller still has after the row is gone.
-  return { deleted: agentGroupId, removed };
+  return { deleted: agentGroupId, removed, containersStopped };
 }
 
 /** Remove on-disk dirs for a deleted agent, guarded against path escape. */
-function cleanupAgentDisk(agentGroupId: string, folder: string): string[] {
+export function cleanupAgentDisk(agentGroupId: string, folder: string): string[] {
   const cleaned: string[] = [];
   const sessionsRoot = path.join(DATA_DIR, 'v2-sessions');
   const candidates: Array<{ root: string; target: string }> = [
@@ -435,6 +634,14 @@ function renderPage(adminKey: string): string {
   .kpi .v{font-size:22px;font-weight:800;letter-spacing:.5px}
   .kpi .l{color:var(--muted);font-size:11px;margin-top:2px}
   .kpi .todo{color:var(--amber);font-size:10px;margin-top:3px;opacity:.85}
+  .overview{margin-bottom:18px}
+  .ov-title{font-size:12px;color:var(--muted);margin:4px 4px 8px;font-weight:700}
+  .src-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+  .src-row{display:grid;grid-template-columns:130px 1fr 44px;gap:10px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:12.5px}
+  .src-row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .src-row .c{text-align:left;font-weight:700}
+  .funnel-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
   .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -444,6 +651,7 @@ function renderPage(adminKey: string): string {
   .b-live{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.35)}
   .b-pending{background:rgba(100,116,139,.15);color:#a8b6c5;border:1px solid rgba(100,116,139,.4)}
   .b-paused{background:rgba(251,191,36,.13);color:var(--amber);border:1px solid rgba(251,191,36,.35)}
+  .b-stuck{background:rgba(239,68,68,.15);color:#ff8080;border:1px solid rgba(239,68,68,.4)}
   .meta{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:10px 0;font-size:12.5px}
   .meta .k{color:var(--muted)}
   .meta .v{color:var(--txt);word-break:break-word}
@@ -501,6 +709,7 @@ function renderPage(adminKey: string): string {
   <button class="refresh" onclick="load()">↻ רענון</button>
 </header>
 <div id="kpis" class="kpis"></div>
+<div id="overview" class="overview"></div>
 <div id="cards" class="cards"><div class="empty">טוען…</div></div>
 <div id="modal" class="modal" onclick="if(event.target===this)closeHist()"><div id="sheet" class="sheet"></div></div>
 <footer>מדידת טוקנים פר-turn (כולל cache) · עלות בתמחור מדורג לפי מודל (haiku-4-5: in $1 / out $5 · sonnet-4-6: in $3 / out $15 ל-1M, cache read 0.1x / write 1.25x) · תקרת עלות יומית per-agent נאכפת (ברירת מחדל $1/יום) · היסטוריה נשמרת לאורך זמן</footer>
@@ -508,6 +717,7 @@ function renderPage(adminKey: string): string {
 const KEY = ${keyJson};
 const q = (s)=>document.querySelector(s);
 const dash = (v)=> (v===null||v===undefined||v==='') ? '<span class="todo">— TODO</span>' : v;
+const FUNNEL_LABELS = { 'not-talked':'פתח ולא דיבר', 'talked-once':'דיבר פעם אחת', 'returned':'חזר יום אחרי' };
 const fmtDate = (iso)=>{ if(!iso) return null; try{ return new Date(iso).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'}); }catch(e){ return iso; } };
 const esc = (s)=> String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtNum = (n)=> (n===null||n===undefined) ? null : Number(n).toLocaleString('en-US');
@@ -536,14 +746,21 @@ function card(a){
     ? a.connections.map(c=>'<span class="chip">'+esc(c)+'</span>').join('')
     : '<span class="todo">—</span>';
   const last = fmtDate(a.lastActiveAt);
+  const opened = fmtDate(a.createdAt);
   const canPause = a.status==='live';
   const canResume = a.status==='paused';
   return '<div class="card">'+
     '<div class="row"><div><div class="name">'+dash(a.friendlyName?esc(a.friendlyName):null)+
       '<span class="dot '+(a.liveNow?'on':'off')+'"></span></div>'+
-      '<div class="slug">'+esc(a.slug)+'</div></div>'+badge(a.status)+'</div>'+
+      '<div class="slug">'+esc(a.slug)+'</div></div><div>'+badge(a.status)+
+      (a.stuck?' <span class="badge b-stuck">⚠ תקוע</span>':'')+'</div></div>'+
     '<div class="meta">'+
       '<span class="k">משתמש</span><span class="v">'+dash(a.userName?esc(a.userName):null)+'</span>'+
+      '<span class="k">טלפון</span><span class="v">'+dash(a.phone?esc(a.phone):null)+'</span>'+
+      '<span class="k">מייל</span><span class="v">'+dash(a.email?esc(a.email):null)+'</span>'+
+      '<span class="k">נפתח ב</span><span class="v">'+dash(opened)+'</span>'+
+      '<span class="k">מקור</span><span class="v">'+esc(a.source||'לא ידוע')+'</span>'+
+      '<span class="k">שלב במשפך</span><span class="v">'+esc(FUNNEL_LABELS[a.funnelStage]||a.funnelStage)+'</span>'+
       '<span class="k">צ׳אט טלגרם</span><span class="v">'+dash(a.telegramChat?esc(a.telegramChat):null)+'</span>'+
       '<span class="k">מודל</span><span class="v">'+dash(a.model?esc(a.model):null)+'</span>'+
       '<span class="k">הודעות</span><span class="v">'+dash(a.messageCount)+'</span>'+
@@ -553,11 +770,11 @@ function card(a){
       '<span class="k">חיבורים</span><span class="v conns">'+conns+'</span>'+
     '</div>'+
     usageBar(a)+
-    '<button class="histbtn" onclick="showHist(\\''+a.slug+'\\')">📊 היסטוריה ועלות מצטברת ›</button>'+
+    '<button class="histbtn" data-action="hist" data-slug="'+esc(a.slug)+'">📊 היסטוריה ועלות מצטברת ›</button>'+
     '<div class="actions">'+
-      '<button class="b-pause" '+(canPause?'':'disabled')+' onclick="act(\\''+a.slug+'\\',\\'pause\\')">השהה</button>'+
-      '<button class="b-resume" '+(canResume?'':'disabled')+' onclick="act(\\''+a.slug+'\\',\\'resume\\')">הפעל</button>'+
-      '<button class="b-del" onclick="del(\\''+a.slug+'\\',\\''+esc(a.friendlyName||a.slug)+'\\')">מחק</button>'+
+      '<button class="b-pause" data-action="pause" data-slug="'+esc(a.slug)+'" '+(canPause?'':'disabled')+'>השהה</button>'+
+      '<button class="b-resume" data-action="resume" data-slug="'+esc(a.slug)+'" '+(canResume?'':'disabled')+'>הפעל</button>'+
+      '<button class="b-del" data-action="delete" data-slug="'+esc(a.slug)+'" data-name="'+esc(a.friendlyName||a.slug)+'">מחק</button>'+
     '</div>'+
   '</div>';
 }
@@ -565,6 +782,25 @@ function card(a){
 function kpi(v,l,todo){
   return '<div class="kpi"><div class="v">'+(v===null?'<span class="todo">—</span>':v)+'</div><div class="l">'+l+'</div>'+
     (todo?'<div class="todo">'+todo+'</div>':'')+'</div>';
+}
+
+function srcRow(row, max){
+  const pct = max>0 ? Math.round(row.count/max*100) : 0;
+  return '<div class="src-row"><span class="n">'+esc(row.source)+'</span>'+
+    '<span class="bar"><i style="width:'+pct+'%"></i></span>'+
+    '<span class="c">'+fmtNum(row.count)+'</span></div>';
+}
+
+function overview(sourceBreakdown, funnelBreakdown){
+  const rows = sourceBreakdown||[];
+  const max = Math.max(1, ...rows.map(r=>r.count), 0);
+  const srcHtml = rows.length ? rows.map(r=>srcRow(r,max)).join('') : '<div class="empty">אין נתוני מקור עדיין</div>';
+  const fb = funnelBreakdown||{};
+  const funnelHtml = ['not-talked','talked-once','returned']
+    .map(stage=>kpi(fmtNum(fb[stage]??0), FUNNEL_LABELS[stage]))
+    .join('');
+  return '<div class="ov-title">מקור הגעה</div><div class="src-list">'+srcHtml+'</div>'+
+    '<div class="ov-title">בריאות המשפך</div><div class="funnel-row">'+funnelHtml+'</div>';
 }
 
 async function load(){
@@ -580,6 +816,7 @@ async function load(){
       kpi(fmtNum(k.totalMessages),'סך הודעות')+
       kpi(fmtNum(k.tokensToday),'טוקנים היום')+
       kpi(fmtUsd(k.estCostTodayUsd),'עלות משוערת היום','תמחור מדורג לפי מודל');
+    q('#overview').innerHTML = overview(d.sourceBreakdown, d.funnelBreakdown);
     q('#cards').innerHTML = d.agents.length ? d.agents.map(card).join('') : '<div class="empty">אין סוכנים עדיין</div>';
   }catch(e){ q('#cards').innerHTML='<div class="err">'+esc(e.message)+'</div>'; }
 }
@@ -635,6 +872,21 @@ async function showHist(slug){
   }catch(e){ alert(e.message); }
 }
 
+// Event delegation instead of inline onclick with interpolated data: a slug
+// or display name containing a quote (e.g. the default pilot name "ג'וני")
+// would otherwise break out of the onclick attribute's JS-string literal and
+// silently no-op the click (invalid inline JS, no visible error). data-*
+// attributes only need HTML-attribute escaping (already done by esc()),
+// never JS-string escaping, so this class of bug can't recur.
+q('#cards').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-action]');
+  if(!btn || btn.disabled) return;
+  const { action, slug, name } = btn.dataset;
+  if(action==='pause' || action==='resume') act(slug, action);
+  else if(action==='delete') del(slug, name || slug);
+  else if(action==='hist') showHist(slug);
+});
+
 load();
 </script>
 </body>
@@ -673,7 +925,12 @@ export async function handleAdmin(req: http.IncomingMessage, res: http.ServerRes
   // GET /admin/agents → list + kpis
   if (pathname === '/admin/agents' && req.method === 'GET') {
     const agents = buildAllAgents();
-    sendJson(res, 200, { kpis: buildKpis(agents), agents });
+    sendJson(res, 200, {
+      kpis: buildKpis(agents),
+      sourceBreakdown: buildSourceBreakdown(agents),
+      funnelBreakdown: buildFunnelBreakdown(agents),
+      agents,
+    });
     return;
   }
 
@@ -719,7 +976,7 @@ export async function handleAdmin(req: http.IncomingMessage, res: http.ServerRes
           await readBody(req).catch(() => '');
           const folder = ag.folder;
           const agentGroupId = ag.id;
-          const result = deleteAgent(agentGroupId);
+          const result = deleteAgent(agentGroupId, folder);
           const diskCleaned = cleanupAgentDisk(agentGroupId, folder);
           log.info('admin: agent deleted', { slug, agentGroupId, removed: result.removed, diskCleaned });
           sendJson(res, 200, { slug, ...result, diskCleaned });
