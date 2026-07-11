@@ -305,7 +305,11 @@ const FUNNEL_LABELS: Record<FunnelStage, string> = {
  * means the last message landed on a later calendar day than the agent was
  * opened; anything short of that is either silence or a same-day chat.
  */
-export function funnelStage(messageCount: number | null, createdAt: string | null, lastActiveAt: string | null): FunnelStage {
+export function funnelStage(
+  messageCount: number | null,
+  createdAt: string | null,
+  lastActiveAt: string | null,
+): FunnelStage {
   if (!messageCount) return 'not-talked';
   if (createdAt && lastActiveAt && localDateKey(lastActiveAt) !== localDateKey(createdAt)) return 'returned';
   return 'talked-once';

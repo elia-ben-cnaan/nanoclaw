@@ -142,7 +142,10 @@ describe('stuck flag (real signals only, no new storage)', () => {
   const agentGroupId = 'ag-stuck';
   const sessionId = 'sess-stuck';
 
-  function seedDbs(opts: { inboundRows?: Array<{ status: string; timestamp: string }>; outboundTimestamps?: string[] }) {
+  function seedDbs(opts: {
+    inboundRows?: Array<{ status: string; timestamp: string }>;
+    outboundTimestamps?: string[];
+  }) {
     fs.mkdirSync(sessionDir(agentGroupId, sessionId), { recursive: true });
 
     const inDb = new Database(inboundDbPath(agentGroupId, sessionId));
