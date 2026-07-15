@@ -17,6 +17,7 @@ import type { Chat } from 'chat';
 import { log } from './log.js';
 import { handleProvision } from './provision-handler.js';
 import { handleAdmin } from './admin-dashboard.js';
+import { handleTrack, handleAppSummary } from './tracking.js';
 
 const DEFAULT_PORT = 3000;
 
@@ -117,6 +118,13 @@ function ensureServer(): void {
   server = http.createServer(async (req, res) => {
     const url = req.url || '/';
 
+    // Route: GET /health — unauthenticated liveness probe for tunnel/proxy health checks
+    if (url === '/health' || url === '/healthz') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ts: new Date().toISOString() }));
+      return;
+    }
+
     // Route: /admin* — operator dashboard (gated behind ?key=ADMIN_KEY)
     if (url === '/admin' || url.startsWith('/admin/') || url.startsWith('/admin?')) {
       try {
@@ -144,6 +152,36 @@ function ensureServer(): void {
         log.error('Provision handler error', { err });
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+      return;
+    }
+
+    // Route: POST /track — anonymous landing-funnel beacon (open, CORS-open, no
+    // auth). Handler always answers 200 so a fire-and-forget beacon never errors.
+    if (url === '/track' || url.startsWith('/track?')) {
+      try {
+        await handleTrack(req, res);
+      } catch (err) {
+        log.error('Track handler error', { err });
+        if (!res.headersSent) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('{"ok":true}');
+        }
+      }
+      return;
+    }
+
+    // Route: GET /app/summary — funnel rollup, gated behind ADMIN_KEY (same as
+    // /admin/agents). Server-to-server read for the Vercel proxy; not CORS-open.
+    if (url === '/app/summary' || url.startsWith('/app/summary?')) {
+      try {
+        await handleAppSummary(req, res);
+      } catch (err) {
+        log.error('App summary handler error', { err });
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Internal error' }));
+        }
       }
       return;
     }
