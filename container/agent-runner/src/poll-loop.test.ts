@@ -519,3 +519,88 @@ describe('isCorruptionError', () => {
     expect(isCorruptionError('')).toBe(false);
   });
 });
+
+describe('follow-up accumulate gate', () => {
+  // Regression for the quota-burn bug: while a query is active (warm
+  // container), trigger=0 context-only rows were pushed as follow-ups —
+  // one full provider turn per mirrored message. The gate must leave them
+  // pending until a trigger=1 row arrives.
+  it('does not push a trigger=0-only follow-up batch into an active query', async () => {
+    const { runPollLoop } = await import('./poll-loop.js');
+    insertMessage('m1', 'chat', { sender: 'User', text: 'real mention' }, { trigger: 1 });
+
+    const prompts: string[] = [];
+    const provider = new MockProvider({}, (p) => {
+      prompts.push(p);
+      return '<internal>ok</internal>';
+    });
+
+    const ctrl = new AbortController();
+    const loop = runPollLoop({
+      provider,
+      providerName: 'mock',
+      cwd: '/tmp',
+      signal: ctrl.signal,
+    });
+
+    // Wait for the initial turn, then drop a context-only row while the
+    // query is still open.
+    await new Promise((r) => setTimeout(r, 300));
+    insertMessage('m2', 'chat', { sender: 'joni-mirror', text: 'mirrored noise' }, { trigger: 0 });
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // The mirrored row must NOT have produced a turn and must still be pending.
+    expect(prompts.some((p) => p.includes('mirrored noise'))).toBe(false);
+    const stillPending = getPendingMessages().map((m) => m.id);
+    expect(stillPending).toContain('m2');
+
+    // A trigger=1 follow-up releases the accumulated row alongside it.
+    insertMessage('m3', 'chat', { sender: 'User', text: 'now answer' }, { trigger: 1 });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(prompts.some((p) => p.includes('now answer'))).toBe(true);
+    expect(prompts.some((p) => p.includes('mirrored noise'))).toBe(true);
+
+    ctrl.abort();
+    await Promise.race([loop, new Promise((r) => setTimeout(r, 2000))]);
+  }, 15000);
+});
+
+describe('task-runner routing (cheap model for watcher wakes)', () => {
+  it('serves a task-only batch on the task runner, not the primary', async () => {
+    const { runPollLoop } = await import('./poll-loop.js');
+    insertMessage('t1', 'task', { prompt: 'watcher tick' }, { trigger: 1 });
+
+    const primaryPrompts: string[] = [];
+    const taskPrompts: string[] = [];
+    const primary = new MockProvider({}, (p) => {
+      primaryPrompts.push(p);
+      return '<internal>primary</internal>';
+    });
+    const taskProvider = new MockProvider({}, (p) => {
+      taskPrompts.push(p);
+      return '<internal>task ok</internal>';
+    });
+
+    const ctrl = new AbortController();
+    const loop = runPollLoop({
+      provider: primary,
+      providerName: 'mock',
+      cwd: '/tmp',
+      signal: ctrl.signal,
+      taskRunner: { provider: taskProvider, providerName: 'mock-task' },
+    });
+
+    await new Promise((r) => setTimeout(r, 1500));
+
+    expect(taskPrompts.some((p) => p.includes('watcher tick'))).toBe(true);
+    expect(primaryPrompts).toHaveLength(0);
+
+    // A chat message must still take the primary path.
+    insertMessage('c1', 'chat', { sender: 'User', text: 'real chat' }, { trigger: 1 });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(primaryPrompts.some((p) => p.includes('real chat'))).toBe(true);
+
+    ctrl.abort();
+    await Promise.race([loop, new Promise((r) => setTimeout(r, 2000))]);
+  }, 15000);
+});

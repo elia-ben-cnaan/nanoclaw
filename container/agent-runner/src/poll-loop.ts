@@ -89,6 +89,17 @@ export interface PollLoopConfig {
     provider: AgentProvider;
     providerName: string;
   };
+  /**
+   * Optional cheap-model runner for scheduled-task (watcher) wakes. A batch
+   * consisting ONLY of `kind='task'` rows is served by a one-shot turn on
+   * this runner instead of the primary: cheaper model, and no conversation
+   * continuation, so the wake doesn't reload the full transcript. Batches
+   * containing any chat/webhook row always take the primary path.
+   */
+  taskRunner?: {
+    provider: AgentProvider;
+    providerName: string;
+  };
 }
 
 // The engine switch itself (primary→fallback, fallback→primary) is entirely
@@ -343,7 +354,14 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
     // can stamp it on outbound rows — needed for a2a return-path routing.
     setCurrentInReplyTo(routing.inReplyTo);
     try {
-      if (config.fallback && isPrimaryInCooldown(fbState, true, Date.now())) {
+      if (config.taskRunner && keep.every((m) => m.kind === 'task')) {
+        // Watcher wake: every row in the batch is a scheduled task. Serve it
+        // on the cheap task runner as a one-shot turn. serveViaFallback keeps
+        // the task thread's own continuation slot (keyed by the runner's
+        // providerName), separate from the primary conversation.
+        log(`Task-only batch — serving via task runner '${config.taskRunner.providerName}'`);
+        await serveViaFallback(config.taskRunner, prompt, routing, config.cwd, config.systemContext);
+      } else if (config.fallback && isPrimaryInCooldown(fbState, true, Date.now())) {
         // Primary is in a quota cooldown — serve this batch straight from the
         // fallback rather than re-probing a primary we already know is out of
         // quota. Skips the guaranteed-failing primary attempt (latency + a
@@ -377,6 +395,11 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
           cwd: config.cwd,
           systemContext: config.systemContext,
         });
+        // Stop signal must tear down the ACTIVE query too — the loop-top check
+        // alone leaves an open stream (and its poll interval) running after
+        // abort, which in tests bleeds into the next test's DB.
+        const onAbort = (): void => query.abort();
+        config.signal?.addEventListener('abort', onAbort, { once: true });
         try {
           const result = await processQuery(
             query,
@@ -447,6 +470,8 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               content: JSON.stringify({ text: `Error: ${errMsg}` }),
             });
           }
+        } finally {
+          config.signal?.removeEventListener('abort', onAbort);
         }
       }
     } finally {
@@ -580,6 +605,14 @@ export async function processQuery(
         // host-generated welcome trigger with null thread vs a Discord DM reply).
         const newMessages = pending.filter((m) => m.kind !== 'system');
         if (newMessages.length === 0) return;
+
+        // Accumulate gate for follow-ups — mirrors the initial-batch gate
+        // above. A batch of only trigger=0 rows (context-only, stored under
+        // ignored_message_policy='accumulate') must NOT be pushed into the
+        // active query: each push spins a full provider turn. Leave the rows
+        // pending; they ride along the next trigger=1 message. Without this,
+        // a warm container paid a full-context turn per mirrored message.
+        if (!newMessages.some((m) => m.trigger === 1)) return;
 
         const newIds = newMessages.map((m) => m.id);
         markProcessing(newIds);
@@ -849,7 +882,20 @@ export async function runFallbackTurn(
   // the thread is stale, drop it and retry once on a fresh thread. Other
   // failures propagate unchanged (a transient hiccup shouldn't nuke a good
   // thread's continuity).
-  const resumed = getContinuation(fallback.providerName);
+  let resumed = getContinuation(fallback.providerName);
+  // Rotate an oversized/stale thread BEFORE resuming — same guard the primary
+  // path applies at loop start. Without this, a fallback (or task-runner)
+  // thread grows unboundedly: seen live as a ~715K-token Codex thread that
+  // wedged every fallback turn in compaction until the host watchdog killed
+  // the container — i.e. "fallback never engages" from the user's side.
+  if (resumed) {
+    const rotateReason = fallback.provider.maybeRotateContinuation?.(resumed, cwd);
+    if (rotateReason) {
+      log(`Rotating ${fallback.providerName} thread — ${rotateReason}; starting fresh`);
+      clearContinuation(fallback.providerName);
+      resumed = undefined;
+    }
+  }
   try {
     await runFallbackAttempt(fallback, prompt, routing, cwd, systemContext, resumed);
   } catch (err) {

@@ -23,6 +23,7 @@ function presentConfig(row: ContainerConfigRow): Record<string, unknown> {
     provider: row.provider,
     fallback_provider: row.fallback_provider,
     model: row.model,
+    task_model: row.task_model,
     effort: row.effort,
     max_turns: row.max_turns,
     image_tag: row.image_tag,
@@ -245,7 +246,7 @@ registerResource({
       access: 'approval',
       description:
         'Update container config scalar fields. Changes are saved but do NOT take effect until you run `ncl groups restart`. ' +
-        'Use --id <group-id> and any of: --provider, --fallback-provider (or "none" to clear), --model, --effort, --image-tag (or "none" to clear), --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope.',
+        'Use --id <group-id> and any of: --provider, --fallback-provider (or "none" to clear), --model, --task-model (or "none" to clear), --effort, --image-tag (or "none" to clear), --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope.',
       handler: async (args) => {
         const id = args.id as string;
         if (!id) throw new Error('--id is required');
@@ -258,6 +259,7 @@ registerResource({
             | 'provider'
             | 'fallback_provider'
             | 'model'
+            | 'task_model'
             | 'effort'
             | 'image_tag'
             | 'assistant_name'
@@ -272,7 +274,17 @@ registerResource({
           // "none" clears the fallback (CLI flags can't pass null directly)
           updates.fallback_provider = fb === 'none' ? null : fb;
         }
-        if (args.model !== undefined) updates.model = args.model as string;
+        if (args.model !== undefined) {
+          const m = args.model as string;
+          // "none" clears the model (falls back to the provider's default /
+          // CODEX_MODEL from .env), matching the fallback/image-tag convention
+          updates.model = m === 'none' ? null : m;
+        }
+        if (args['task-model'] !== undefined || args.task_model !== undefined) {
+          const tm = (args['task-model'] ?? args.task_model) as string;
+          // "none" clears the override — task wakes go back to the primary model
+          updates.task_model = tm === 'none' ? null : tm;
+        }
         if (args.effort !== undefined) updates.effort = args.effort as string;
         if (args['image-tag'] !== undefined || args.image_tag !== undefined) {
           const tag = (args['image-tag'] ?? args.image_tag) as string;
@@ -299,6 +311,31 @@ registerResource({
           throw new Error(
             'Nothing to update — provide at least one of: --provider, --fallback-provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --max-turns, --cli-scope',
           );
+        }
+
+        // Cross-field sanity on the EFFECTIVE post-update config, not just the
+        // fields being changed. A provider switch that leaves a stale model
+        // behind is how a codex thread ends up requesting a claude-* model
+        // (compaction then fails with model_not_found until the session dies).
+        const effective = { ...row, ...updates };
+        const prov = (effective.provider ?? 'claude').toLowerCase();
+        if (effective.fallback_provider && effective.fallback_provider.toLowerCase() === prov) {
+          throw new Error(
+            `--fallback-provider must differ from the primary provider ("${prov}") — a same-provider fallback is silently skipped at spawn, leaving the group with no quota fallback. Use "none" to clear it instead.`,
+          );
+        }
+        const effModel = (effective.model ?? '').toLowerCase();
+        if (effModel) {
+          if (prov === 'codex' && effModel.startsWith('claude')) {
+            throw new Error(
+              `Model "${effective.model}" is a Claude model but the effective provider is "codex". Pass a Codex model via --model, or "--model none" to use CODEX_MODEL from .env.`,
+            );
+          }
+          if (prov === 'claude' && (effModel.startsWith('gpt') || effModel.includes('codex'))) {
+            throw new Error(
+              `Model "${effective.model}" is not a Claude model but the effective provider is "claude". Pass a claude-* model, or "--model none" to use the provider default.`,
+            );
+          }
         }
 
         updateContainerConfigScalars(id, updates);

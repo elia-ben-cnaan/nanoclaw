@@ -116,6 +116,23 @@ async function main(): Promise<void> {
     }
   }
 
+  // Optional cheap-model runner for scheduled-task (watcher) wakes. Same
+  // provider, cheaper model, and — in the poll-loop — no conversation
+  // continuation, so a routine watcher wake pays neither top-model rates nor
+  // a full transcript reload. Unset taskModel keeps every wake on the primary.
+  let taskRunner: { provider: ReturnType<typeof createProvider>; providerName: string } | undefined;
+  if (config.taskModel) {
+    try {
+      taskRunner = {
+        provider: createProvider(providerName, { ...providerOptions, model: config.taskModel }),
+        providerName: `${providerName}-task`,
+      };
+      log(`Task-wake runner enabled: ${providerName} on model ${config.taskModel}`);
+    } catch (err) {
+      log(`Task-wake runner unavailable (${err instanceof Error ? err.message : String(err)}) — tasks run on primary`);
+    }
+  }
+
   // Providers that lack native memory opt in via `usesMemoryScaffold`; for them
   // the runner creates a persistent memory/ tree in its host-backed workspace at
   // boot (idempotent). Default off — the trunk default (Claude) omits the flag
@@ -128,6 +145,7 @@ async function main(): Promise<void> {
     cwd: CWD,
     systemContext: { instructions },
     fallback,
+    taskRunner,
   });
 }
 

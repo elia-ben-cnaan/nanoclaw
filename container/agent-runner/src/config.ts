@@ -19,6 +19,8 @@ export interface RunnerConfig {
   maxMessagesPerPrompt: number;
   mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
   model?: string;
+  /** Cheap-model override for scheduled-task (watcher) wakes. Unset = use `model`. */
+  taskModel?: string;
   effort?: string;
   maxTurns?: number;
 }
@@ -50,6 +52,7 @@ export function loadConfig(): RunnerConfig {
     maxMessagesPerPrompt: (raw.maxMessagesPerPrompt as number) || DEFAULT_MAX_MESSAGES,
     mcpServers: (raw.mcpServers as RunnerConfig['mcpServers']) || {},
     model: (raw.model as string) || undefined,
+    taskModel: (raw.taskModel as string) || undefined,
     effort: (raw.effort as string) || undefined,
     maxTurns: typeof raw.maxTurns === 'number' && raw.maxTurns >= 1 ? raw.maxTurns : undefined,
   };

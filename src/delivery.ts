@@ -305,6 +305,25 @@ async function deliverMessage(
       throw new Error(`unknown messaging group for ${msg.channel_type}/${msg.platform_id} (message ${msg.id})`);
     }
     const isOriginChat = session.messaging_group_id === mg.id;
+
+    // Hard guard: no autonomous posting to GROUP chats. Applies even to the
+    // origin chat and even when the agent was @-mentioned — a human must have
+    // granted an explicit allowance row (group_post_allowances) for this
+    // agent×group pair. DMs (is_group=0/NULL) are unaffected. The table is
+    // created by migration 022; guarded existence check keeps older DBs
+    // (pre-migration test fixtures) behaving as before.
+    if (mg.is_group && hasTable(getDb(), 'group_post_allowances')) {
+      const allowed = getDb()
+        .prepare(
+          'SELECT 1 FROM group_post_allowances WHERE agent_group_id = ? AND messaging_group_id = ? LIMIT 1',
+        )
+        .get(session.agent_group_id, mg.id);
+      if (!allowed) {
+        throw new Error(
+          `group autopost blocked: ${session.agent_group_id} has no human-granted allowance to post in group ${mg.channel_type}/${mg.platform_id} (message ${msg.id})`,
+        );
+      }
+    }
     // Guarded: without the agent-to-agent module, `agent_destinations`
     // doesn't exist and we permit all non-origin channel sends (the
     // origin-chat case is always allowed regardless). Inlined SQL instead

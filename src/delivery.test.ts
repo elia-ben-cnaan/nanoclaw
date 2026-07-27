@@ -28,6 +28,7 @@ const TEST_DIR = '/tmp/nanoclaw-test-delivery';
 
 import {
   initTestDb,
+  getDb,
   closeDb,
   runMigrations,
   createAgentGroup,
@@ -252,6 +253,17 @@ describe('deliverSessionMessages — instance resolution', () => {
       created_at: now(),
     });
 
+    // Both rows are is_group=1 — grant allowances so the group-autopost
+    // guard doesn't mask what this test is about (instance resolution).
+    for (const mgId of ['mg-default', 'mg-tester']) {
+      getDb()
+        .prepare(
+          `INSERT INTO group_post_allowances (agent_group_id, messaging_group_id, approver, created_at)
+           VALUES ('ag-1', ?, 'test-operator', ?)`,
+        )
+        .run(mgId, now());
+    }
+
     const { session } = resolveSession('ag-1', 'mg-tester', null, 'shared');
     const db = new Database(outboundDbPath('ag-1', session.id));
     db.prepare(
@@ -339,5 +351,96 @@ describe('deliverSessionMessages — permission check', () => {
     const delivered = getDeliveredIds(inDb);
     inDb.close();
     expect(delivered.has('out-unauth')).toBe(true);
+  });
+});
+
+describe('deliverSessionMessages — group autopost guard', () => {
+  function seedGroupChat(): void {
+    createAgentGroup({
+      id: 'ag-1',
+      name: 'Test Agent',
+      folder: 'test-agent',
+      agent_provider: null,
+      created_at: now(),
+    });
+    createMessagingGroup({
+      id: 'mg-group',
+      channel_type: 'telegram',
+      platform_id: 'telegram:-100999',
+      name: 'Some Group',
+      is_group: 1,
+      unknown_sender_policy: 'public',
+      created_at: now(),
+    });
+  }
+
+  function insertGroupOutbound(agentGroupId: string, sessionId: string, msgId: string): void {
+    const db = new Database(outboundDbPath(agentGroupId, sessionId));
+    db.prepare(
+      `INSERT INTO messages_out (id, timestamp, kind, platform_id, channel_type, content)
+       VALUES (?, datetime('now'), 'chat', 'telegram:-100999', 'telegram', ?)`,
+    ).run(msgId, JSON.stringify({ text: 'unsolicited group post' }));
+    db.close();
+  }
+
+  it('blocks an agent send to a group chat without a human-granted allowance — even its origin chat', async () => {
+    seedGroupChat();
+    const { session } = resolveSession('ag-1', 'mg-group', null, 'shared');
+    insertGroupOutbound('ag-1', session.id, 'grp-blocked');
+
+    const calls: string[] = [];
+    setDeliveryAdapter({
+      async deliver(_ct, _pid, _tid, _kind, content) {
+        calls.push(content);
+        return 'plat-msg-id';
+      },
+    });
+
+    await deliverSessionMessages(session);
+    // Retried MAX times then marked failed — but never delivered.
+    await deliverSessionMessages(session);
+    await deliverSessionMessages(session);
+
+    expect(calls).toHaveLength(0);
+  });
+
+  it('delivers to a group chat once an allowance row exists', async () => {
+    seedGroupChat();
+    getDb()
+      .prepare(
+        `INSERT INTO group_post_allowances (agent_group_id, messaging_group_id, approver, created_at)
+         VALUES ('ag-1', 'mg-group', 'telegram:elia', ?)`,
+      )
+      .run(now());
+    const { session } = resolveSession('ag-1', 'mg-group', null, 'shared');
+    insertGroupOutbound('ag-1', session.id, 'grp-allowed');
+
+    const calls: string[] = [];
+    setDeliveryAdapter({
+      async deliver(_ct, _pid, _tid, _kind, content) {
+        calls.push(content);
+        return 'plat-msg-id';
+      },
+    });
+
+    await deliverSessionMessages(session);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('DM (is_group=0) delivery is unaffected by the guard', async () => {
+    seedAgentAndChannel();
+    const { session } = resolveSession('ag-1', 'mg-1', null, 'shared');
+    insertOutbound('ag-1', session.id, 'dm-ok');
+
+    const calls: string[] = [];
+    setDeliveryAdapter({
+      async deliver(_ct, _pid, _tid, _kind, content) {
+        calls.push(content);
+        return 'plat-msg-id';
+      },
+    });
+
+    await deliverSessionMessages(session);
+    expect(calls).toHaveLength(1);
   });
 });

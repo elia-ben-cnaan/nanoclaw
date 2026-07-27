@@ -22,6 +22,8 @@ import { moduleApprovalsTitleOptions } from './module-approvals-title-options.js
 import { migration018 } from './018-approvals-approver-user-id.js';
 import { migration019 } from './019-max-turns.js';
 import { migration020 } from './020-pilot-activations.js';
+import { migration021 } from './021-task-model.js';
+import { migration022 } from './022-group-post-allowances.js';
 
 export interface Migration {
   version: number;
@@ -59,6 +61,8 @@ export const migrations: Migration[] = [
   migration016MgInstance,
   migration019,
   migration020,
+  migration021,
+  migration022,
   migration017Fallback,
 ];
 

@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
-import { initTestSessionDb, closeSessionDb } from './db/connection.js';
+import { initTestSessionDb, closeSessionDb, getInboundDb } from './db/connection.js';
 import { getUndeliveredMessages } from './db/messages-out.js';
 import { getContinuation, setContinuation, loadFallbackState, saveFallbackState } from './db/session-state.js';
 import { isQuotaErrorMessage, QuotaExhaustedError } from './quota.js';
@@ -290,5 +290,91 @@ describe('fallback state persistence (survives container restart)', () => {
     expect(s.outageStartedAt).toBe(1_000_000);
     registerPrimaryRecovery(s);
     expect(s.outageStartedAt).toBe(0);
+  });
+});
+
+describe('codex thread rotation (bloated-thread wedge regression)', () => {
+  // Live failure: a ~715K-token fallback thread made every resume+compact
+  // cycle outlast the host watchdog — fallback never answered. The provider
+  // must refuse to resume a thread whose rollout transcript is oversized.
+  it('maybeRotateContinuation flags an oversized rollout and keeps a small one', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { CodexProvider, findRolloutPath } = await import('./providers/codex.js');
+
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-rotate-'));
+    const day = path.join(home, '.codex', 'sessions', '2026', '07', '27');
+    fs.mkdirSync(day, { recursive: true });
+    const bigId = '0199-big-thread';
+    const smallId = '0199-small-thread';
+    // 1.4MB = the size of the rollout that wedged live (compaction outlived
+    // the watchdog) — the cap must catch it, not just comfortably-huge files.
+    fs.writeFileSync(path.join(day, `rollout-x-${bigId}.jsonl`), Buffer.alloc(Math.round(1.4 * 1024 * 1024), 0x61));
+    fs.writeFileSync(path.join(day, `rollout-x-${smallId}.jsonl`), Buffer.alloc(512 * 1024, 0x61));
+
+    const prevHome = process.env.HOME;
+    process.env.HOME = home;
+    try {
+      expect(findRolloutPath(bigId)).toContain(bigId);
+      const provider = new CodexProvider({});
+      expect(provider.maybeRotateContinuation(bigId)).toContain('cap');
+      expect(provider.maybeRotateContinuation(smallId)).toBeNull();
+      // Unknown thread (no rollout on disk) must not rotate — server may still know it.
+      expect(provider.maybeRotateContinuation('no-such-thread')).toBeNull();
+    } finally {
+      process.env.HOME = prevHome;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('fallback turn rotates an oversized continuation before resuming', () => {
+  it('runFallbackTurn clears and does not resume a rotated thread', async () => {
+    const { runFallbackTurn } = await import('./poll-loop.js');
+    const { setContinuation, getContinuation } = await import('./db/session-state.js');
+
+    setContinuation('rot-fb', 'stale-big-thread');
+
+    const resumedWith: Array<string | undefined> = [];
+    const provider = {
+      supportsNativeSlashCommands: false,
+      isSessionInvalid: () => false,
+      maybeRotateContinuation: () => 'rollout 5.0MB > 4MB cap',
+      query(input: { continuation?: string }) {
+        resumedWith.push(input.continuation);
+        let ended = false;
+        return {
+          push() {},
+          end() {
+            ended = true;
+          },
+          abort() {},
+          events: (async function* () {
+            yield { type: 'init', continuation: 'fresh-thread' };
+            yield { type: 'result', text: '<message to="elia">ok</message>' };
+            while (!ended) await new Promise((r) => setTimeout(r, 5));
+          })(),
+        };
+      },
+    };
+
+    getInboundDb()
+      .prepare(
+        `INSERT INTO destinations (name, display_name, type, channel_type, platform_id, agent_group_id)
+         VALUES ('elia', 'Elia', 'channel', 'telegram', 'telegram:1', NULL)`,
+      )
+      .run();
+
+    await runFallbackTurn(
+      { provider: provider as never, providerName: 'rot-fb' },
+      'prompt',
+      { platformId: 'telegram:1', channelType: 'telegram', threadId: null, inReplyTo: null },
+      '/tmp',
+    );
+
+    // The stale thread must NOT be passed to query(); a fresh one is stored.
+    expect(resumedWith).toEqual([undefined]);
+    expect(getContinuation('rot-fb')).toBe('fresh-thread');
   });
 });

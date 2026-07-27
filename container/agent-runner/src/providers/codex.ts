@@ -42,6 +42,26 @@ const COMPACT_THRESHOLD = 40_000;
 const TURN_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
+ * Hard ceiling for a between-turns thread/compact request. Compaction of a
+ * bloated thread can hang far past the host's heartbeat ceiling (no events
+ * flow during it, so the heartbeat goes stale and the watchdog kills the
+ * container mid-fallback — seen live on a ~715K-token thread). Bounded so a
+ * slow compaction degrades to "continue uncompacted" instead of a dead turn.
+ */
+const COMPACT_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
+ * Rollout transcript size past which a stored thread is dropped instead of
+ * resumed. A thread this size makes every resume+compact cycle slower than
+ * the watchdog allows; a fresh thread (the poll-loop prepends a recap) is
+ * strictly better than a wedge. Calibrated from a live wedge: a 1.36MB
+ * rollout resumed into a ~715K-token turn context whose compaction outlived
+ * the 30-min heartbeat ceiling — so the cap sits below that, not at a
+ * comfortable-sounding round number.
+ */
+const THREAD_ROTATE_BYTES = 1 * 1024 * 1024;
+
+/**
  * Errors that indicate the stored thread ID is unusable — typically
  * because the app-server has no memory of it (thread transcript was
  * deleted, server was wiped, ID is from a different codex version).
@@ -52,6 +72,31 @@ const STALE_THREAD_RE = /thread\s+not\s+found|unknown\s+thread|thread[_\s]id|no 
 // Codex's app-server doesn't read CLAUDE.md/AGENT.md from cwd the way Claude
 // Code does. We have to load it and pass it in as `baseInstructions`. The
 // addendum from the poll-loop (destinations syntax, etc.) is appended.
+
+/**
+ * Locate the rollout .jsonl for a thread id under ~/.codex/sessions
+ * (layout: sessions/YYYY/MM/DD/rollout-<ts>-<threadId>.jsonl).
+ * Exported for tests.
+ */
+export function findRolloutPath(threadId: string, sessionsRoot?: string): string | null {
+  const root = sessionsRoot ?? `${process.env.HOME || '/home/node'}/.codex/sessions`;
+  const stack = [root];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) stack.push(full);
+      else if (e.name.includes(threadId) && e.name.endsWith('.jsonl')) return full;
+    }
+  }
+  return null;
+}
 
 function loadAgentBaseInstructions(): string | undefined {
   const candidates = ['/workspace/agent/CLAUDE.md', '/workspace/agent/AGENT.md'];
@@ -94,6 +139,24 @@ export class CodexProvider implements AgentProvider {
   isSessionInvalid(err: unknown): boolean {
     const msg = err instanceof Error ? err.message : String(err);
     return STALE_THREAD_RE.test(msg);
+  }
+
+  /**
+   * Drop a thread whose on-disk rollout transcript has grown past the rotate
+   * cap. Resume works by thread id (not file path), so rotation here is just
+   * "don't resume" — the caller clears the continuation and starts fresh.
+   */
+  maybeRotateContinuation(continuation: string): string | null {
+    const rolloutPath = findRolloutPath(continuation);
+    if (!rolloutPath) return null;
+    let size: number;
+    try {
+      size = fs.statSync(rolloutPath).size;
+    } catch {
+      return null;
+    }
+    if (size <= THREAD_ROTATE_BYTES) return null;
+    return `rollout ${(size / 1_048_576).toFixed(1)}MB > ${(THREAD_ROTATE_BYTES / 1_048_576).toFixed(0)}MB cap`;
   }
 
   query(input: QueryInput): AgentQuery {
@@ -179,7 +242,15 @@ export class CodexProvider implements AgentProvider {
           const turnContextTokens = cumulativeInputTokens - totalBeforeTurn;
           if (turnContextTokens >= COMPACT_THRESHOLD && threadId) {
             log(`Compacting thread (turn context ~${turnContextTokens} tokens)`);
-            const compactResp = await sendCodexRequest(server, 'thread/compact/start', { threadId });
+            const compactResp = await Promise.race([
+              sendCodexRequest(server, 'thread/compact/start', { threadId }),
+              new Promise<{ error: { message: string } }>((resolve) =>
+                setTimeout(
+                  () => resolve({ error: { message: `compaction timed out after ${COMPACT_TIMEOUT_MS / 1000}s` } }),
+                  COMPACT_TIMEOUT_MS,
+                ),
+              ),
+            ]);
             if (compactResp.error) {
               log(`Compaction failed: ${compactResp.error.message} — continuing uncompacted`);
             } else {

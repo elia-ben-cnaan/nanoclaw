@@ -17,6 +17,8 @@ export interface ContainerConfigRow {
   /** Overflow provider used when the primary fails a turn on quota. */
   fallback_provider: string | null;
   model: string | null;
+  /** Cheap-model override for scheduled-task (watcher) wakes. NULL = use `model`. */
+  task_model: string | null;
   effort: string | null;
   image_tag: string | null;
   assistant_name: string | null;

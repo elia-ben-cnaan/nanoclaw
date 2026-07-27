@@ -45,6 +45,8 @@ export interface ContainerConfig {
   maxMessagesPerPrompt?: number;
   maxTurns?: number;
   model?: string;
+  /** Cheap-model override for scheduled-task (watcher) wakes. Unset = use `model`. */
+  taskModel?: string;
   effort?: string;
 }
 
@@ -67,6 +69,7 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     maxMessagesPerPrompt: row.max_messages_per_prompt ?? undefined,
     maxTurns: row.max_turns ?? undefined,
     model: row.model ?? undefined,
+    taskModel: row.task_model ?? undefined,
     effort: row.effort ?? undefined,
   };
 }
