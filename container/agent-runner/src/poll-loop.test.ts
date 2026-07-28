@@ -440,8 +440,12 @@ describe('false "not delivered" nudge regression', () => {
     // The nudge still fires for a genuine failure: the mock agent gets
     // invoked a second time (in response to the <system> correction).
     expect(calls).toBe(2);
-    // And the real failure case is preserved: nothing was ever delivered.
-    expect(getUndeliveredMessages()).toHaveLength(0);
+    // The retry still didn't wrap its output — but the never-silently-drop
+    // guarantee means the raw text is synthesized to the origin destination
+    // rather than vanishing (see 'never-silently-drop guarantee' below).
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toBe('just some unwrapped text');
   });
 });
 
@@ -500,6 +504,64 @@ describe('error result with no <message> envelope', () => {
     expect(getUndeliveredMessages()).toHaveLength(0);
     expect(pushes).toHaveLength(1);
     expect(pushes[0]).toContain('was not delivered');
+  });
+});
+
+/**
+ * Build a two-turn stub query: the first 'result' is unwrapped text (triggers
+ * the re-wrap nudge), and — once the loop pushes that nudge — the second
+ * 'result' is ALSO unwrapped (simulating a provider, e.g. Codex, that never
+ * learns to wrap its final output even after the correction).
+ */
+function makeTwoTurnUnwrappedQuery(
+  firstText: string,
+  secondText: string,
+): { query: AgentQuery; pushes: string[] } {
+  const pushes: string[] = [];
+  let resolvePush: (() => void) | undefined;
+  const pushed = new Promise<void>((resolve) => {
+    resolvePush = resolve;
+  });
+  async function* events(): AsyncGenerator<ProviderEvent> {
+    yield { type: 'init', continuation: 'sess-1' };
+    yield { type: 'result', text: firstText };
+    await pushed;
+    yield { type: 'result', text: secondText };
+  }
+  return {
+    pushes,
+    query: {
+      push: (m: string) => {
+        pushes.push(m);
+        resolvePush?.();
+      },
+      end: () => {},
+      events: events(),
+      abort: () => {},
+    },
+  };
+}
+
+describe('never-silently-drop guarantee (item 1 fix)', () => {
+  it('synthesizes a raw delivery when the re-wrap retry STILL produces no <message> block', async () => {
+    const { query, pushes } = makeTwoTurnUnwrappedQuery(
+      'first unwrapped reply, no envelope',
+      'still unwrapped after the nudge — this is Codex not learning to wrap',
+    );
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'codex', undefined, 'prompt', undefined);
+
+    // Exactly one nudge was sent (not re-hammered a second time).
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toContain('was not delivered');
+
+    // The retry still failed to wrap — but the raw text must have been
+    // delivered anyway (never silently dropped), exactly once.
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toContain('still unwrapped after the nudge');
+    expect(out[0].platform_id).toBe(ERR_ROUTING.platformId);
+    expect(out[0].channel_type).toBe(ERR_ROUTING.channelType);
   });
 });
 

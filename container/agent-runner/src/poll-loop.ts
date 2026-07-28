@@ -803,6 +803,11 @@ export async function processQuery(
                   `Your destinations: ${names}. ` +
                   `Please re-send your response with the correct wrapping.</system>`,
               );
+            } else if (hasUnwrapped && !deliveredViaToolThisTurn && unwrappedNudged) {
+              // Already used our one-shot re-wrap nudge this turn cycle and the
+              // provider STILL didn't wrap its output (Codex commonly). Never
+              // silently drop — guarantee delivery by sending the raw text.
+              deliverRawFallback(event.text, routing);
             }
             // The wrapping-retry result answers the SAME user prompt — keep it
             // queued so the retry archives against it, not the nudge text.
@@ -995,6 +1000,13 @@ async function runFallbackAttempt(
             );
             continue;
           }
+          if (hasUnwrapped && !alreadySentThisTurn && nudged) {
+            // Already spent our one-shot nudge and the fallback provider
+            // (Codex) STILL didn't wrap its output — this is the exact "goes
+            // silent after quota fallback" bug. Never drop it: synthesize
+            // delivery of the raw text to the turn's original destination.
+            deliverRawFallback(event.text, routing);
+          }
         }
         // Turn answered — close the stream so control returns to the
         // primary provider for the next batch.
@@ -1048,6 +1060,29 @@ function deliverErrorResult(text: string, routing: RoutingContext): void {
     channel_type: routing.channelType,
     thread_id: routing.threadId,
     content: JSON.stringify({ text }),
+  });
+}
+
+/**
+ * Last-resort delivery guarantee: after the one-shot re-wrap nudge, the agent
+ * (most commonly Codex, whose final text isn't reliably wrapped in
+ * <message to="..."> blocks the way Claude's is) may STILL produce unwrapped
+ * text. Rather than silently dropping it (the original bug — logging a
+ * WARNING and vanishing), synthesize delivery: send the raw text verbatim to
+ * the turn's original destination, same as deliverErrorResult does for
+ * non-retryable error turns. This guarantees the user always gets a reply,
+ * even when a provider never learns to wrap its output.
+ */
+function deliverRawFallback(text: string, routing: RoutingContext): void {
+  log('Re-wrap retry still produced no <message> envelope — synthesizing raw delivery to origin destination');
+  writeMessageOut({
+    id: generateId(),
+    in_reply_to: routing.inReplyTo,
+    kind: 'chat',
+    platform_id: routing.platformId,
+    channel_type: routing.channelType,
+    thread_id: routing.threadId,
+    content: JSON.stringify({ text: stripInternalTags(text).trim() || text }),
   });
 }
 

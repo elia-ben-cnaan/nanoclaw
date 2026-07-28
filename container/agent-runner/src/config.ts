@@ -21,6 +21,8 @@ export interface RunnerConfig {
   model?: string;
   /** Cheap-model override for scheduled-task (watcher) wakes. Unset = use `model`. */
   taskModel?: string;
+  /** Per-group model override for the quota-overflow (fallback) provider. Unset = provider's own env-var default. */
+  fallbackModel?: string;
   effort?: string;
   maxTurns?: number;
 }
@@ -53,6 +55,7 @@ export function loadConfig(): RunnerConfig {
     mcpServers: (raw.mcpServers as RunnerConfig['mcpServers']) || {},
     model: (raw.model as string) || undefined,
     taskModel: (raw.taskModel as string) || undefined,
+    fallbackModel: (raw.fallbackModel as string) || undefined,
     effort: (raw.effort as string) || undefined,
     maxTurns: typeof raw.maxTurns === 'number' && raw.maxTurns >= 1 ? raw.maxTurns : undefined,
   };

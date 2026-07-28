@@ -105,10 +105,12 @@ async function main(): Promise<void> {
   if (fallbackName && fallbackName !== providerName) {
     try {
       fallback = {
-        provider: createProvider(fallbackName, { ...providerOptions, model: undefined, effort: undefined }),
+        provider: createProvider(fallbackName, { ...providerOptions, model: config.fallbackModel, effort: undefined }),
         providerName: fallbackName,
       };
-      log(`Fallback provider enabled: ${fallbackName}`);
+      log(
+        `Fallback provider enabled: ${fallbackName}${config.fallbackModel ? ` on model ${config.fallbackModel}` : ' (provider default model)'}`,
+      );
     } catch (err) {
       log(
         `Fallback provider '${fallbackName}' not available (${err instanceof Error ? err.message : String(err)}) — continuing without fallback`,

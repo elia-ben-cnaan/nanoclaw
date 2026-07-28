@@ -142,6 +142,27 @@ describe('runFallbackTurn', () => {
     expect(getUndeliveredMessages()).toHaveLength(0);
   });
 
+  it('never silently drops output: raw-delivers when Codex-as-fallback never wraps, even after the nudge', async () => {
+    // The exact "goes silent after quota fallback" bug: Codex's final text
+    // isn't reliably wrapped in <message to="..."> blocks. Script two
+    // consecutive unwrapped results — the nudge fires once, and even though
+    // the retry ALSO comes back unwrapped, the raw text must still reach the
+    // user instead of vanishing.
+    const provider = scriptedProvider([
+      { type: 'init', continuation: 'codex-thread-3' },
+      { type: 'result', text: 'first bare reply, no envelope' },
+      { type: 'result', text: 'still bare after the nudge — Codex never wraps' },
+    ]);
+
+    await runFallbackTurn(fallbackOf(provider), 'prompt-text', ROUTING, '/workspace/agent');
+
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toBe('still bare after the nudge — Codex never wraps');
+    expect(out[0].platform_id).toBe(ROUTING.platformId);
+    expect(out[0].channel_type).toBe(ROUTING.channelType);
+  });
+
   it('throws when the fallback stream ends without any result', async () => {
     const provider = scriptedProvider([{ type: 'init', continuation: 'x' }]);
 

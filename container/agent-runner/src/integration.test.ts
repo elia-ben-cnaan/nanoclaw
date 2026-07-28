@@ -114,20 +114,22 @@ describe('poll loop integration', () => {
     await loopPromise.catch(() => {});
   });
 
-  it('bare text produces no outbound messages (scratchpad only)', async () => {
+  it('bare text is nudged once, then raw-delivered if the retry is still unwrapped (never-silently-drop)', async () => {
     insertMessage('m1', { sender: 'Alice', text: 'hello' }, { platformId: 'chan-1', channelType: 'discord' });
 
-    // Agent responds with bare text — no <message to="..."> wrapping
+    // Agent responds with bare text — no <message to="..."> wrapping — on
+    // every turn, including the one-shot re-wrap retry. The loop must not
+    // silently drop this: it synthesizes a raw delivery instead.
     const provider = new MockProvider({}, () => 'I am thinking about this...');
     const controller = new AbortController();
     const loopPromise = runPollLoopWithTimeout(provider, controller.signal, 2000);
 
-    // Wait long enough for the poll loop to process
-    await sleep(1000);
+    await waitFor(() => getUndeliveredMessages().length > 0, 2000);
     controller.abort();
 
     const out = getUndeliveredMessages();
-    expect(out).toHaveLength(0);
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toBe('I am thinking about this...');
 
     await loopPromise.catch(() => {});
   });
