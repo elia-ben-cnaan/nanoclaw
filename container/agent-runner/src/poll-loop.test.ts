@@ -568,7 +568,9 @@ describe('follow-up accumulate gate', () => {
 describe('task-runner routing (cheap model for watcher wakes)', () => {
   it('serves a task-only batch on the task runner, not the primary', async () => {
     const { runPollLoop } = await import('./poll-loop.js');
-    insertMessage('t1', 'task', { prompt: 'watcher tick' }, { trigger: 1 });
+    // A watcher task carries a script — that's what routes it to the cheap
+    // runner. Script-less tasks are deliberate scheduled work → primary.
+    insertMessage('t1', 'task', { prompt: 'watcher tick', script: 'echo \'{"wakeAgent": true}\'' }, { trigger: 1 });
 
     const primaryPrompts: string[] = [];
     const taskPrompts: string[] = [];
@@ -599,6 +601,13 @@ describe('task-runner routing (cheap model for watcher wakes)', () => {
     insertMessage('c1', 'chat', { sender: 'User', text: 'real chat' }, { trigger: 1 });
     await new Promise((r) => setTimeout(r, 1500));
     expect(primaryPrompts.some((p) => p.includes('real chat'))).toBe(true);
+
+    // A script-LESS task (deliberate scheduled work, e.g. a daily review)
+    // must also take the primary path, not the cheap watcher runner.
+    insertMessage('t2', 'task', { prompt: 'daily deep review' }, { trigger: 1 });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(primaryPrompts.some((p) => p.includes('daily deep review'))).toBe(true);
+    expect(taskPrompts.some((p) => p.includes('daily deep review'))).toBe(false);
 
     ctrl.abort();
     await Promise.race([loop, new Promise((r) => setTimeout(r, 2000))]);

@@ -354,12 +354,15 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
     // can stamp it on outbound rows — needed for a2a return-path routing.
     setCurrentInReplyTo(routing.inReplyTo);
     try {
-      if (config.taskRunner && keep.every((m) => m.kind === 'task')) {
-        // Watcher wake: every row in the batch is a scheduled task. Serve it
-        // on the cheap task runner as a one-shot turn. serveViaFallback keeps
-        // the task thread's own continuation slot (keyed by the runner's
-        // providerName), separate from the primary conversation.
-        log(`Task-only batch — serving via task runner '${config.taskRunner.providerName}'`);
+      if (config.taskRunner && keep.every((m) => isWatcherTask(m))) {
+        // Watcher wake: every row is a script-gated scheduled task (a script
+        // decided to wake the agent). Serve it on the cheap task runner as a
+        // one-shot turn. serveViaFallback keeps the task thread's own
+        // continuation slot (keyed by the runner's providerName), separate
+        // from the primary conversation. Script-LESS tasks are deliberate
+        // scheduled work (e.g. a daily review that orchestrates other
+        // agents) — those stay on the primary model.
+        log(`Watcher-task batch — serving via task runner '${config.taskRunner.providerName}'`);
         await serveViaFallback(config.taskRunner, prompt, routing, config.cwd, config.systemContext);
       } else if (config.fallback && isPrimaryInCooldown(fbState, true, Date.now())) {
         // Primary is in a quota cooldown — serve this batch straight from the
@@ -491,6 +494,22 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
  * passthrough commands are sent raw (no XML wrapping) so the SDK can
  * dispatch them. Otherwise they fall through to standard XML formatting.
  */
+/**
+ * A watcher task = a scheduled task whose wake was decided by a pre-task
+ * script (content carries `script`; after applyPreTaskScripts the enriched
+ * copy also carries `scriptOutput`). These are cheap-triage wakes. Tasks
+ * without a script are deliberate scheduled work and take the primary path.
+ */
+function isWatcherTask(msg: MessageInRow): boolean {
+  if (msg.kind !== 'task') return false;
+  try {
+    const c = JSON.parse(msg.content) as Record<string, unknown>;
+    return typeof c.script === 'string' && c.script.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function formatMessagesWithCommands(messages: MessageInRow[], nativeSlashCommands: boolean): string {
   const parts: string[] = [];
   const normalBatch: MessageInRow[] = [];
@@ -948,6 +967,17 @@ async function runFallbackAttempt(
         throw new Error(event.message);
       } else if (event.type === 'result') {
         gotResult = true;
+        // Meter fallback/task-runner turns too — without this, every turn
+        // served off the primary path was invisible in usage_events, so the
+        // operator dashboard under-reported exactly the paths (cheap task
+        // wakes, quota outages) whose cost we most want to watch.
+        if (event.usage) {
+          try {
+            recordUsage(event.usage, event.model ?? null, event.costUsd ?? 0);
+          } catch (err) {
+            log(`usage record failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
         if (event.text) {
           const { hasUnwrapped } = dispatchResultText(event.text, routing, turnStartMaxSeq);
           const alreadySentThisTurn = getOutboundCount() > outboundBefore;
