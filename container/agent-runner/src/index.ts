@@ -27,7 +27,8 @@ import { fileURLToPath } from 'url';
 
 import { loadConfig } from './config.js';
 import { buildSystemPromptAddendum } from './destinations.js';
-import { ensureMemoryScaffold } from './memory-scaffold.js';
+import { ensureMemoryScaffold } from './memory/scaffold.js';
+import { MEMORY_SESSION_HOOK } from './memory/session-hook.js';
 // Providers barrel — each enabled provider self-registers on import.
 // Provider skills append imports to providers/index.ts.
 import './providers/index.js';
@@ -46,12 +47,16 @@ async function main(): Promise<void> {
 
   log(`Starting v2 agent-runner (provider: ${providerName})`);
 
+  // Every provider shares one persistent memory tree. Legacy imports are an
+  // operator-run migration and never happen in this normal startup path.
+  ensureMemoryScaffold();
+
   // Runtime-generated system-prompt addendum: agent identity (name) plus
   // the live destinations map. Everything else (capabilities, per-module
   // instructions, per-channel formatting) is loaded by Claude Code from
   // /workspace/agent/CLAUDE.md — the composed entry imports the shared
-  // base (/app/CLAUDE.md) and each enabled module's fragment. Per-group
-  // memory lives in /workspace/agent/CLAUDE.local.md (auto-loaded).
+  // base (/app/CLAUDE.md) and each enabled module's fragment. Memory is
+  // supplied separately by each provider's native lifecycle hook.
   const instructions = buildSystemPromptAddendum(config.assistantName || undefined);
 
   // Discover additional directories mounted at /workspace/extra/*
@@ -97,6 +102,7 @@ async function main(): Promise<void> {
     maxTurns: config.maxTurns,
   };
   const provider = createProvider(providerName, providerOptions);
+  provider.registerMemorySessionHook(MEMORY_SESSION_HOOK);
 
   // Optional quota-overflow provider. Model/effort are primary-provider
   // settings — the fallback uses its own defaults (e.g. CODEX_MODEL env).
@@ -135,11 +141,11 @@ async function main(): Promise<void> {
     }
   }
 
-  // Providers that lack native memory opt in via `usesMemoryScaffold`; for them
-  // the runner creates a persistent memory/ tree in its host-backed workspace at
-  // boot (idempotent). Default off — the trunk default (Claude) omits the flag
-  // and keeps its native memory untouched.
-  if (provider.usesMemoryScaffold) ensureMemoryScaffold();
+  // Shared memory reaches every runner through the same session-start hook —
+  // register it on the fallback and task runners too, so a provider switch
+  // (e.g. Claude → Codex on quota) still boots with the group's memory tree.
+  fallback?.provider.registerMemorySessionHook(MEMORY_SESSION_HOOK);
+  taskRunner?.provider.registerMemorySessionHook(MEMORY_SESSION_HOOK);
 
   await runPollLoop({
     provider,

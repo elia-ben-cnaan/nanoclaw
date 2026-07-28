@@ -15,6 +15,7 @@
  */
 import fs from 'fs';
 
+import { type MemorySessionHookRegistration, memoryContextForSessionStart } from '../memory/session-hook.js';
 import { registerProvider } from './provider-registry.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, ProviderOptions, QueryInput } from './types.js';
 import {
@@ -110,9 +111,13 @@ function loadAgentBaseInstructions(): string | undefined {
   return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
-function composeBaseInstructions(promptAddendum: string | undefined): string | undefined {
+/** Exported for tests. `memoryContext` is set only when a NEW thread starts. */
+export function composeBaseInstructions(
+  promptAddendum: string | undefined,
+  memoryContext?: string,
+): string | undefined {
   const agentMd = loadAgentBaseInstructions();
-  const pieces = [agentMd, promptAddendum].filter((s): s is string => Boolean(s));
+  const pieces = [agentMd, promptAddendum, memoryContext].filter((s): s is string => Boolean(s));
   return pieces.length > 0 ? pieces.join('\n\n---\n\n') : undefined;
 }
 
@@ -124,6 +129,7 @@ export class CodexProvider implements AgentProvider {
   private readonly mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
   private readonly model: string;
   private readonly baseUrl?: string;
+  private memorySessionHook?: MemorySessionHookRegistration;
 
   constructor(options: ProviderOptions = {}) {
     this.mcpServers = options.mcpServers ?? {};
@@ -134,6 +140,17 @@ export class CodexProvider implements AgentProvider {
     // here and uses CODEX_MODEL, never its (claude) model field.
     this.model = options.model ?? (options.env?.CODEX_MODEL as string | undefined) ?? 'gpt-5.4-mini';
     this.baseUrl = options.env?.OPENAI_BASE_URL as string | undefined;
+  }
+
+  /**
+   * Codex's app-server has no session-start hook mechanism, so shared memory
+   * is wired through `baseInstructions` instead: when a query starts a NEW
+   * thread (no continuation), the memory context is appended to the base
+   * instructions. Resuming an existing thread injects nothing — that context
+   * already carries it — matching the hook's 'resume' semantics on Claude.
+   */
+  registerMemorySessionHook(hook: MemorySessionHookRegistration): void {
+    this.memorySessionHook = hook;
   }
 
   isSessionInvalid(err: unknown): boolean {
@@ -160,6 +177,10 @@ export class CodexProvider implements AgentProvider {
   }
 
   query(input: QueryInput): AgentQuery {
+    if (!this.memorySessionHook) throw new Error('Codex memory session hook was not registered');
+    // New thread → fresh context window → inject memory (startup semantics).
+    // Resume carries the previous context, which already includes it.
+    const memoryContext = input.continuation ? undefined : memoryContextForSessionStart('startup');
     const pending: string[] = [];
     let waiting: (() => void) | null = null;
     let ended = false;
@@ -193,7 +214,7 @@ export class CodexProvider implements AgentProvider {
           sandbox: 'danger-full-access',
           approvalPolicy: 'never',
           personality: 'friendly',
-          baseInstructions: composeBaseInstructions(input.systemContext?.instructions),
+          baseInstructions: composeBaseInstructions(input.systemContext?.instructions, memoryContext),
         };
 
         threadId = await startOrResumeCodexThread(server, threadId, threadParams);
