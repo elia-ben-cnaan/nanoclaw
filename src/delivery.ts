@@ -314,9 +314,7 @@ async function deliverMessage(
     // (pre-migration test fixtures) behaving as before.
     if (mg.is_group && hasTable(getDb(), 'group_post_allowances')) {
       const allowed = getDb()
-        .prepare(
-          'SELECT 1 FROM group_post_allowances WHERE agent_group_id = ? AND messaging_group_id = ? LIMIT 1',
-        )
+        .prepare('SELECT 1 FROM group_post_allowances WHERE agent_group_id = ? AND messaging_group_id = ? LIMIT 1')
         .get(session.agent_group_id, mg.id);
       if (!allowed) {
         throw new Error(
