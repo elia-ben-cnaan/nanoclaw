@@ -9,3 +9,5 @@
 import './cli.js';
 import './telegram.js';
 import './telegram-pilot.js';
+import './telegram-joni.js';
+import './whatsapp.js';

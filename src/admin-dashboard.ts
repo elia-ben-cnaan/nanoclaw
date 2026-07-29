@@ -417,7 +417,7 @@ export function buildAgentView(folder: string): AgentView | null {
 
 function listPilotFolders(): string[] {
   return getAllAgentGroups()
-    .filter((g) => g.folder.startsWith('pilot-'))
+    .filter((g) => g.folder.startsWith('pilot-') || g.folder.startsWith('whatsapp-'))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1)) // newest first
     .map((g) => g.folder);
 }
