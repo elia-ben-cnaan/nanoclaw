@@ -288,8 +288,15 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     // pairing-code auth mode. Reusing that key here would flip the adapter's
     // auth path as a side effect.
     const whatsappPhoneNumber = readEnvFile(['WHATSAPP_BOT_NUMBER'])['WHATSAPP_BOT_NUMBER'];
+    // Friendly pre-filled message with the code embedded at the end — the
+    // adapter finds the code anywhere in the text (findPilotCodeInText),
+    // swallows the whole message, and answers with Johnny's greeting.
+    const whatsappText =
+      lang === 'en'
+        ? `Hey Johnny, nice to meet you — let's get to work! 🙂\n\nActivation code: ${activation.code}`
+        : `היי ג'וני, נעים להכיר, בוא נתחיל לעבוד! 🙂\n\nקוד הפעלה: ${activation.code}`;
     const whatsappDeepLink = whatsappPhoneNumber
-      ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(activation.code)}`
+      ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappText)}`
       : null;
 
     log.info('Provision: activation created', { code: activation.code, userName, lang });

@@ -70,6 +70,24 @@ export function extractPilotCode(text: string): string | null {
   return looksLikePilotCode(m[1]) ? m[1] : null;
 }
 
+/**
+ * Find a pilot code ANYWHERE inside a longer message. Used by the WhatsApp
+ * deep-link flow, where wa.me pre-fills a friendly greeting with the code
+ * embedded at the end ("היי ג'וני ... קוד הפעלה: XXXX") — the message is no
+ * longer just the bare code. The code alphabet (uppercase, no 0/O/1/I,
+ * length 20) makes accidental matches in natural text practically
+ * impossible. Falls back to the strict extractor first so bare codes and
+ * "/start CODE" keep working identically.
+ */
+export function findPilotCodeInText(text: string): string | null {
+  const strict = extractPilotCode(text);
+  if (strict) return strict;
+  for (const token of text.split(/[^A-Z0-9]+/)) {
+    if (looksLikePilotCode(token)) return token;
+  }
+  return null;
+}
+
 const FEEDBACK = {
   expired: {
     he: 'הקישור הזה פג תוקף (קישורים תקפים ל-24 שעות). אפשר לבקש קישור חדש בטופס ההרשמה באתר ונשלח לך אחד מיד. 🙂',

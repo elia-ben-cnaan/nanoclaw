@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { createActivation, consumeActivation } from '../src/modules/pilot-activation/db.js';
-import { extractPilotCode } from '../src/modules/pilot-activation/activation.js';
+import { findPilotCodeInText } from '../src/modules/pilot-activation/activation.js';
 import { provisionPilotAtPress } from '../src/provision-handler.js';
 import { wireJoniChat } from '../src/channels/telegram-joni.js';
 import { getMessagingGroupByPlatform, getMessagingGroupAgents } from '../src/db/messaging-groups.js';
@@ -36,15 +36,18 @@ const db = getDb();
 const activation = createActivation({ lang: 'he', metadata: { name: 'בדיקה', gender: 'm' } });
 console.log(`1. minted code: ${activation.code}`);
 
-// --- 2. Simulate the wa.me?text=<code> message body
-const messageText = activation.code; // wa.me pre-fills exactly the code
-const extracted = extractPilotCode(messageText);
-if (extracted !== activation.code) fail(`extractPilotCode(${messageText}) → ${extracted}`);
-console.log('2. extractPilotCode recognizes the wa.me text ✓');
+// --- 2. Simulate the wa.me?text=... message body (friendly text + code)
+const messageText = `היי ג'וני, נעים להכיר, בוא נתחיל לעבוד! 🙂\n\nקוד הפעלה: ${activation.code}`;
+const extracted = findPilotCodeInText(messageText);
+if (extracted !== activation.code) fail(`findPilotCodeInText(friendly text) → ${extracted}`);
+// Bare code (old links) must still work
+if (findPilotCodeInText(activation.code) !== activation.code) fail('bare code no longer recognized');
+console.log('2. code found in friendly wa.me text + bare code ✓');
 
 // Negative: ordinary text must NOT look like a code
-if (extractPilotCode('היי מה קורה') !== null) fail('ordinary Hebrew text mistaken for a code');
-if (extractPilotCode('hello there') !== null) fail('ordinary English text mistaken for a code');
+if (findPilotCodeInText('היי מה קורה') !== null) fail('ordinary Hebrew text mistaken for a code');
+if (findPilotCodeInText('hello there, HOW ARE YOU TODAY my friend') !== null) fail('ordinary English text mistaken for a code');
+if (findPilotCodeInText('היי ג\'וני, נעים להכיר, בוא נתחיל לעבוד! 🙂') !== null) fail('friendly text without code mistaken for a code');
 console.log('   ordinary text is not a code ✓');
 
 // --- 3. Consume + provision with channel=WhatsApp

@@ -50,7 +50,7 @@ import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, ConversationInfo, InboundMessage, OutboundMessage } from './adapter.js';
 import { provisionPilotAtPress } from '../provision-handler.js';
 import { consumeActivation } from '../modules/pilot-activation/db.js';
-import { extractPilotCode } from '../modules/pilot-activation/activation.js';
+import { findPilotCodeInText } from '../modules/pilot-activation/activation.js';
 
 /**
  * Trunk's ChannelAdapter/ChannelRegistration no longer carry a `defaults`
@@ -1035,7 +1035,7 @@ registerChannelAdapter('whatsapp', {
               const isWired = existingMg ? getMessagingGroupAgents(existingMg.id).length > 0 : false;
 
               if (!existingMg || !isWired) {
-                const activationCode = extractPilotCode(content);
+                const activationCode = findPilotCodeInText(content);
                 const userId = `whatsapp:${sender}`;
                 try {
                   if (activationCode) {
