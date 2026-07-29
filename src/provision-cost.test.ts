@@ -56,7 +56,7 @@ describe('provisionPilotAtPress — pilot cost tier is pinned cheap', () => {
   it('pins the configured pilot model', () => {
     capturedConfig = {};
     provisionPilotAtPress({ activation: activation() });
-    expect(capturedConfig.model).toBe('claude-sonnet-4-6');
+    expect(capturedConfig.model).toBe('claude-haiku-4-5');
   });
 
   it('pins reasoning effort low (not high / unset)', () => {

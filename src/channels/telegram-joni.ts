@@ -220,25 +220,33 @@ function wireMessagingGroupToAgentExclusive(mgId: string, agentGroupId: string):
 /**
  * Chat-side wiring for a Johnny chat: messaging group upsert, user upsert,
  * membership, and exclusive wiring to the given agent group. Idempotent.
- * Exported for reuse in WhatsApp provision.
+ * Exported for reuse in WhatsApp provision — pass channelType='whatsapp'
+ * there so the messaging group is created on the channel the messages
+ * actually arrive on (router lookup is by (channel_type, platform_id)).
  */
-export function wireJoniChat(platformId: string, agentGroupId: string, userId: string, userName: string): void {
+export function wireJoniChat(
+  platformId: string,
+  agentGroupId: string,
+  userId: string,
+  userName: string,
+  channelType: string = CHANNEL_TYPE,
+): void {
   const now = new Date().toISOString();
-  let mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId);
+  let mg = getMessagingGroupByPlatform(channelType, platformId);
   if (!mg) {
     const mgId = `mg-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
     createMessagingGroup({
       id: mgId,
-      channel_type: CHANNEL_TYPE,
+      channel_type: channelType,
       platform_id: platformId,
       name: userName,
       is_group: 0,
       unknown_sender_policy: 'strict',
       created_at: now,
     });
-    mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId)!;
+    mg = getMessagingGroupByPlatform(channelType, platformId)!;
   }
-  upsertUser({ id: userId, kind: CHANNEL_TYPE, display_name: userName, created_at: now });
+  upsertUser({ id: userId, kind: channelType, display_name: userName, created_at: now });
   wireMessagingGroupToAgentExclusive(mg.id, agentGroupId);
   const hasAccess = getUserRoles(userId).some((r) => r.agent_group_id === agentGroupId);
   if (!hasAccess) {

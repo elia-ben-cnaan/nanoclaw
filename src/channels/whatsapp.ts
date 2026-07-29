@@ -50,6 +50,7 @@ import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, ConversationInfo, InboundMessage, OutboundMessage } from './adapter.js';
 import { provisionPilotAtPress } from '../provision-handler.js';
 import { consumeActivation } from '../modules/pilot-activation/db.js';
+import { extractPilotCode } from '../modules/pilot-activation/activation.js';
 
 /**
  * Trunk's ChannelAdapter/ChannelRegistration no longer carry a `defaults`
@@ -86,22 +87,14 @@ function resolveWhatsappPilotSlug(chatJid: string): string | null {
     const agentGroupId = getMessagingGroupAgents(mg.id)[0]?.agent_group_id;
     if (!agentGroupId) return null;
     const folder = getAgentGroup(agentGroupId)?.folder ?? null;
-    return folder && folder.startsWith('whatsapp-') ? folder : null;
+    // whatsapp-* (hand-made) and pilot-* (provisionPilotAtPress) folders are
+    // both pilots; the messaging-group lookup above is already scoped to the
+    // whatsapp channel, so a Telegram pilot can never resolve here. Excluding
+    // everything else keeps Daniela's own chat from echoing into itself.
+    return folder && (folder.startsWith('whatsapp-') || folder.startsWith('pilot-')) ? folder : null;
   } catch {
     return null;
   }
-}
-
-/**
- * Pilot activation codes are 20 chars from [A-Z23456789] (no 0/1/I/O to avoid
- * confusion). Extract first word from message and check if it matches.
- */
-function extractPilotCode(text: string): string | null {
-  const firstWord = text.trim().split(/\s+/)[0] || '';
-  if (firstWord.length === 20 && /^[A-Z23456789]{20}$/.test(firstWord)) {
-    return firstWord;
-  }
-  return null;
 }
 
 /**
@@ -1033,85 +1026,86 @@ registerChannelAdapter('whatsapp', {
               if (slug) mirrorToSupervisor(slug, 'user', content);
             }
 
-            // First message handling: activation code or auto-provision.
-            // Equivalent of Telegram's /start handler.
+            // First-message provisioning — WhatsApp's equivalent of Telegram's
+            // /start handler (deep-link code OR walk-up). Only fires for a DM
+            // whose chat has no messaging group yet; once wired, this whole
+            // block is skipped and messages route normally.
             if (!isGroup && sender && !fromMe && content) {
               const existingMg = getMessagingGroupByPlatform('whatsapp', chatJid);
-              const agentGroups = existingMg ? getMessagingGroupAgents(existingMg.id) : [];
-              const agentGroup = agentGroups[0] ? getAgentGroup(agentGroups[0].agent_group_id) : null;
+              const isWired = existingMg ? getMessagingGroupAgents(existingMg.id).length > 0 : false;
 
-              if (!existingMg && !agentGroup) {
-                // New chat, no agent group wired yet.
+              if (!existingMg || !isWired) {
+                const activationCode = extractPilotCode(content);
+                const userId = `whatsapp:${sender}`;
                 try {
-                  const activationCode = extractPilotCode(content);
-                  const now = new Date();
-                  const nowIso = now.toISOString();
-                  const pilotEndsAt = new Date(now.getTime() + 86400000).toISOString(); // 24h from now
-                  let prov: { agentGroupId: string; slug: string; userName: string; lang: 'en' | 'he' };
-
                   if (activationCode) {
-                    // Activation code provided — consume it and provision
+                    // Deep-link flow: the message is exactly the activation
+                    // code (wa.me/<num>?text=<code>). Consume the code,
+                    // provision, greet, and swallow the message — the raw
+                    // code must never reach the agent, same as /start.
                     const consumed = consumeActivation(activationCode, {
-                      userId: `whatsapp:${sender}`,
+                      userId,
                       agentGroupId: `pending-${Date.now()}`,
                     });
-                    if (consumed) {
-                      prov = provisionPilotAtPress({
-                        activation: consumed,
-                        fallbackName: senderName || null,
-                      });
-                      log.info('WhatsApp pilot provisioned via activation code', {
-                        code: activationCode,
-                        slug: prov.slug,
-                        agentGroupId: prov.agentGroupId,
-                      });
-                    } else {
-                      // Code invalid/expired — fall back to auto-provision
+                    if (!consumed) {
                       log.warn('WhatsApp activation code invalid or expired', { code: activationCode });
-                      const activation = {
-                        code: '',
-                        lang: 'he' as const,
-                        metadata: JSON.stringify({ name: senderName || null, gender: 'm' }),
-                        created_at: nowIso,
-                        expires_at: pilotEndsAt,
-                        status: 'used' as const,
-                        used_by_user_id: null,
-                        used_at: nowIso,
-                        agent_group_id: null,
-                        pilot_started_at: nowIso,
-                        pilot_ends_at: pilotEndsAt,
-                      } as const;
-                      prov = provisionPilotAtPress({ activation, fallbackName: senderName || null });
+                      await sendRawMessage(
+                        chatJid,
+                        'הקוד הזה לא תקף או שכבר נוצל. אפשר לבקש קישור חדש בטופס ההרשמה. 🙂',
+                      );
+                      continue; // no agent for a bad code — same as Telegram
                     }
-                  } else {
-                    // No code — auto-provision
-                    const activation = {
+                    const prov = provisionPilotAtPress({
+                      activation: consumed,
+                      fallbackName: senderName || null,
+                      channel: 'WhatsApp',
+                    });
+                    // Greeting BEFORE wiring, same ordering rationale as
+                    // Telegram: guarantee it's the first message on the chat.
+                    await sendRawMessage(
+                      chatJid,
+                      prov.lang === 'en'
+                        ? `Hi, I'm Johnny, Elia developed me just for you. 👋\n\nThe world is already moving to work with personal AI agents, and I'm here so you can feel what that looks like and how it changes the way you work.\n\nWant a quick tour, or shall we jump straight in? 🙂`
+                        : `היי, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋\n\nהעולם כבר עובר לעבוד עם סוכנים אישיים, ואני כאן כדי שתרגיש איך זה נראה ואיך זה משנה את העבודה.\n\nרוצה שאקח אותך לסיבוב קצר, או שנתחיל ישר? 🙂`,
+                    );
+                    wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || prov.userName, 'whatsapp');
+                    log.info('WhatsApp pilot provisioned via activation code', {
+                      slug: prov.slug,
+                      agentGroupId: prov.agentGroupId,
+                      userId,
+                    });
+                    continue; // code message consumed — nothing to route
+                  }
+
+                  // Walk-up flow: a real first message with no code. Provision
+                  // on a synthetic consumed activation and let the message
+                  // route through to the fresh agent, which opens per script.
+                  const nowIso = new Date().toISOString();
+                  const prov = provisionPilotAtPress({
+                    activation: {
                       code: '',
-                      lang: 'he' as const,
+                      lang: 'he',
                       metadata: JSON.stringify({ name: senderName || null, gender: 'm' }),
                       created_at: nowIso,
-                      expires_at: pilotEndsAt,
-                      status: 'used' as const,
-                      used_by_user_id: null,
+                      expires_at: nowIso,
+                      status: 'used',
+                      used_by_user_id: userId,
                       used_at: nowIso,
                       agent_group_id: null,
                       pilot_started_at: nowIso,
-                      pilot_ends_at: pilotEndsAt,
-                    } as const;
-                    prov = provisionPilotAtPress({ activation, fallbackName: senderName || null });
-                  }
-
-                  const userId = `whatsapp:${sender}`;
-                  wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || 'User');
-
-                  log.info('WhatsApp pilot provisioned', {
+                      pilot_ends_at: null,
+                    },
+                    fallbackName: senderName || null,
+                    channel: 'WhatsApp',
+                  });
+                  wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || prov.userName, 'whatsapp');
+                  log.info('WhatsApp pilot provisioned for walk-up sender', {
                     slug: prov.slug,
                     agentGroupId: prov.agentGroupId,
                     userId,
-                    viaCode: !!activationCode,
                   });
                 } catch (err) {
-                  log.warn('WhatsApp pilot provision failed', { err, sender, senderName });
+                  log.error('WhatsApp pilot provisioning failed', { err, sender, senderName });
                 }
               }
             }

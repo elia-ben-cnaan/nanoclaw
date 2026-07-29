@@ -143,7 +143,9 @@ const DEFAULT_ASSISTANT_NAME = "ג'וני";
  * body carries no model/effort/cost fields, so a caller cannot raise any of
  * them. Change the pilot tier here, in one place, not per request.
  */
-const PILOT_MODEL = 'claude-sonnet-4-6';
+// claude-haiku-4-5 since 2026-07-29 (Elia): pilots run on haiku after the
+// Hebrew-spelling fixes landed in the agent script; was claude-sonnet-4-6.
+const PILOT_MODEL = 'claude-haiku-4-5';
 // Reasoning effort, pinned low for cost. Joni is a conversational chat agent;
 // its Hebrew tone + "no em-dash / no AI-isms / be concise" rules live in the
 // persona prompt, not in extended thinking, so low effort keeps day-to-day
@@ -280,8 +282,12 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     const telegramDeepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
     const telegramFallbackLink = `tg://resolve?domain=${botUsername}&start=${activation.code}`;
 
-    // WhatsApp deep link: wa.me/NUMBER?text=CODE
-    const whatsappPhoneNumber = readEnvFile(['WHATSAPP_PHONE_NUMBER'])['WHATSAPP_PHONE_NUMBER'];
+    // WhatsApp deep link: wa.me/NUMBER?text=CODE. The number is the BOT's
+    // dedicated number (WHATSAPP_BOT_NUMBER) — deliberately a separate env var
+    // from WHATSAPP_PHONE_NUMBER, which the whatsapp adapter reads to decide
+    // pairing-code auth mode. Reusing that key here would flip the adapter's
+    // auth path as a side effect.
+    const whatsappPhoneNumber = readEnvFile(['WHATSAPP_BOT_NUMBER'])['WHATSAPP_BOT_NUMBER'];
     const whatsappDeepLink = whatsappPhoneNumber
       ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(activation.code)}`
       : null;
@@ -338,6 +344,8 @@ export function provisionPilotAtPress(input: {
   activation: PilotActivation;
   /** Telegram profile name — fallback when the form carried no name. */
   fallbackName?: string | null;
+  /** Channel name baked into the agent instructions ({{CHANNEL}}). Defaults to Telegram. */
+  channel?: string;
 }): PressProvisionResult {
   const meta = parseActivationMetadata(input.activation);
   const userName = meta.name?.trim() || input.fallbackName?.trim() || 'User';
@@ -364,7 +372,7 @@ export function provisionPilotAtPress(input: {
   const instructions =
     buildUserIdentityBlock(userName, gender, lang) +
     '\n\n' +
-    buildInstructions(userName, 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
+    buildInstructions(userName, input.channel ?? 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
   initGroupFilesystem(
     { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
     { instructions },
