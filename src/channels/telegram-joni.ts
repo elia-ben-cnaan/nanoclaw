@@ -220,8 +220,9 @@ function wireMessagingGroupToAgentExclusive(mgId: string, agentGroupId: string):
 /**
  * Chat-side wiring for a Johnny chat: messaging group upsert, user upsert,
  * membership, and exclusive wiring to the given agent group. Idempotent.
+ * Exported for reuse in WhatsApp provision.
  */
-function wireJoniChat(platformId: string, agentGroupId: string, userId: string, userName: string): void {
+export function wireJoniChat(platformId: string, agentGroupId: string, userId: string, userName: string): void {
   const now = new Date().toISOString();
   let mg = getMessagingGroupByPlatform(CHANNEL_TYPE, platformId);
   if (!mg) {

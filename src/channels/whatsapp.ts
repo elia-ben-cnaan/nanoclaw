@@ -44,10 +44,11 @@ import { getAgentGroup } from '../db/agent-groups.js';
 import { getMessagingGroupAgents, getMessagingGroupByPlatform } from '../db/messaging-groups.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
-import { mirrorToSupervisor } from './telegram-joni.js';
+import { mirrorToSupervisor, wireJoniChat } from './telegram-joni.js';
 import { registerChannelAdapter } from './channel-registry.js';
 import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, ConversationInfo, InboundMessage, OutboundMessage } from './adapter.js';
+import { provisionPilotAtPress } from '../provision-handler.js';
 
 /**
  * Trunk's ChannelAdapter/ChannelRegistration no longer carry a `defaults`
@@ -1018,6 +1019,54 @@ registerChannelAdapter('whatsapp', {
               const slug = resolveWhatsappPilotSlug(chatJid);
               if (slug) mirrorToSupervisor(slug, 'user', content);
             }
+
+            // Auto-provision on first message to WhatsApp pilot: try to provision
+            // if this is an unknown sender (new user) to a whatsapp-* pilot agent.
+            // This is WhatsApp's equivalent of bare /start in Telegram.
+            if (!isGroup && sender && !fromMe) {
+              const existingMg = getMessagingGroupByPlatform('whatsapp', chatJid);
+              const agentGroups = existingMg ? getMessagingGroupAgents(existingMg.id) : [];
+              const agentGroup = agentGroups[0] ? getAgentGroup(agentGroups[0].agent_group_id) : null;
+
+              // If this chat is already wired to a whatsapp-* pilot, don't re-provision.
+              // Only auto-provision for new unknown-sender chats (no wiring yet).
+              if (!existingMg && !agentGroup) {
+                // New chat, no agent group wired yet. Check if any active pilot
+                // is waiting for this incoming chat, or provision a new one.
+                try {
+                  // For simplicity, always provision a new pilot for unknown incoming chats.
+                  // (Future: could check for "unclaimedwhatsapp" pilot pool if we had one.)
+                  const now = new Date();
+                  const nowIso = now.toISOString();
+                  const pilotEndsAt = new Date(now.getTime() + 86400000).toISOString(); // 24h from now
+                  const activation = {
+                    code: '',
+                    lang: 'he' as const,
+                    metadata: JSON.stringify({ name: senderName || null, gender: 'm' }),
+                    created_at: nowIso,
+                    expires_at: pilotEndsAt,
+                    status: 'used' as const,
+                    used_by_user_id: null,
+                    used_at: nowIso,
+                    agent_group_id: null,
+                    pilot_started_at: nowIso,
+                    pilot_ends_at: pilotEndsAt,
+                  } as const;
+                  const prov = provisionPilotAtPress({ activation, fallbackName: senderName || null });
+                  const userId = `whatsapp:${sender}`;
+                  wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || 'User');
+
+                  log.info('WhatsApp pilot auto-provisioned on first message', {
+                    slug: prov.slug,
+                    agentGroupId: prov.agentGroupId,
+                    userId,
+                  });
+                } catch (err) {
+                  log.warn('WhatsApp pilot auto-provision failed', { err, sender, senderName });
+                }
+              }
+            }
+
             setupConfig.onInbound(chatJid, null, inbound);
           } catch (err) {
             log.error('Error processing incoming WhatsApp message', {
