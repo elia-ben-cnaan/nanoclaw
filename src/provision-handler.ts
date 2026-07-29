@@ -277,10 +277,20 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     });
 
     const botUsername = await PILOT_BOT_USERNAME_PROMISE;
-    const deepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
-    const fallbackLink = `tg://resolve?domain=${botUsername}&start=${activation.code}`;
+    const telegramDeepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
+    const telegramFallbackLink = `tg://resolve?domain=${botUsername}&start=${activation.code}`;
+
+    // WhatsApp deep link: wa.me/NUMBER?text=CODE
+    const whatsappPhoneNumber = readEnvFile(['WHATSAPP_PHONE_NUMBER'])['WHATSAPP_PHONE_NUMBER'];
+    const whatsappDeepLink = whatsappPhoneNumber
+      ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(activation.code)}`
+      : null;
+
     log.info('Provision: activation created', { code: activation.code, userName, lang });
-    json(res, 200, { deepLink, fallbackLink });
+    json(res, 200, {
+      telegram: { deepLink: telegramDeepLink, fallbackLink: telegramFallbackLink },
+      whatsapp: whatsappDeepLink ? { deepLink: whatsappDeepLink } : null,
+    });
   } catch (err) {
     log.error('Provision: failed', { err, userName });
     json(res, 500, { error: 'Internal error' });
