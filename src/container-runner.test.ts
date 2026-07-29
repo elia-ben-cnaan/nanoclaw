@@ -76,7 +76,9 @@ describe('per-container resource limits (structural)', () => {
     // Caps are read from .env via readEnvFile (bare `VAR=x` in .env never
     // reaches process.env — see the resource-caps fix), with process.env as
     // an override and '' (unbounded) as the final default.
-    expect(cfg).toContain("CONTAINER_CPU_LIMIT = process.env.CONTAINER_CPU_LIMIT || envConfig.CONTAINER_CPU_LIMIT || ''");
+    expect(cfg).toContain(
+      "CONTAINER_CPU_LIMIT = process.env.CONTAINER_CPU_LIMIT || envConfig.CONTAINER_CPU_LIMIT || ''",
+    );
     expect(cfg).toContain(
       "CONTAINER_MEMORY_LIMIT = process.env.CONTAINER_MEMORY_LIMIT || envConfig.CONTAINER_MEMORY_LIMIT || ''",
     );

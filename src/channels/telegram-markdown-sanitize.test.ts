@@ -75,4 +75,70 @@ describe('sanitizeTelegramLegacyMarkdown', () => {
     const input = '```\n---\n```';
     expect(sanitizeTelegramLegacyMarkdown(input)).toBe(input);
   });
+
+  describe('stripLongDashes option', () => {
+    const strip = (s: string) => sanitizeTelegramLegacyMarkdown(s, { stripLongDashes: true });
+
+    it('is off by default: em dash survives', () => {
+      expect(sanitizeTelegramLegacyMarkdown('כן — בהחלט')).toBe('כן — בהחלט');
+    });
+
+    it('replaces a spaced em dash with a comma', () => {
+      expect(strip('כן — בהחלט')).toBe('כן, בהחלט');
+    });
+
+    it('replaces an unspaced em dash with a comma', () => {
+      expect(strip('word—word')).toBe('word, word');
+    });
+
+    it('replaces en dash and horizontal bar too', () => {
+      expect(strip('א – ב')).toBe('א, ב');
+      expect(strip('א ― ב')).toBe('א, ב');
+    });
+
+    it('collapses a comma that already precedes the dash (no double comma)', () => {
+      expect(strip('א, — ב')).toBe('א, ב');
+    });
+
+    it('never touches dashes inside code', () => {
+      const input = 'run `a — b` now';
+      expect(strip(input)).toBe(input);
+    });
+
+    it('leaves plain hyphens (compound words) alone', () => {
+      expect(strip('claude-haiku-4-5')).toBe('claude-haiku-4-5');
+    });
+
+    it('collapses a --- markdown HR to a clean paragraph break, not a ⎯ divider', () => {
+      expect(strip('לפני\n\n---\n\nאחרי')).toBe('לפני\n\nאחרי');
+      expect(strip('לפני\n\n---\n\nאחרי')).not.toContain('⎯');
+    });
+
+    it('removes a standalone --- separator line mid-answer (live-observed case)', () => {
+      // Exact reported input: a "---" line between two text lines must vanish,
+      // leaving a clean paragraph break in its place.
+      const out = strip('טקסט\n---\nטקסט');
+      expect(out).not.toContain('---');
+      expect(out).toBe('טקסט\n\nטקסט');
+    });
+
+    it('removes spaced HR variants (- - -, * * *, _ _ _)', () => {
+      expect(strip('א\n- - -\nב')).toBe('א\n\nב');
+      expect(strip('א\n* * *\nב')).toBe('א\n\nב');
+      expect(strip('א\n_ _ _\nב')).toBe('א\n\nב');
+    });
+
+    it('drops a long-dash-only separator line between paragraphs', () => {
+      expect(strip('פסקה\n\n—\n\nהמשך')).toBe('פסקה\n\nהמשך');
+      expect(strip('פסקה\n\n⎯⎯⎯\n\nהמשך')).toBe('פסקה\n\nהמשך');
+    });
+
+    it('strips the U+23AF divider char if the model emits it directly', () => {
+      expect(strip('א ⎯ ב')).toBe('א, ב');
+    });
+
+    it('leaves the ⎯ divider intact when stripLongDashes is OFF (default channels)', () => {
+      expect(sanitizeTelegramLegacyMarkdown('before\n---\nafter')).toBe('before\n⎯⎯⎯\nafter');
+    });
+  });
 });

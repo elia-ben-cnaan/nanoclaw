@@ -15,6 +15,7 @@ import {
   CONTAINER_IMAGE_BASE,
   CONTAINER_INSTALL_LABEL,
   CONTAINER_MEMORY_LIMIT,
+  CONTAINER_PIDS_LIMIT,
   DATA_DIR,
   GROUPS_DIR,
   MAX_CONCURRENT_CONTAINERS,
@@ -56,6 +57,52 @@ const onecli = new OneCLI({ url: ONECLI_URL, apiKey: ONECLI_API_KEY });
 
 /** Active containers tracked by session ID. */
 const activeContainers = new Map<string, { process: ChildProcess; containerName: string }>();
+
+/**
+ * Per-session boot-crash-loop guard. Tracks consecutive fast fails (a
+ * non-zero/error exit within BOOT_FAIL_WINDOW_MS of spawn — i.e. the
+ * container never got past startup) so a broken config (bad image tag,
+ * bad provider/model combo, missing binary) can't respawn forever in
+ * silence. A normal exit after real work, or any exit past the window,
+ * resets the counter — this only catches boot loops, not long sessions
+ * that happen to error out.
+ *
+ * Nova's `:headroom` image tag pointed at a deleted image and respawned
+ * on every sweep tick (60s) for over a day — ~1,700 failed spawns with
+ * no backoff and no alert — before this was noticed by hand. See
+ * memory: nanoclaw-crash-loop-guard.
+ */
+const bootFailures = new Map<string, { count: number; lastAlertCount: number; lastFailAt: number }>();
+const BOOT_FAIL_WINDOW_MS = 15_000;
+const BOOT_FAIL_BACKOFF_THRESHOLD = 3; // start backing off after this many
+const BOOT_FAIL_ALERT_THRESHOLD = 5; // alert (and re-alert every +5) after this many
+const BOOT_FAIL_BACKOFF_MS = 5 * 60_000; // hold off respawning once backing off
+
+function recordBootOutcome(sessionId: string, wasFastFail: boolean): void {
+  if (!wasFastFail) {
+    bootFailures.delete(sessionId);
+    return;
+  }
+  const prev = bootFailures.get(sessionId);
+  const entry = { count: (prev?.count ?? 0) + 1, lastAlertCount: prev?.lastAlertCount ?? 0, lastFailAt: Date.now() };
+  bootFailures.set(sessionId, entry);
+
+  if (entry.count >= BOOT_FAIL_ALERT_THRESHOLD && entry.count - entry.lastAlertCount >= BOOT_FAIL_ALERT_THRESHOLD) {
+    entry.lastAlertCount = entry.count;
+    log.error('Session stuck in boot crash-loop — respawn backing off, needs operator attention', {
+      sessionId,
+      consecutiveFastFails: entry.count,
+      backoffMs: BOOT_FAIL_BACKOFF_MS,
+    });
+  }
+}
+
+/** True if this session is currently backing off after repeated boot failures. */
+function isBootBackoff(sessionId: string): boolean {
+  const entry = bootFailures.get(sessionId);
+  if (!entry || entry.count < BOOT_FAIL_BACKOFF_THRESHOLD) return false;
+  return Date.now() - entry.lastFailAt < BOOT_FAIL_BACKOFF_MS;
+}
 
 /**
  * In-flight wake promises, keyed by session id. Deduplicates concurrent
@@ -118,6 +165,10 @@ export function wakeContainer(session: Session): Promise<boolean> {
       inFlight: wakePromises.size,
       cap: MAX_CONCURRENT_CONTAINERS,
     });
+    return Promise.resolve(false);
+  }
+  if (isBootBackoff(session.id)) {
+    log.debug('Session in boot crash-loop backoff — wake deferred', { sessionId: session.id });
     return Promise.resolve(false);
   }
   const promise = spawnContainer(session)
@@ -189,6 +240,7 @@ async function spawnContainer(session: Session): Promise<void> {
   // immediate kill before the new container touches the file itself.
   fs.rmSync(heartbeatPath(agentGroup.id, session.id), { force: true });
 
+  const spawnedAt = Date.now();
   const container = spawn(CONTAINER_RUNTIME_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
   activeContainers.set(session.id, { process: container, containerName });
@@ -220,11 +272,15 @@ async function spawnContainer(session: Session): Promise<void> {
     markContainerStopped(session.id);
     stopTypingRefresh(session.id);
     // code null = killed by signal (normal shutdown path), not a boot failure.
-    if (code !== 0 && code !== null && stderrTail.length > 0) {
+    const nonZero = code !== 0 && code !== null;
+    if (nonZero && stderrTail.length > 0) {
       log.warn('Container exited non-zero', { sessionId: session.id, code, containerName, stderrTail });
     } else {
       log.info('Container exited', { sessionId: session.id, code, containerName });
     }
+    // A non-zero exit within the boot window means it never got past
+    // startup (bad image/config) rather than failing mid-conversation.
+    recordBootOutcome(session.id, nonZero && Date.now() - spawnedAt < BOOT_FAIL_WINDOW_MS);
   });
 
   container.on('error', (err) => {
@@ -232,6 +288,7 @@ async function spawnContainer(session: Session): Promise<void> {
     markContainerStopped(session.id);
     stopTypingRefresh(session.id);
     log.error('Container spawn error', { sessionId: session.id, err });
+    recordBootOutcome(session.id, true);
   });
 }
 
@@ -478,6 +535,8 @@ async function buildContainerArgs(
   // is OOM-killed; we don't manage swap from here.
   if (CONTAINER_CPU_LIMIT) args.push('--cpus', CONTAINER_CPU_LIMIT);
   if (CONTAINER_MEMORY_LIMIT) args.push('--memory', CONTAINER_MEMORY_LIMIT);
+  // --pids-limit: fork-bomb backstop. Unbounded when unset (see config.ts).
+  if (CONTAINER_PIDS_LIMIT) args.push('--pids-limit', CONTAINER_PIDS_LIMIT);
 
   // Environment — only vars read by code we don't own.
   // Everything NanoClaw-specific is in container.json (read by runner at startup).

@@ -16,7 +16,14 @@
  *   Authorization: Bearer <HOST_PROVISION_TOKEN>
  *
  * Returns:
- *   200  { "deepLink": "https://t.me/<pilot-bot>?start=<code>" }
+ *   200  { "deepLink": "https://telegram.me/<pilot-bot>?start=<code>",
+ *          "fallbackLink": "tg://resolve?domain=<pilot-bot>&start=<code>" }
+ *
+ * telegram.me (not t.me): t.me went NXDOMAIN globally on 2026-07-14; both
+ * domains are official Telegram entry points, telegram.me is the workaround.
+ * fallbackLink is the native-app scheme — it bypasses web DNS entirely, for
+ * the case where telegram.me drops too. Clients that only read deepLink are
+ * unaffected (additive field).
  *   401  { "error": "Unauthorized" }
  *   400  { "error": "Bad request" }
  *   500  { "error": "Internal error" }
@@ -34,12 +41,7 @@ import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
 import { initGroupFilesystem } from './group-init.js';
 import { log } from './log.js';
-import {
-  createActivation,
-  PILOT_WINDOW_DAYS,
-  type PilotActivation,
-  type PilotLang,
-} from './modules/pilot-activation/db.js';
+import { createActivation, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
 import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
 import { writeDestinations } from './modules/agent-to-agent/write-destinations.js';
 
@@ -134,14 +136,20 @@ const DEFAULT_ASSISTANT_NAME = "ג'וני";
 
 /**
  * Pilot cost config — LOCKED. Every freshly-provisioned hosted agent is pinned
- * to this model and this daily USD spend cap. Both are written at create time:
- * the model into container_configs, the cap into agent_cost_caps as a per-agent
- * row so it holds in the DB regardless of the PILOT_DAILY_COST_CAP_USD env
- * default and never drifts. The provision request body carries no model or cost
- * fields, so a caller cannot raise either. Change the pilot tier here, in one
- * place, not per request.
+ * to this model, this reasoning effort, and this daily USD spend cap. All are
+ * written at create time: model + effort into container_configs, the cap into
+ * agent_cost_caps as a per-agent row so it holds in the DB regardless of the
+ * PILOT_DAILY_COST_CAP_USD env default and never drifts. The provision request
+ * body carries no model/effort/cost fields, so a caller cannot raise any of
+ * them. Change the pilot tier here, in one place, not per request.
  */
-const PILOT_MODEL = 'claude-haiku-4-5';
+const PILOT_MODEL = 'claude-sonnet-4-6';
+// Reasoning effort, pinned low for cost. Joni is a conversational chat agent;
+// its Hebrew tone + "no em-dash / no AI-isms / be concise" rules live in the
+// persona prompt, not in extended thinking, so low effort keeps day-to-day
+// chat cheap without making it feel robotic. Bump to 'medium' here if quality
+// regresses. Valid: 'low' | 'medium' | 'high' | 'xhigh' | 'max'.
+const PILOT_EFFORT = 'low';
 // Overflow provider for pilots: when the Claude account hits its plan/session
 // limit, the pilot keeps answering via Codex instead of surfacing a raw
 // "session limit" error to the user (and returns to Claude automatically when
@@ -187,11 +195,14 @@ function generateSlug(): string {
 
 function buildUserIdentityBlock(name: string, gender: string, lang: string): string {
   if (lang === 'en') {
-    const genderWord = gender === 'f' ? 'feminine' : 'masculine';
     return (
       `## User identity\n` +
-      `The user's name is ${name}. Always address them by this name. ` +
-      `Speak to them in Hebrew ${genderWord} grammatical form (gender = ${gender === 'f' ? 'f' : 'm'}).`
+      `The user's name is ${name}. Always address them by this name.\n\n` +
+      `## Language\n` +
+      `This user chose English in the signup form. Open the conversation in English and ` +
+      `keep communicating in English throughout. If the user switches to another language ` +
+      `mid-conversation, follow them. ` +
+      `(Grammatical gender, only relevant if you ever speak Hebrew: ${gender === 'f' ? 'f' : 'm'}.)`
     );
   }
   const formHe = gender === 'f' ? 'נקבית' : 'זכרית';
@@ -202,12 +213,27 @@ function buildUserIdentityBlock(name: string, gender: string, lang: string): str
   );
 }
 
-function buildInstructions(userName: string, channel: string, assistantName: string): string {
+/**
+ * The persona/onboarding script below is Hebrew-only and hardcodes literal
+ * Hebrew example messages (incl. the "automatic" opening line). For English
+ * signups this conflicts with the English directive in the identity block —
+ * without this note the model has to resolve a concrete Hebrew example
+ * against an abstract English rule, and doesn't reliably pick English.
+ */
+const EN_TEMPLATE_OVERRIDE_NOTE =
+  '## Language override for everything below\n' +
+  'The script below (persona, onboarding flow, example messages) is written in Hebrew. ' +
+  'Treat it as structure and tone reference ONLY, never as literal text to send. ' +
+  'You already know this user selected English — write every message, starting with the ' +
+  'very first one, in English, carrying the same intent and structure as the Hebrew examples.';
+
+function buildInstructions(userName: string, channel: string, assistantName: string, lang: PilotLang): string {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-  return template
+  const filled = template
     .replaceAll('{{USER_NAME}}', userName)
     .replaceAll('{{CHANNEL}}', channel)
     .replaceAll('{{ASSISTANT_NAME}}', assistantName);
+  return lang === 'en' ? `${EN_TEMPLATE_OVERRIDE_NOTE}\n\n${filled}` : filled;
 }
 
 export async function handleProvision(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -246,13 +272,15 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
         gender,
         phone: typeof body.phone === 'string' ? body.phone : null,
         email: typeof body.email === 'string' ? body.email : null,
+        src: typeof body.src === 'string' && body.src.trim() ? body.src.trim() : null,
       },
     });
 
     const botUsername = await PILOT_BOT_USERNAME_PROMISE;
-    const deepLink = `https://t.me/${botUsername}?start=${activation.code}`;
+    const deepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
+    const fallbackLink = `tg://resolve?domain=${botUsername}&start=${activation.code}`;
     log.info('Provision: activation created', { code: activation.code, userName, lang });
-    json(res, 200, { deepLink });
+    json(res, 200, { deepLink, fallbackLink });
   } catch (err) {
     log.error('Provision: failed', { err, userName });
     json(res, 500, { error: 'Internal error' });
@@ -265,6 +293,7 @@ interface ActivationMetadata {
   gender?: string | null;
   phone?: string | null;
   email?: string | null;
+  src?: string | null;
 }
 
 function parseActivationMetadata(activation: PilotActivation): ActivationMetadata {
@@ -273,14 +302,6 @@ function parseActivationMetadata(activation: PilotActivation): ActivationMetadat
   } catch {
     return {};
   }
-}
-
-/** One line the agent can answer "when does my pilot end?" from. */
-function pilotWindowBlock(lang: PilotLang, pilotEndsAt: string | null): string {
-  const endDate = (pilotEndsAt ?? '').slice(0, 10) || 'unknown';
-  return lang === 'en'
-    ? `## Pilot window\nThis is a ${PILOT_WINDOW_DAYS}-day pilot. The pilot window ends on ${endDate}. If asked how long the pilot lasts or when it ends, answer from this date.`
-    : `## תקופת הפיילוט\nזהו פיילוט של ${PILOT_WINDOW_DAYS} ימים. תקופת הפיילוט מסתיימת בתאריך ${endDate}. אם שואלים כמה זמן הפיילוט נמשך או מתי הוא מסתיים — עני לפי התאריך הזה.`;
 }
 
 export interface PressProvisionResult {
@@ -293,10 +314,15 @@ export interface PressProvisionResult {
 /**
  * Press-time provisioning — everything handleProvision used to do up front,
  * now deferred to the moment the user presses START in Telegram. Creates the
- * agent group (fixed name ג'ני), seeds instructions (user identity + pilot
- * window + hosted template), pins the pilot model + daily cost cap, and wires
- * the agent to the supervisor. Chat-side wiring (messaging group, membership,
- * greeting) stays with the caller in telegram-pilot.ts.
+ * agent group (fixed name ג'ני), seeds instructions (user identity + hosted
+ * template), pins the pilot model + daily cost cap, and wires the agent to
+ * the supervisor. Chat-side wiring (messaging group, membership, greeting)
+ * stays with the caller in telegram-pilot.ts.
+ *
+ * The seed intentionally carries no "pilot window" / day-count narrative —
+ * `pilot_ends_at` still gates reactivation (see findActivePilotByUser) and
+ * the daily cost cap still enforces spend (see dailyCostAction in
+ * router.ts), but neither is framed to the user as a countdown.
  */
 export function provisionPilotAtPress(input: {
   activation: PilotActivation;
@@ -328,18 +354,17 @@ export function provisionPilotAtPress(input: {
   const instructions =
     buildUserIdentityBlock(userName, gender, lang) +
     '\n\n' +
-    pilotWindowBlock(lang, input.activation.pilot_ends_at) +
-    '\n\n' +
-    buildInstructions(userName, 'Telegram', DEFAULT_ASSISTANT_NAME);
+    buildInstructions(userName, 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
   initGroupFilesystem(
     { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
     { instructions },
   );
 
-  // Pilot cost config (LOCKED, see PILOT_MODEL / PILOT_DAILY_COST_CAP_USD).
+  // Pilot cost config (LOCKED, see PILOT_MODEL / PILOT_EFFORT / PILOT_DAILY_COST_CAP_USD).
   ensureContainerConfig(agentGroupId);
   updateContainerConfigScalars(agentGroupId, {
     model: PILOT_MODEL,
+    effort: PILOT_EFFORT,
     fallback_provider: PILOT_FALLBACK_PROVIDER,
     assistant_name: DEFAULT_ASSISTANT_NAME,
   });

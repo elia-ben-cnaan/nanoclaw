@@ -19,6 +19,8 @@ export interface ContainerConfigRow {
   model: string | null;
   /** Cheap-model override for scheduled-task (watcher) wakes. NULL = use `model`. */
   task_model: string | null;
+  /** Per-group model override for the quota-overflow (fallback) provider. NULL = provider's own env-var default (e.g. Codex's CODEX_MODEL). */
+  fallback_model: string | null;
   effort: string | null;
   image_tag: string | null;
   assistant_name: string | null;

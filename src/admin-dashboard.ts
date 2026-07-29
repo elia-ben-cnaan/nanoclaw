@@ -87,6 +87,21 @@ function keyOk(provided: string | null): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * Shared auth surface for sibling endpoints (e.g. the landing-funnel
+ * /app/summary rollup) that must be gated exactly like /admin/agents —
+ * same ADMIN_KEY, same constant-time compare. Exported so there is one
+ * auth implementation, not a copy that can drift.
+ */
+export function adminKeyOk(provided: string | null): boolean {
+  return keyOk(provided);
+}
+
+/** Whether ADMIN_KEY is configured at all (mirrors the /admin 503 guard). */
+export function isAdminKeyConfigured(): boolean {
+  return ADMIN_KEY !== '';
+}
+
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });

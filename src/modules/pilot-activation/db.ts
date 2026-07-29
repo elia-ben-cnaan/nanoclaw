@@ -31,7 +31,7 @@ export const CODE_TTL_HOURS = 24;
 export const PILOT_WINDOW_DAYS = 10;
 
 /**
- * Codes ride in a t.me deep link (`?start=<code>`), which allows
+ * Codes ride in a telegram.me deep link (`?start=<code>`), which allows
  * [A-Za-z0-9_-]{1,64}. 20 chars from an unambiguous uppercase alphabet
  * (no 0/O/1/I) ≈ 100 bits — unguessable, and visually distinct from the
  * 4-digit setup pairing codes so the two interceptors never collide.
@@ -131,4 +131,15 @@ export function findActivePilotByUser(userId: string): PilotActivation | undefin
        ORDER BY used_at DESC LIMIT 1`,
     )
     .get(userId, new Date().toISOString()) as PilotActivation | undefined;
+}
+
+/**
+ * The activation that created a given agent — the durable link back to the
+ * signup-form metadata (name/phone/email), for callers like the admin
+ * dashboard that need to show who's behind an agent, not just its chat id.
+ */
+export function getActivationByAgentGroup(agentGroupId: string): PilotActivation | undefined {
+  return getDb()
+    .prepare(`SELECT * FROM pilot_activations WHERE agent_group_id = ? ORDER BY used_at DESC LIMIT 1`)
+    .get(agentGroupId) as PilotActivation | undefined;
 }

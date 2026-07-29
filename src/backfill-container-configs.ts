@@ -57,6 +57,7 @@ export function backfillContainerConfigs(): void {
       fallback_provider: null,
       model: null,
       task_model: null,
+      fallback_model: null,
       effort: null,
       max_turns: null,
       image_tag: legacy.imageTag ?? null,

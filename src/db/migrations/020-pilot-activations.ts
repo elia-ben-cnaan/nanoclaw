@@ -5,7 +5,7 @@ import type { Migration } from './index.js';
  * Pilot activation codes — the shellano pilot's Telegram-first onboarding.
  *
  * POST /api/register creates a row (status='pending') and hands the lead a
- * t.me deep link. When the user presses START in Telegram, the code is
+ * telegram.me deep link. When the user presses START in Telegram, the code is
  * consumed (status='used') and the agent binds to the presser's Telegram
  * identity. Phone/email from the form live in `metadata` — contact info
  * only, never a routing key.

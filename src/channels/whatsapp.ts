@@ -40,8 +40,11 @@ import type { GroupMetadata, WAMessageKey, WAMessage, WASocket } from '@whiskeys
 
 import { isSafeAttachmentName } from '../attachment-safety.js';
 import { DATA_DIR } from '../config.js';
+import { getAgentGroup } from '../db/agent-groups.js';
+import { getMessagingGroupAgents, getMessagingGroupByPlatform } from '../db/messaging-groups.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
+import { mirrorToSupervisor } from './telegram-joni.js';
 import { registerChannelAdapter } from './channel-registry.js';
 import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, ConversationInfo, InboundMessage, OutboundMessage } from './adapter.js';
@@ -65,6 +68,27 @@ interface ChannelDefaults {
 }
 
 const baileysLogger = pino({ level: 'silent' });
+
+/**
+ * Supervisor mirroring — WhatsApp-pilot parity with the telegram-joni stack.
+ * Every user/agent line of a whatsapp-* pilot conversation is copied into
+ * Daniela's session (slug-tagged, trigger=0) via the same mirrorToSupervisor
+ * used by Johnny, so the operator sees and steers WhatsApp pilots exactly
+ * like Telegram ones. Only folders with the whatsapp- prefix mirror — a chat
+ * wired straight to the supervisor herself must not echo into itself.
+ */
+function resolveWhatsappPilotSlug(chatJid: string): string | null {
+  try {
+    const mg = getMessagingGroupByPlatform('whatsapp', chatJid);
+    if (!mg) return null;
+    const agentGroupId = getMessagingGroupAgents(mg.id)[0]?.agent_group_id;
+    if (!agentGroupId) return null;
+    const folder = getAgentGroup(agentGroupId)?.folder ?? null;
+    return folder && folder.startsWith('whatsapp-') ? folder : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Fetch the latest WhatsApp Web version. Baileys' built-in
@@ -990,6 +1014,10 @@ registerChannelAdapter('whatsapp', {
             }
 
             // WhatsApp doesn't use threads — threadId is null
+            if (content) {
+              const slug = resolveWhatsappPilotSlug(chatJid);
+              if (slug) mirrorToSupervisor(slug, 'user', content);
+            }
             setupConfig.onInbound(chatJid, null, inbound);
           } catch (err) {
             log.error('Error processing incoming WhatsApp message', {
@@ -1103,6 +1131,8 @@ registerChannelAdapter('whatsapp', {
         if (text) {
           const { text: formatted, mentions } = formatWhatsApp(text);
           const prefixed = WHATSAPP_SHARED ? `${ASSISTANT_NAME}: ${formatted}` : formatted;
+          const slug = resolveWhatsappPilotSlug(platformId);
+          if (slug) mirrorToSupervisor(slug, 'agent', formatted);
           return sendRawMessage(platformId, prefixed, mentions);
         }
       },

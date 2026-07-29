@@ -101,6 +101,34 @@ export async function dispatch(req: RequestFrame, ctx: CallerContext): Promise<R
     }
   }
 
+  // Self-modification guard: an agent may not restart its own group or change
+  // its own provider/model/image from inside the container, regardless of
+  // cli_scope or admin approval. A self-restart kills this very container
+  // mid-turn (the confirmation reply is lost and the switch looks hung), and
+  // a self-applied provider change can't be observed by the agent that made
+  // it. These operations must be run by the operator from the host.
+  if (ctx.caller === 'agent') {
+    const targetId = (req.args.id ?? req.args.group ?? req.args.agent_group_id) as string | undefined;
+    const selfTarget = !targetId || targetId === ctx.agentGroupId;
+    if (selfTarget && req.command === 'groups-restart') {
+      return err(
+        req.id,
+        'forbidden',
+        'Refusing self-restart: restarting your own group kills this container mid-turn and the reply is lost. Ask the operator to run `ncl groups restart` from the host.',
+      );
+    }
+    if (selfTarget && req.command === 'groups-config-update') {
+      const engineFields = ['provider', 'fallback-provider', 'fallback_provider', 'model', 'image-tag', 'image_tag'];
+      if (engineFields.some((k) => req.args[k] !== undefined)) {
+        return err(
+          req.id,
+          'forbidden',
+          'Refusing self provider/model/image change: this must be run by the operator from the host (see docs/provider-migration.md), followed by `ncl groups restart` from the host.',
+        );
+      }
+    }
+  }
+
   if (ctx.caller !== 'host' && cmd.access === 'approval') {
     const session = getSession(ctx.sessionId);
     if (!session) {

@@ -6,6 +6,7 @@ const SCALAR_COLUMNS = new Set([
   'fallback_provider',
   'model',
   'task_model',
+  'fallback_model',
   'effort',
   'image_tag',
   'assistant_name',
@@ -62,6 +63,7 @@ export function updateContainerConfigScalars(
       | 'fallback_provider'
       | 'model'
       | 'task_model'
+      | 'fallback_model'
       | 'effort'
       | 'image_tag'
       | 'assistant_name'

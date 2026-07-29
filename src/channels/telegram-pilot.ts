@@ -437,7 +437,7 @@ registerChannelAdapter(CHANNEL_TYPE, {
       concurrency: 'concurrent',
       extractReplyContext,
       supportsThreads: false,
-      transformOutboundText: sanitizeTelegramLegacyMarkdown,
+      transformOutboundText: (t) => sanitizeTelegramLegacyMarkdown(t, { stripLongDashes: true }),
       maxTextLength: 4000,
     });
 

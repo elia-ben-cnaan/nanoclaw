@@ -90,6 +90,24 @@ register({
 });
 
 register({
+  name: 'groups-restart',
+  description: 'test stand-in for the real groups restart',
+  resource: 'groups',
+  access: 'open',
+  parseArgs: (raw) => raw,
+  handler: async (args) => ({ echo: args }),
+});
+
+register({
+  name: 'groups-config-update',
+  description: 'test stand-in for the real groups config update',
+  resource: 'groups',
+  access: 'open',
+  parseArgs: (raw) => raw,
+  handler: async (args) => ({ echo: args }),
+});
+
+register({
   name: 'wirings-list',
   description: 'test command (wirings resource — not allowed)',
   resource: 'wirings',
@@ -510,5 +528,79 @@ describe('CLI scope enforcement', () => {
       expect(resp.error.code).toBe('forbidden');
       expect(resp.error.message).toContain('not available in group scope');
     }
+  });
+});
+
+describe('self-modification guard', () => {
+  it('blocks self-restart from agent (explicit own id)', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    const resp = await dispatch({ id: '1', command: 'groups-restart', args: { id: 'g1' } }, agentCtx());
+
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      expect(resp.error.code).toBe('forbidden');
+      expect(resp.error.message).toContain('self-restart');
+    }
+  });
+
+  it('blocks self-restart from agent (no target id)', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    const resp = await dispatch({ id: '1', command: 'groups-restart', args: {} }, agentCtx());
+
+    expect(resp.ok).toBe(false);
+  });
+
+  it('allows restarting a different group from a global-scope agent', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    const resp = await dispatch({ id: '1', command: 'groups-restart', args: { id: 'other-group' } }, agentCtx());
+
+    expect(resp.ok).toBe(true);
+  });
+
+  it('blocks self provider change from agent', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    const resp = await dispatch(
+      { id: '1', command: 'groups-config-update', args: { id: 'g1', provider: 'codex' } },
+      agentCtx(),
+    );
+
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      expect(resp.error.code).toBe('forbidden');
+      expect(resp.error.message).toContain('host');
+    }
+  });
+
+  it('blocks self model and fallback changes from agent', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    for (const args of [{ model: 'x' }, { 'fallback-provider': 'claude' }, { 'image-tag': 't' }]) {
+      const resp = await dispatch(
+        { id: '1', command: 'groups-config-update', args: { id: 'g1', ...args } },
+        agentCtx(),
+      );
+      expect(resp.ok).toBe(false);
+    }
+  });
+
+  it('allows self config-update of non-engine fields from agent', async () => {
+    mockGetContainerConfig.mockReturnValue({ cli_scope: 'global' });
+
+    const resp = await dispatch(
+      { id: '1', command: 'groups-config-update', args: { id: 'g1', max_turns: 30 } },
+      agentCtx(),
+    );
+
+    expect(resp.ok).toBe(true);
+  });
+
+  it('does not apply the guard to host callers', async () => {
+    const resp = await dispatch({ id: '1', command: 'groups-restart', args: { id: 'g1' } }, { caller: 'host' });
+
+    expect(resp.ok).toBe(true);
   });
 });

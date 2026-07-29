@@ -6,7 +6,16 @@ import { getContainerImageBase, getDefaultContainerImage, getInstallSlug } from 
 import { isValidTimezone } from './timezone.js';
 
 // Read config values from .env (falls back to process.env).
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER', 'ONECLI_URL', 'ONECLI_API_KEY', 'TZ']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'ONECLI_URL',
+  'ONECLI_API_KEY',
+  'TZ',
+  'CONTAINER_CPU_LIMIT',
+  'CONTAINER_MEMORY_LIMIT',
+  'CONTAINER_PIDS_LIMIT',
+]);
 
 export const ASSISTANT_NAME = process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
 export const ASSISTANT_HAS_OWN_NUMBER =
@@ -47,8 +56,15 @@ export const MAX_CONCURRENT_CONTAINERS = Math.max(1, parseInt(process.env.MAX_CO
 // Per-container resource caps, passed through to `docker run`. Default empty =
 // no flag added = today's unbounded behavior (don't OOM existing OSS workloads).
 // Operators opt in: CONTAINER_CPU_LIMIT=2, CONTAINER_MEMORY_LIMIT=8g.
-export const CONTAINER_CPU_LIMIT = process.env.CONTAINER_CPU_LIMIT || '';
-export const CONTAINER_MEMORY_LIMIT = process.env.CONTAINER_MEMORY_LIMIT || '';
+// CONTAINER_PIDS_LIMIT caps process/thread count (`--pids-limit`) — a fork-bomb
+// backstop. Empty = no flag = unbounded. Set generously (browser workloads spawn
+// hundreds of chromium threads); the goal is stopping runaways, not tight limits.
+// Read via readEnvFile (not raw process.env): this install launches node with a
+// bare environ (systemd unit sets only HOME/PATH; .env is never sourced into the
+// environment by design — see env.ts). process.env still wins as an override.
+export const CONTAINER_CPU_LIMIT = process.env.CONTAINER_CPU_LIMIT || envConfig.CONTAINER_CPU_LIMIT || '';
+export const CONTAINER_MEMORY_LIMIT = process.env.CONTAINER_MEMORY_LIMIT || envConfig.CONTAINER_MEMORY_LIMIT || '';
+export const CONTAINER_PIDS_LIMIT = process.env.CONTAINER_PIDS_LIMIT || envConfig.CONTAINER_PIDS_LIMIT || '';
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

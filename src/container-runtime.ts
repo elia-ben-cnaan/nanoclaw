@@ -33,6 +33,27 @@ export function stopContainer(name: string): void {
   execSync(`${CONTAINER_RUNTIME_BIN} stop -t 1 ${name}`, { stdio: 'pipe' });
 }
 
+/**
+ * List running container names matching a literal prefix. Used to find
+ * containers that the current process has no in-memory record of (e.g. after
+ * a host restart) — see cleanupOrphans() for the label-scoped equivalent.
+ */
+export function listContainersByNamePrefix(prefix: string): string[] {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(prefix)) {
+    throw new Error(`Invalid container name prefix: ${prefix}`);
+  }
+  try {
+    const output = execSync(`${CONTAINER_RUNTIME_BIN} ps --filter "name=${prefix}" --format '{{.Names}}'`, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+    });
+    return output.trim().split('\n').filter(Boolean);
+  } catch (err) {
+    log.warn('Failed to list containers by name prefix', { prefix, err });
+    return [];
+  }
+}
+
 /** Ensure the container runtime is running, starting it if needed. */
 export function ensureContainerRuntimeRunning(): void {
   try {

@@ -409,11 +409,13 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     const scopeOk = engages && (!senderScopeGate || senderScopeGate(event, userId, mg, agent).allowed);
 
     if (engages && accessOk && scopeOk) {
-      // Graduated daily-cost policy (pilots only). 1st day over the cap →
-      // downgrade to the cheapest model and keep serving. 2nd consecutive day
-      // over → soft-block with a fixed notice (no container wake; resets at
-      // UTC day). Under cap → proceed normally.
-      if (agentGroup.folder.startsWith('pilot-')) {
+      // Graduated daily-cost policy (pilot + whatsapp agents). 1st day over
+      // the cap → downgrade to the cheapest model and keep serving. 2nd
+      // consecutive day over → soft-block with a fixed notice (no container
+      // wake; resets at UTC day). Under cap → proceed normally. whatsapp-*
+      // agents carry a per-agent override in agent_cost_caps so the shared
+      // $1 pilot default doesn't gate the owner's Opus agent.
+      if (agentGroup.folder.startsWith('pilot-') || agentGroup.folder.startsWith('whatsapp-')) {
         const action = dailyCostAction(agent.agent_group_id);
         if (action === 'block') {
           try {

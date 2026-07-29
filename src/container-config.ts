@@ -47,6 +47,8 @@ export interface ContainerConfig {
   model?: string;
   /** Cheap-model override for scheduled-task (watcher) wakes. Unset = use `model`. */
   taskModel?: string;
+  /** Per-group model override for the quota-overflow (fallback) provider. Unset = provider's own env-var default. */
+  fallbackModel?: string;
   effort?: string;
 }
 
@@ -70,6 +72,7 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     maxTurns: row.max_turns ?? undefined,
     model: row.model ?? undefined,
     taskModel: row.task_model ?? undefined,
+    fallbackModel: row.fallback_model ?? undefined,
     effort: row.effort ?? undefined,
   };
 }
