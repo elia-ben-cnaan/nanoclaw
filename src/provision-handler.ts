@@ -159,6 +159,10 @@ const PILOT_EFFORT = 'low';
 // outage the same way.
 const PILOT_FALLBACK_PROVIDER = 'codex';
 const PILOT_DAILY_COST_CAP_USD = 1.0;
+// Agent-runner default is 15 turns per wake — a long chat exchange with
+// follow-up pushes hit it mid-conversation in QA (30.7). 30 gives headroom;
+// the daily cost cap stays the real spend guard.
+const PILOT_MAX_TURNS = 30;
 
 // Resolved once at startup from the Johnny bot token via getMe. The /provision
 // deep link points at @joni_agent_bot as of 2026-07-06 (Johnny replaces the
@@ -406,6 +410,7 @@ export function provisionPilotAtPress(input: {
     effort: PILOT_EFFORT,
     fallback_provider: PILOT_FALLBACK_PROVIDER,
     assistant_name: DEFAULT_ASSISTANT_NAME,
+    max_turns: PILOT_MAX_TURNS,
   });
   setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
 
