@@ -11,3 +11,4 @@ import './telegram.js';
 import './telegram-pilot.js';
 import './telegram-joni.js';
 import './whatsapp.js';
+import './whatsapp-cloud.js';

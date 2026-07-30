@@ -11,6 +11,9 @@ importers:
       '@chat-adapter/telegram':
         specifier: 4.29.0
         version: 4.29.0
+      '@chat-adapter/whatsapp':
+        specifier: 4.29.0
+        version: 4.29.0
       '@clack/core':
         specifier: ^1.2.0
         version: 1.2.0
@@ -103,6 +106,10 @@ packages:
 
   '@chat-adapter/telegram@4.29.0':
     resolution: {integrity: sha512-015tU3HEjFQWw7DgebXWkDeQA6lTdTVEO4btAV3f6U1kEnOfjLVJq98latcsM1WkEvv+3LIFKpsz9pG53aamBw==}
+    engines: {node: '>=20'}
+
+  '@chat-adapter/whatsapp@4.29.0':
+    resolution: {integrity: sha512-CDKmlDHmiiJ2xtca0wZ2DIYnySUFuiKn6f3ZQvschFVa6pSaDmaldmJc3iul+ELi10+RE7x5+immfc//+TTzFg==}
     engines: {node: '>=20'}
 
   '@clack/core@1.2.0':
@@ -2051,6 +2058,15 @@ snapshots:
       - zod
 
   '@chat-adapter/telegram@4.29.0':
+    dependencies:
+      '@chat-adapter/shared': 4.29.0
+      chat: 4.29.0
+    transitivePeerDependencies:
+      - ai
+      - supports-color
+      - zod
+
+  '@chat-adapter/whatsapp@4.29.0':
     dependencies:
       '@chat-adapter/shared': 4.29.0
       chat: 4.29.0
