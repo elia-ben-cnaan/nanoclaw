@@ -297,10 +297,14 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     // Friendly pre-filled message with the code embedded at the end — the
     // adapter finds the code anywhere in the text (findPilotCodeInText),
     // swallows the whole message, and answers with Johnny's greeting.
+    // Personalized when the form carried a name; neutral otherwise. No
+    // parentheses / brand tags — the message should read like the user
+    // actually wrote it (Elia, 2026-07-30).
+    const hasName = userName !== 'User';
     const whatsappText =
       lang === 'en'
-        ? `Hey Johnny, nice to meet you — let's get to work! 🙂\n\nActivation code: ${activation.code}`
-        : `היי ג'וני, נעים להכיר, בוא נתחיל לעבוד! 🙂\n\nקוד הפעלה: ${activation.code}`;
+        ? `Hey Johnny,\n${hasName ? `I'm ${userName}, ` : ''}happy to start working together! 🙂\n\nActivation code: ${activation.code}`
+        : `אהלן ג'וני,\n${hasName ? `אני ${userName}, ` : ''}אשמח להתחיל לעבוד יחד! 🙂\n\nקוד הפעלה: ${activation.code}`;
     const whatsappDeepLink = whatsappPhoneNumber
       ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappText)}`
       : null;
