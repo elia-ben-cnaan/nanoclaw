@@ -35,6 +35,19 @@ export function isMember(userId: string, agentGroupId: string): boolean {
   return !!row;
 }
 
+/**
+ * Latest membership row for a user, if any. Used by the WhatsApp provisioning
+ * guard to route a returning sender back to their existing agent instead of
+ * minting a duplicate (parity with Telegram's findActivePilotByUser path,
+ * which walk-up WhatsApp users never enter — their synthetic activation is
+ * never persisted).
+ */
+export function getLatestMembershipByUser(userId: string): AgentGroupMember | undefined {
+  return getDb()
+    .prepare('SELECT * FROM agent_group_members WHERE user_id = ? ORDER BY added_at DESC LIMIT 1')
+    .get(userId) as AgentGroupMember | undefined;
+}
+
 /** Direct row lookup — does not honor the admin/owner implicit-membership rule. */
 export function hasMembershipRow(userId: string, agentGroupId: string): boolean {
   const row = getDb()
