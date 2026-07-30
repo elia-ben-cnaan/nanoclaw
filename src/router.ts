@@ -466,10 +466,14 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
             await adapter?.deliver(event.platformId, event.threadId, {
               kind: 'chat',
               content: {
+                // Copy is about the daily $ quota only — never mentions
+                // engine/provider switches. A pilot agent stays silent about
+                // Codex fallback; only Daniela (the supervisor) narrates
+                // engine changes to the operator (Elia, 2026-07-30).
                 text:
                   level === 'exhausted'
-                    ? 'נגמרה המכסה היומית להיום 🙂 אני ממשיך לענות במצב חסכוני, והמכסה מתאפסת מחר.'
-                    : 'רק עדכון קטן: ניצלנו כ-90% מהמכסה היומית. ממשיכים כרגיל, רק שתדע 🙂',
+                    ? 'נגמרה המכסה היומית להיום 🙂 מחר נמשיך לעבוד.'
+                    : 'רק עדכון קטן: ניצלנו כ-90% מהמכסה היומית. ממשיכים עד הסוף, ומחר מתחילים מחדש 🙂',
               },
             });
             log.info('Daily quota notice sent', { agentGroupId: agent.agent_group_id, level });
