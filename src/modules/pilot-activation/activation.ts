@@ -88,6 +88,18 @@ export function findPilotCodeInText(text: string): string | null {
   return null;
 }
 
+/**
+ * Best-effort language detection for walk-up messages (no signup form, so no
+ * `lang` field). Any Hebrew letter wins → 'he'; otherwise Latin letters →
+ * 'en'; anything else (emoji, digits, empty) defaults to 'he' per product
+ * spec. Deliberately character-class based — no dependency, no network.
+ */
+export function detectLang(text: string): PilotLang {
+  if (/[֐-׿]/.test(text)) return 'he';
+  if (/[a-zA-Z]/.test(text)) return 'en';
+  return 'he';
+}
+
 const FEEDBACK = {
   expired: {
     he: 'הקישור הזה פג תוקף (קישורים תקפים ל-24 שעות). אפשר לבקש קישור חדש בטופס ההרשמה באתר ונשלח לך אחד מיד. 🙂',

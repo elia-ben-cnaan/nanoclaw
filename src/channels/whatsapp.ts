@@ -50,7 +50,7 @@ import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, ConversationInfo, InboundMessage, OutboundMessage } from './adapter.js';
 import { provisionPilotAtPress } from '../provision-handler.js';
 import { consumeActivation } from '../modules/pilot-activation/db.js';
-import { findPilotCodeInText } from '../modules/pilot-activation/activation.js';
+import { detectLang, findPilotCodeInText } from '../modules/pilot-activation/activation.js';
 
 /**
  * Trunk's ChannelAdapter/ChannelRegistration no longer carry a `defaults`
@@ -1049,9 +1049,13 @@ registerChannelAdapter('whatsapp', {
                     });
                     if (!consumed) {
                       log.warn('WhatsApp activation code invalid or expired', { code: activationCode });
+                      // No activation row to read lang from — detect it from
+                      // the surrounding pre-filled message text instead.
                       await sendRawMessage(
                         chatJid,
-                        'הקוד הזה לא תקף או שכבר נוצל. אפשר לבקש קישור חדש בטופס ההרשמה. 🙂',
+                        detectLang(content) === 'en'
+                          ? "This code isn't valid or was already used. You can request a new link from the signup form. 🙂"
+                          : 'הקוד הזה לא תקף או שכבר נוצל. אפשר לבקש קישור חדש בטופס ההרשמה. 🙂',
                       );
                       continue; // no agent for a bad code — same as Telegram
                     }
@@ -1062,11 +1066,16 @@ registerChannelAdapter('whatsapp', {
                     });
                     // Greeting BEFORE wiring, same ordering rationale as
                     // Telegram: guarantee it's the first message on the chat.
+                    // Greeting is personalized when we have a real name (form
+                    // name, else the WhatsApp pushName that provisionPilot
+                    // took as fallback); the 'User' placeholder means no name
+                    // was available → neutral phrasing.
+                    const greetName = prov.userName !== 'User' ? prov.userName : null;
                     await sendRawMessage(
                       chatJid,
                       prov.lang === 'en'
-                        ? `Hi, I'm Johnny, Elia developed me just for you. 👋\n\nThe world is already moving to work with personal AI agents, and I'm here so you can feel what that looks like and how it changes the way you work.\n\nWant a quick tour, or shall we jump straight in? 🙂`
-                        : `היי, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋\n\nהעולם כבר עובר לעבוד עם סוכנים אישיים, ואני כאן כדי שתרגיש איך זה נראה ואיך זה משנה את העבודה.\n\nרוצה שאקח אותך לסיבוב קצר, או שנתחיל ישר? 🙂`,
+                        ? `Hi${greetName ? ` ${greetName}` : ''}, I'm Johnny, Elia developed me just for you. 👋\n\nThe world is already moving to work with personal AI agents, and I'm here so you can feel what that looks like and how it changes the way you work.\n\nWant a quick tour, or shall we jump straight in? 🙂`
+                        : `היי${greetName ? ` ${greetName}` : ''}, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋\n\nהעולם כבר עובר לעבוד עם סוכנים אישיים, ואני כאן כדי שתרגיש איך זה נראה ואיך זה משנה את העבודה.\n\nרוצה שאקח אותך לסיבוב קצר, או שנתחיל ישר? 🙂`,
                     );
                     wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || prov.userName, 'whatsapp');
                     log.info('WhatsApp pilot provisioned via activation code', {
@@ -1084,7 +1093,9 @@ registerChannelAdapter('whatsapp', {
                   const prov = provisionPilotAtPress({
                     activation: {
                       code: '',
-                      lang: 'he',
+                      // No form → detect the language from the first message
+                      // itself (Hebrew default per product spec).
+                      lang: detectLang(content),
                       metadata: JSON.stringify({ name: senderName || null, gender: 'm' }),
                       created_at: nowIso,
                       expires_at: nowIso,

@@ -37,6 +37,7 @@ vi.mock('./modules/agent-to-agent/db/agent-destinations.js', () => ({
 vi.mock('./modules/agent-to-agent/write-destinations.js', () => ({ writeDestinations: () => {} }));
 
 import { provisionPilotAtPress } from './provision-handler.js';
+import { detectLang } from './modules/pilot-activation/activation.js';
 
 function activation(lang: 'he' | 'en', gender: 'm' | 'f' = 'm'): PilotActivation {
   return {
@@ -89,4 +90,31 @@ describe('provisionPilotAtPress — opening language follows signup lang', () =>
     expect(res.lang).toBe('he');
     expect(capturedInstructions).toContain('דבר/י אליו/אליה בעברית');
   });
+
+  it('no name anywhere → neutral-address instruction, no invented name', () => {
+    capturedInstructions = '';
+    const act = activation('he');
+    act.metadata = JSON.stringify({ gender: 'm' });
+    const res = provisionPilotAtPress({ activation: act, fallbackName: null });
+    expect(res.userName).toBe('User');
+    expect(capturedInstructions).toContain('שם המשתמש לא ידוע');
+    expect(capturedInstructions).not.toContain('שם המשתמש הוא User');
+  });
+
+  it('webhook fallback name used when form carried none', () => {
+    capturedInstructions = '';
+    const act = activation('he');
+    act.metadata = JSON.stringify({ gender: 'm' });
+    const res = provisionPilotAtPress({ activation: act, fallbackName: 'רוני' });
+    expect(res.userName).toBe('רוני');
+    expect(capturedInstructions).toContain('שם המשתמש הוא רוני');
+  });
+});
+
+describe('detectLang — walk-up first-message language detection', () => {
+  it('Hebrew text → he', () => expect(detectLang('היי מה קורה')).toBe('he'));
+  it('mixed Hebrew+English → he (any Hebrew wins)', () => expect(detectLang('hi ג׳וני')).toBe('he'));
+  it('English text → en', () => expect(detectLang('Hey there, what can you do?')).toBe('en'));
+  it('emoji/digits only → he (default)', () => expect(detectLang('👋 123')).toBe('he'));
+  it('empty → he (default)', () => expect(detectLang('')).toBe('he'));
 });

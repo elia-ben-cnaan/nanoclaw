@@ -195,11 +195,14 @@ function generateSlug(): string {
   return 'pilot-' + crypto.randomBytes(3).toString('hex'); // e.g. pilot-a3f9c2
 }
 
-function buildUserIdentityBlock(name: string, gender: string, lang: string): string {
+function buildUserIdentityBlock(name: string | null, gender: string, lang: string): string {
   if (lang === 'en') {
+    const nameLine = name
+      ? `The user's name is ${name}. Always address them by this name.`
+      : `The user's name is not known. Address them neutrally — never invent or guess a name, and don't ask for one unless it comes up naturally.`;
     return (
       `## User identity\n` +
-      `The user's name is ${name}. Always address them by this name.\n\n` +
+      `${nameLine}\n\n` +
       `## Language\n` +
       `This user chose English in the signup form. Open the conversation in English and ` +
       `keep communicating in English throughout. If the user switches to another language ` +
@@ -208,9 +211,12 @@ function buildUserIdentityBlock(name: string, gender: string, lang: string): str
     );
   }
   const formHe = gender === 'f' ? 'נקבית' : 'זכרית';
+  const nameLineHe = name
+    ? `שם המשתמש הוא ${name}. פנה אליו/אליה תמיד בשמו/שמה. `
+    : `שם המשתמש לא ידוע. פנה אליו/אליה בניסוח ניטרלי — אל תמציא שם ואל תנחש. `;
   return (
     `## זהות המשתמש\n` +
-    `שם המשתמש הוא ${name}. פנה אליו/אליה תמיד בשמו/שמה. ` +
+    nameLineHe +
     `דבר/י אליו/אליה בעברית, בצורה ${formHe} (מין: ${gender === 'f' ? 'נקבה' : 'זכר'}).`
   );
 }
@@ -355,7 +361,11 @@ export function provisionPilotAtPress(input: {
   channel?: string;
 }): PressProvisionResult {
   const meta = parseActivationMetadata(input.activation);
-  const userName = meta.name?.trim() || input.fallbackName?.trim() || 'User';
+  // realName drives the identity block (null → explicit "address neutrally"
+  // instruction); userName keeps the legacy 'User' placeholder for the
+  // template's {{USER_NAME}} slot and the return value.
+  const realName = meta.name?.trim() || input.fallbackName?.trim() || null;
+  const userName = realName || 'User';
   const gender = meta.gender === 'f' ? 'f' : 'm';
   const lang: PilotLang = input.activation.lang === 'en' ? 'en' : 'he';
 
@@ -377,7 +387,7 @@ export function provisionPilotAtPress(input: {
   });
 
   const instructions =
-    buildUserIdentityBlock(userName, gender, lang) +
+    buildUserIdentityBlock(realName, gender, lang) +
     '\n\n' +
     buildInstructions(userName, input.channel ?? 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
   initGroupFilesystem(
