@@ -25,6 +25,7 @@ import { migration020 } from './020-pilot-activations.js';
 import { migration021 } from './021-task-model.js';
 import { migration022 } from './022-group-post-allowances.js';
 import { migration023 } from './023-fallback-model.js';
+import { migration024 } from './024-cost-notices.js';
 
 export interface Migration {
   version: number;
@@ -66,6 +67,7 @@ export const migrations: Migration[] = [
   migration022,
   migration017Fallback,
   migration023,
+  migration024,
 ];
 
 /** Row shape of PRAGMA foreign_key_check. Child rowids are stable across a

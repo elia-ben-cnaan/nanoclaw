@@ -30,7 +30,12 @@ import { findSessionForAgent } from './db/sessions.js';
 import { startTypingRefresh, stopTypingRefresh } from './modules/typing/index.js';
 import { log } from './log.js';
 import { resolveSession, writeSessionMessage, writeOutboundDirect } from './session-manager.js';
-import { dailyCostAction } from './db/usage-metering.js';
+import {
+  dailyCostAction,
+  dailyCostRatio,
+  claimCostNotice,
+  COST_NOTICE_APPROACHING_RATIO,
+} from './db/usage-metering.js';
 import { getContainerConfig, updateContainerConfigScalars } from './db/container-configs.js';
 import { wakeContainer } from './container-runner.js';
 import { getSession } from './db/sessions.js';
@@ -445,6 +450,32 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
             });
           }
           // fall through — do NOT block on the first day over
+        }
+        // Daily-quota user notices, once per (agent, day, level): a heads-up
+        // at 90% of the cap, and an "exhausted" notice at 100% (the 1st-day
+        // downgrade is otherwise silent — the user deserves to know). Both
+        // are best-effort and never gate the message itself.
+        try {
+          const level =
+            action !== 'ok'
+              ? ('exhausted' as const)
+              : dailyCostRatio(agent.agent_group_id) >= COST_NOTICE_APPROACHING_RATIO
+                ? ('approaching' as const)
+                : null;
+          if (level && claimCostNotice(agent.agent_group_id, level)) {
+            await adapter?.deliver(event.platformId, event.threadId, {
+              kind: 'chat',
+              content: {
+                text:
+                  level === 'exhausted'
+                    ? 'נגמרה המכסה היומית להיום 🙂 אני ממשיך לענות במצב חסכוני, והמכסה מתאפסת מחר.'
+                    : 'רק עדכון קטן: ניצלנו כ-90% מהמכסה היומית. ממשיכים כרגיל, רק שתדע 🙂',
+              },
+            });
+            log.info('Daily quota notice sent', { agentGroupId: agent.agent_group_id, level });
+          }
+        } catch (err) {
+          log.warn('Daily quota notice failed (non-fatal)', { agentGroupId: agent.agent_group_id, err });
         }
       }
 

@@ -55,3 +55,22 @@ describe('dailyCostAction — graduated pilot daily-cost policy', () => {
     expect(dailyCostAction(AG)).toBe('block');
   });
 });
+
+describe('daily-quota notices — ratio + once-per-day claim', () => {
+  it('dailyCostRatio reflects spend/cap', async () => {
+    const { dailyCostRatio } = await import('./usage-metering.js');
+    seedDay(dayStr(0), 0.5);
+    expect(dailyCostRatio(AG)).toBeCloseTo(0.5, 2);
+    seedDay(dayStr(0), 0.95);
+    expect(dailyCostRatio(AG)).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('claimCostNotice fires once per (agent, day, level)', async () => {
+    const { claimCostNotice } = await import('./usage-metering.js');
+    expect(claimCostNotice(AG, 'approaching')).toBe(true);
+    expect(claimCostNotice(AG, 'approaching')).toBe(false); // deduped
+    expect(claimCostNotice(AG, 'exhausted')).toBe(true); // different level still fires
+    expect(claimCostNotice(AG, 'exhausted')).toBe(false);
+    expect(claimCostNotice('other-agent', 'approaching')).toBe(true); // per-agent
+  });
+});

@@ -313,3 +313,30 @@ export function dailyCostAction(agentGroupId: string): DailyCostAction {
   const overYesterday = getUsageForDay(agentGroupId, yesterdayStr).costUsd >= cap;
   return overYesterday ? 'block' : 'downgrade';
 }
+
+/** Notice levels for the daily-quota heads-up flow (see cost_notices). */
+export type CostNoticeLevel = 'approaching' | 'exhausted';
+
+/** Fraction of the daily cap at which the "approaching" notice fires. */
+export const COST_NOTICE_APPROACHING_RATIO = 0.9;
+
+/** Today's spend as a fraction of the effective cap (0 when cap unset/zero). */
+export function dailyCostRatio(agentGroupId: string): number {
+  const cap = effectiveCostCapUsd(agentGroupId);
+  if (!(cap > 0)) return 0;
+  return dailyCostUsd(agentGroupId) / cap;
+}
+
+/**
+ * Once-per-day gate for a quota notice: returns true exactly once per
+ * (agent, UTC day, level) — the caller should deliver the notice iff true.
+ * INSERT OR IGNORE against the PK makes the claim atomic, so concurrent
+ * router evaluations can't double-send.
+ */
+export function claimCostNotice(agentGroupId: string, level: CostNoticeLevel): boolean {
+  const day = new Date().toISOString().slice(0, 10);
+  const res = getDb()
+    .prepare('INSERT OR IGNORE INTO cost_notices (agent_group_id, day, level, created_at) VALUES (?, ?, ?, ?)')
+    .run(agentGroupId, day, level, new Date().toISOString());
+  return res.changes > 0;
+}
