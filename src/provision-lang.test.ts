@@ -111,6 +111,15 @@ describe('provisionPilotAtPress — opening language follows signup lang', () =>
   });
 });
 
+describe('provisionPilotAtPress — sender isolation', () => {
+  it('two senders → two distinct agent groups (never shared)', () => {
+    const a = provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח א' });
+    const b = provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח ב' });
+    expect(a.agentGroupId).not.toBe(b.agentGroupId);
+    expect(a.slug).not.toBe(b.slug);
+  });
+});
+
 describe('detectLang — walk-up first-message language detection', () => {
   it('Hebrew text → he', () => expect(detectLang('היי מה קורה')).toBe('he'));
   it('mixed Hebrew+English → he (any Hebrew wins)', () => expect(detectLang('hi ג׳וני')).toBe('he'));
