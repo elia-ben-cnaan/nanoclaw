@@ -555,6 +555,10 @@ export async function processQuery(
   let queryContinuation: string | undefined;
   let done = false;
   let unwrappedNudged = false;
+  // One-shot per turn cycle: the silent-to-user safety net (see below) may
+  // nudge the agent once when it answered only other agents, never the waiting
+  // human. Reset alongside unwrappedNudged at the top of each new turn.
+  let initiatorNudged = false;
   // Prompt queue for the exchange hook — each result event consumes the
   // oldest unanswered prompt, except a wrapping-retry result, which answers
   // the same prompt again. Unused (and unmaintained) when the provider
@@ -663,6 +667,7 @@ export async function processQuery(
         const prompt = formatMessages(keep);
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
+        initiatorNudged = false;
         outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
         lastPrompt = prompt;
         query.push(prompt);
@@ -764,7 +769,22 @@ export async function processQuery(
           maxSeq: getMaxOutboundSeq(),
         };
         if (event.text) {
-          const { sent, hasUnwrapped } = dispatchResultText(event.text, routing, outboundBeforeTurn.maxSeq);
+          const { sent, hasUnwrapped, sentToInitiator } = dispatchResultText(
+            event.text,
+            routing,
+            outboundBeforeTurn.maxSeq,
+          );
+          // Silent-to-user safety net: the turn was triggered by a human on a
+          // channel, it produced ≥1 delivered block, but NONE went back to that
+          // human — every block went to the supervisor / another agent. The
+          // user asked something and is now staring at silence while the agent
+          // "talks about them" to parent (the self-reflection-loop failure mode,
+          // 31.7 Shimshon). Nudge once to force a real user-facing reply. Guarded
+          // to user-facing turns so a2a/scheduled turns that legitimately answer
+          // only other agents are untouched. `sent > 0` excludes the unwrapped
+          // case (handled below) and the deliberate <internal>-only turn.
+          const silentToUser =
+            sent > 0 && !sentToInitiator && !initiatorNudged && isUserFacingTurn(routing);
           if (sent === 0 && event.isError === true) {
             // Non-retryable error turn (e.g. a 403 billing_error) with no
             // <message> envelope: deliver the notice instead of dropping it as
@@ -808,10 +828,26 @@ export async function processQuery(
               // provider STILL didn't wrap its output (Codex commonly). Never
               // silently drop — guarantee delivery by sending the raw text.
               deliverRawFallback(event.text, routing);
+            } else if (silentToUser) {
+              // The agent replied to other agents but left the waiting human in
+              // silence. Force one real user-facing reply. Reuse the retry
+              // machinery: push a system prompt and a matching outbound snapshot
+              // to keep the FIFO 1:1, and keep this turn's prompt queued so the
+              // reply archives against the user's original message.
+              initiatorNudged = true;
+              log('Silent-to-user turn — nudging agent to reply to the waiting human');
+              outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
+              query.push(
+                `<system>You answered other agents but sent nothing back to the person who is waiting for you. ` +
+                  `They asked you directly and are now seeing silence. ` +
+                  `Reply to them now, in their language, wrapped in <message to="..."> for the destination that is their conversation. ` +
+                  `Keep it short — answer what they asked, do not narrate to the supervisor.</system>`,
+              );
             }
-            // The wrapping-retry result answers the SAME user prompt — keep it
-            // queued so the retry archives against it, not the nudge text.
-            if (!willRetryWrapping) archivePrompts.shift();
+            // The wrapping-retry AND initiator-nudge results answer the SAME
+            // user prompt — keep it queued so the retry archives against it,
+            // not the nudge text.
+            if (!willRetryWrapping && !silentToUser) archivePrompts.shift();
           }
         } else {
           archivePrompts.shift();
@@ -1098,11 +1134,12 @@ function dispatchResultText(
   text: string,
   routing: RoutingContext,
   turnStartMaxSeq = 0,
-): { sent: number; hasUnwrapped: boolean } {
+): { sent: number; hasUnwrapped: boolean; sentToInitiator: boolean } {
   const MESSAGE_RE = /<message\s+to="([^"]+)"\s*>([\s\S]*?)<\/message>/g;
 
   let match: RegExpExecArray | null;
   let sent = 0;
+  let sentToInitiator = false;
   let lastIndex = 0;
   const scratchpadParts: string[] = [];
 
@@ -1119,6 +1156,13 @@ function dispatchResultText(
       log(`Unknown destination in <message to="${toName}">, dropping block`);
       scratchpadParts.push(`[dropped: unknown destination "${toName}"] ${body}`);
       continue;
+    }
+    // Did this block go back to the human who triggered the turn? Compare the
+    // resolved destination's channel+platform to the initiator's routing.
+    const destPlatformId = dest.type === 'channel' ? dest.platformId : dest.agentGroupId;
+    const destChannelType = dest.type === 'channel' ? dest.channelType : 'agent';
+    if (destChannelType === routing.channelType && destPlatformId === routing.platformId) {
+      sentToInitiator = true;
     }
     // Count the block as delivered (sent++) so the re-wrap nudge doesn't fire,
     // but skip the actual write when this exact content already went out this
@@ -1140,7 +1184,19 @@ function dispatchResultText(
   if (hasUnwrapped) {
     log(`WARNING: agent output had no <message to="..."> blocks — nothing was sent`);
   }
-  return { sent, hasUnwrapped };
+  return { sent, hasUnwrapped, sentToInitiator };
+}
+
+/**
+ * A turn is "user-facing" when it was triggered by a human on a real
+ * messaging channel — NOT by another agent (a2a inbound rows carry
+ * channel_type 'agent') and not by a channel-less system wake. Used by the
+ * silent-to-user safety net: an agent that answers only the supervisor about
+ * a waiting user, never the user, leaves that user staring at silence — the
+ * #1 "the bot broke" complaint. See the initiator-nudge in the result handler.
+ */
+function isUserFacingTurn(routing: RoutingContext): boolean {
+  return !!routing.platformId && !!routing.channelType && routing.channelType !== 'agent';
 }
 
 function sendToDestination(

@@ -565,6 +565,91 @@ describe('never-silently-drop guarantee (item 1 fix)', () => {
   });
 });
 
+/**
+ * Two-turn stub: first result yields `firstText` (e.g. a reply only to the
+ * supervisor), and once the loop pushes a follow-up (the nudge), the second
+ * result yields `secondText`. Mirrors makeTwoTurnUnwrappedQuery but lets each
+ * turn carry arbitrary wrapped content.
+ */
+function makeTwoTurnQuery(firstText: string, secondText: string): { query: AgentQuery; pushes: string[] } {
+  const pushes: string[] = [];
+  let resolvePush: (() => void) | undefined;
+  const pushed = new Promise<void>((resolve) => {
+    resolvePush = resolve;
+  });
+  async function* events(): AsyncGenerator<ProviderEvent> {
+    yield { type: 'init', continuation: 'sess-1' };
+    yield { type: 'result', text: firstText };
+    await pushed;
+    yield { type: 'result', text: secondText };
+  }
+  return {
+    pushes,
+    query: {
+      push: (m: string) => {
+        pushes.push(m);
+        resolvePush?.();
+      },
+      end: () => {},
+      events: events(),
+      abort: () => {},
+    },
+  };
+}
+
+describe('silent-to-user safety net', () => {
+  it('nudges once when the turn replied only to the supervisor, then delivers the retry to the user', async () => {
+    // The user's own channel destination + a supervisor (agent) destination.
+    getInboundDb()
+      .prepare(
+        `INSERT INTO destinations (name, display_name, type, channel_type, platform_id, agent_group_id)
+         VALUES ('user', 'User', 'channel', 'telegram-joni', 'telegram:99', NULL),
+                ('parent', 'Daniela', 'agent', NULL, NULL, 'ag-super')`,
+      )
+      .run();
+    const routing = { platformId: 'telegram:99', channelType: 'telegram-joni', threadId: null, inReplyTo: 'm1' };
+
+    // Turn 1: agent talks ONLY to parent about the user. Turn 2 (after nudge):
+    // it finally answers the user.
+    const { query, pushes } = makeTwoTurnQuery(
+      '<message to="parent">The user asked X, my reply felt bloated, I should be shorter.</message>',
+      '<message to="user">היי, כן — הנה התשובה שלך.</message>',
+    );
+
+    await processQuery(query, routing, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    // Exactly one nudge, and it names the silence-to-user condition.
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toContain('sent nothing back to the person who is waiting');
+
+    // The user's channel received the retry reply.
+    const out = getUndeliveredMessages();
+    const toUser = out.filter((m) => m.platform_id === 'telegram:99' && m.channel_type === 'telegram-joni');
+    expect(toUser).toHaveLength(1);
+    expect(JSON.parse(toUser[0].content).text).toContain('הנה התשובה שלך');
+  });
+
+  it('does NOT nudge an a2a turn that legitimately replies only to another agent', async () => {
+    getInboundDb()
+      .prepare(
+        `INSERT INTO destinations (name, display_name, type, channel_type, platform_id, agent_group_id)
+         VALUES ('parent', 'Daniela', 'agent', NULL, NULL, 'ag-super')`,
+      )
+      .run();
+    // Turn triggered BY another agent → channel_type 'agent', not user-facing.
+    const routing = { platformId: 'ag-super', channelType: 'agent', threadId: null, inReplyTo: 'm1' };
+    const { query, pushes } = makeResultQuery({
+      type: 'result',
+      text: '<message to="parent">Acknowledged, task done.</message>',
+    });
+
+    await processQuery(query, routing, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    // No nudge: replying only to the agent that asked is correct here.
+    expect(pushes).toHaveLength(0);
+  });
+});
+
 describe('isCorruptionError', () => {
   it('matches the Docker Desktop macOS torn-read symptom', () => {
     expect(isCorruptionError('database disk image is malformed')).toBe(true);
