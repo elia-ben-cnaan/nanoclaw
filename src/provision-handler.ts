@@ -403,6 +403,21 @@ export function provisionPilotAtPress(input: {
     { instructions },
   );
 
+  // Ship the use-case playbook into the new agent's workspace. The seed
+  // instructions carry only a compact trigger→title index (kept lean per the
+  // SCALE-FIRST token budget); the full teach_blocks live in this sibling
+  // file, which the agent greps on demand when it recognizes a scenario.
+  // Without this copy a new agent's index would point at a missing file.
+  try {
+    const playbookSrc = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'usecases_playbook.md');
+    const playbookDst = path.join(GROUPS_DIR, slug, 'usecases_playbook.md');
+    if (fs.existsSync(playbookSrc) && !fs.existsSync(playbookDst)) {
+      fs.copyFileSync(playbookSrc, playbookDst);
+    }
+  } catch (err) {
+    log.warn('Provision: failed to copy usecases playbook (non-fatal)', { err, slug });
+  }
+
   // Pilot cost config (LOCKED, see PILOT_MODEL / PILOT_EFFORT / PILOT_DAILY_COST_CAP_USD).
   ensureContainerConfig(agentGroupId);
   updateContainerConfigScalars(agentGroupId, {
