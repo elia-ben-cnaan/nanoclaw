@@ -406,7 +406,14 @@ export function buildSummary(rows: Array<Partial<StoredRow>>, nowIso: string): F
   const dwells: number[] = [];
   const bySrc = new Map<
     string,
-    { label: string; entered: number; reachedForm: number; submitted: number; firstAt: string | null; lastAt: string | null }
+    {
+      label: string;
+      entered: number;
+      reachedForm: number;
+      submitted: number;
+      firstAt: string | null;
+      lastAt: string | null;
+    }
   >();
 
   for (const j of journeys) {

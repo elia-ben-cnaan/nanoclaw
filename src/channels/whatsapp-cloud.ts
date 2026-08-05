@@ -14,6 +14,7 @@ import { createWhatsAppAdapter } from '@chat-adapter/whatsapp';
 import { readEnvFile } from '../env.js';
 import { createChatSdkBridge } from './chat-sdk-bridge.js';
 import { registerChannelAdapter } from './channel-registry.js';
+import { wrapWithPilotProvisioning } from './whatsapp-cloud-pilot.js';
 
 registerChannelAdapter('whatsapp-cloud', {
   factory: () => {
@@ -36,11 +37,15 @@ registerChannelAdapter('whatsapp-cloud', {
     // (src/channels/whatsapp.ts, also channelType 'whatsapp') — last-write-wins
     // silently kills one channel. The instance key keeps them apart while
     // channelType stays 'whatsapp' (the semantic platform key). See #2911.
-    return createChatSdkBridge({
-      adapter: whatsappAdapter,
-      instance: 'whatsapp-cloud',
-      concurrency: 'concurrent',
-      supportsThreads: false,
-    });
+    // Pilot wrapper: activation-code / walk-up provisioning + Daniela
+    // mirroring, ported from the retired Baileys adapter.
+    return wrapWithPilotProvisioning(
+      createChatSdkBridge({
+        adapter: whatsappAdapter,
+        instance: 'whatsapp-cloud',
+        concurrency: 'concurrent',
+        supportsThreads: false,
+      }),
+    );
   },
 });

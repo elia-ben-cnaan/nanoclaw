@@ -35,7 +35,11 @@ import path from 'path';
 
 import { GROUPS_DIR } from './config.js';
 import { createAgentGroup, getAgentGroup, getAgentGroupByFolder } from './db/agent-groups.js';
-import { ensureContainerConfig, updateContainerConfigJson, updateContainerConfigScalars } from './db/container-configs.js';
+import {
+  ensureContainerConfig,
+  updateContainerConfigJson,
+  updateContainerConfigScalars,
+} from './db/container-configs.js';
 import type { McpServerConfig } from './container-config.js';
 import { setCostCapUsd } from './db/usage-metering.js';
 import { findSessionByAgentGroup } from './db/sessions.js';

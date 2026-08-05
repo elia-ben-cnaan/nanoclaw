@@ -38,6 +38,7 @@ import { tryActivatePilot, type ActivationContext } from '../modules/pilot-activ
 import type { PilotActivation, PilotLang } from '../modules/pilot-activation/db.js';
 import { tryConsume, extractCode } from './telegram-pairing.js';
 import { registerChannelAdapter } from './channel-registry.js';
+import { wrapWithTelegramTyping } from './telegram-typing.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage, OutboundMessage } from './adapter.js';
 import { sanitizeTelegramLegacyMarkdown } from './telegram-markdown-sanitize.js';
 
@@ -485,6 +486,6 @@ registerChannelAdapter(CHANNEL_TYPE, {
     };
 
     log.info('Pilot Telegram adapter initialized', { channelType: CHANNEL_TYPE });
-    return wrapped;
+    return wrapWithTelegramTyping(wrapped, token);
   },
 });

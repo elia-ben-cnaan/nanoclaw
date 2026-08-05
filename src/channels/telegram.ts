@@ -13,6 +13,7 @@ import { upsertUser } from '../modules/permissions/db/users.js';
 import { createChatSdkBridge, type ReplyContext } from './chat-sdk-bridge.js';
 import { sanitizeTelegramLegacyMarkdown } from './telegram-markdown-sanitize.js';
 import { registerChannelAdapter } from './channel-registry.js';
+import { wrapWithTelegramTyping } from './telegram-typing.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage } from './adapter.js';
 import { tryConsume } from './telegram-pairing.js';
 
@@ -240,6 +241,6 @@ registerChannelAdapter('telegram', {
         return withRetry(() => bridge.setup(intercepted), 'bridge.setup');
       },
     };
-    return wrapped;
+    return wrapWithTelegramTyping(wrapped, token);
   },
 });
