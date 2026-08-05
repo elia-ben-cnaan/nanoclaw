@@ -172,6 +172,26 @@ export function clearContainerToolInFlight(): void {
 }
 
 /**
+ * Read the in-flight tool recorded by the PreToolUse hook (null when no tool
+ * is running). Used by the poll-loop's turn-stall watchdog to widen its
+ * no-events tolerance while a long-declared Bash script is executing —
+ * during tool execution the SDK stream is legitimately silent.
+ */
+export function getContainerToolInFlight(): {
+  tool: string;
+  declaredTimeoutMs: number | null;
+  startedAt: string;
+} | null {
+  const row = getOutboundDb()
+    .prepare('SELECT current_tool, tool_declared_timeout_ms, tool_started_at FROM container_state WHERE id = 1')
+    .get() as
+    | { current_tool: string | null; tool_declared_timeout_ms: number | null; tool_started_at: string | null }
+    | undefined;
+  if (!row || !row.current_tool || !row.tool_started_at) return null;
+  return { tool: row.current_tool, declaredTimeoutMs: row.tool_declared_timeout_ms, startedAt: row.tool_started_at };
+}
+
+/**
  * Touch the heartbeat file — replaces the old touchProcessing() DB writes.
  * The host checks this file's mtime for stale container detection.
  * A file touch is cheaper and avoids cross-boundary DB write contention.

@@ -1,7 +1,7 @@
 import { findByName, getAllDestinations, type DestinationEntry } from './destinations.js';
 import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } from './db/messages-in.js';
 import { writeMessageOut, getOutboundCount, getMaxOutboundSeq, wasContentDeliveredSince } from './db/messages-out.js';
-import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
+import { getInboundDb, touchHeartbeat, clearStaleProcessingAcks, getContainerToolInFlight } from './db/connection.js';
 import {
   clearContinuation,
   getContinuation,
@@ -28,6 +28,49 @@ import type { AgentProvider, AgentQuery, ProviderEvent, ProviderExchange } from 
 
 const POLL_INTERVAL_MS = 1000;
 const ACTIVE_POLL_INTERVAL_MS = 500;
+
+/**
+ * Turn-stall watchdog: max time a turn may go with ZERO provider events
+ * before the container aborts and exits for a fresh respawn. Catches the
+ * wedges the host's 30-minute heartbeat ceiling handles far too slowly —
+ * a hung Claude SDK subprocess (compaction thrash), a codex app-server that
+ * dies mid-handoff, a stream that silently stops after the primary→fallback
+ * switch. Daniela's own turn sat stuck ~35 minutes on exactly this
+ * (2026-08-05) before host-sweep killed it with 137.
+ *
+ * This is an INACTIVITY bound, not a turn-duration bound: healthy long turns
+ * emit a steady stream of assistant/tool events, each of which resets the
+ * clock. The one legitimate silent window is a long-running tool execution —
+ * `turnStallAllowanceMs` widens the bound by the tool's own declared timeout
+ * (the PreToolUse hook records it in container_state).
+ *
+ * Env-tunable via TURN_STALL_TIMEOUT_MS. Exit code 76 (distinct from the
+ * corruption exit 75) so the host log shows exactly why the container died.
+ */
+function stallBaseMs(): number {
+  // Read per check (2×/s — negligible) so the bound is tunable at runtime
+  // and in tests without re-importing the module.
+  const n = parseInt(process.env.TURN_STALL_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : 180_000;
+}
+/** Grace added on top of an in-flight tool's declared timeout. */
+const TOOL_TIMEOUT_MARGIN_MS = 60_000;
+const STALL_EXIT_CODE = 76;
+
+/**
+ * Allowed no-events window for the stall watchdog, widened while a tool with
+ * a declared timeout is executing. Pure — unit-tested in turn-stall.test.ts.
+ */
+export function turnStallAllowanceMs(
+  toolInFlight: { declaredTimeoutMs: number | null } | null,
+  baseMs: number = stallBaseMs(),
+  marginMs: number = TOOL_TIMEOUT_MARGIN_MS,
+): number {
+  if (toolInFlight?.declaredTimeoutMs && toolInFlight.declaredTimeoutMs > 0) {
+    return Math.max(baseMs, toolInFlight.declaredTimeoutMs + marginMs);
+  }
+  return baseMs;
+}
 
 /**
  * Number of consecutive `database disk image is malformed` errors after which
@@ -594,8 +637,44 @@ export async function processQuery(
   let pollInFlight = false;
   let endedForCommand = false;
   let corruptionStreak = 0;
+  // Turn-stall watchdog clock — reset on every provider event. A turn is
+  // "in flight" while outboundSnapshots has an unanswered prompt (pushed on
+  // every prompt, shifted on every 'result').
+  let lastEventAt = Date.now();
   const pollHandle = setInterval(() => {
-    if (done || pollInFlight || endedForCommand) return;
+    if (done || endedForCommand) return;
+    // Watchdog first (runs even when a poll read is in flight): a turn with
+    // no events past its allowance is wedged — abort and exit for a fresh
+    // respawn. Initial-batch rows are still 'processing', so the fresh
+    // container's clearStaleProcessingAcks resets and retries them.
+    if (outboundSnapshots.length > 0) {
+      let toolInFlight: { tool: string; declaredTimeoutMs: number | null; startedAt: string } | null = null;
+      try {
+        toolInFlight = getContainerToolInFlight();
+      } catch {
+        /* watchdog must never crash the loop on a DB hiccup */
+      }
+      const allowance = turnStallAllowanceMs(toolInFlight);
+      const idleMs = Date.now() - lastEventAt;
+      if (idleMs > allowance) {
+        log(
+          `Turn stalled: no provider events for ${Math.round(idleMs / 1000)}s ` +
+            `(allowance ${Math.round(allowance / 1000)}s${toolInFlight ? `, tool in flight: ${toolInFlight.tool}` : ''}) — ` +
+            `aborting and exiting ${STALL_EXIT_CODE} for a fresh respawn`,
+        );
+        done = true;
+        clearInterval(pollHandle);
+        try {
+          query.abort();
+        } catch {
+          /* the wedge that got us here may also break abort */
+        }
+        // Defer one tick so the log flushes through Docker's log driver.
+        setTimeout(() => process.exit(STALL_EXIT_CODE), 150);
+        return;
+      }
+    }
+    if (pollInFlight) return;
     pollInFlight = true;
 
     void (async () => {
@@ -715,6 +794,7 @@ export async function processQuery(
     for await (const event of query.events) {
       handleEvent(event, routing);
       touchHeartbeat();
+      lastEventAt = Date.now();
 
       if (event.type === 'init') {
         queryContinuation = event.continuation;

@@ -59,9 +59,21 @@ function resolvePilotSlug(platformId: string): string | null {
  * shows what it actually knows.
  */
 export function parseWalkupAttribution(text: string): { name: string | null; src: string | null } {
-  const srcMatch = text.trim().match(/\(([\w][\w.-]{1,40})\)\s*$/);
+  const trimmed = text.trim();
+  // Preferred: tag at the very end (the landing's canonical placement).
+  let srcMatch = trimmed.match(/\(([\w][\w.-]{1,40})\)\s*$/);
+  if (!srcMatch) {
+    // Tolerant fallback (2026-08-05): users edit the pre-fill — a period,
+    // emoji, or an extra sentence after the tag used to drop the whole
+    // attribution to "לא ידוע" on the panel. Accept a latin campaign-style
+    // token anywhere in the text (last occurrence wins — campaign tags are
+    // latin/hyphen slugs like avigail-linkedin-1, so a Hebrew sentence's own
+    // parentheses can't false-match).
+    const all = [...trimmed.matchAll(/\(([A-Za-z][A-Za-z0-9._-]{1,40})\)/g)];
+    if (all.length > 0) srcMatch = all[all.length - 1];
+  }
   const src = srcMatch ? srcMatch[1] : null;
-  const body = srcMatch ? text.trim().slice(0, -srcMatch[0].length) : text;
+  const body = srcMatch ? trimmed.replace(srcMatch[0], ' ') : text;
   const nameMatch = body.match(/(?:קוראים לי|שמי|my name is|i'?m)\s+([^,.\n()]{2,40})/i);
   const name = nameMatch ? nameMatch[1].trim() : null;
   return { name, src };
@@ -332,6 +344,29 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   getDb()
                     .prepare('UPDATE pilot_activations SET agent_group_id = ? WHERE code = ?')
                     .run(prov.agentGroupId, activationCode);
+                  // Attribution rescue (2026-08-05): if the signup form didn't
+                  // carry a src (main-page signups) but the arriving message
+                  // text DOES carry a campaign tag, persist it into the
+                  // activation metadata — the panel reads source from there,
+                  // and these were landing as "לא ידוע". Best-effort.
+                  try {
+                    const textSrc = parseWalkupAttribution(text).src;
+                    if (textSrc) {
+                      const row = getDb()
+                        .prepare('SELECT metadata FROM pilot_activations WHERE code = ?')
+                        .get(activationCode) as { metadata: string | null } | undefined;
+                      const meta = row?.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {};
+                      if (!meta.src) {
+                        meta.src = textSrc;
+                        getDb()
+                          .prepare('UPDATE pilot_activations SET metadata = ? WHERE code = ?')
+                          .run(JSON.stringify(meta), activationCode);
+                        log.info('WhatsApp Cloud: src recovered from message text', { src: textSrc, slug: prov.slug });
+                      }
+                    }
+                  } catch (err) {
+                    log.warn('WhatsApp Cloud: src-from-text rescue failed (non-fatal)', { err });
+                  }
                   log.info('WhatsApp Cloud pilot provisioned via activation code', {
                     slug: prov.slug,
                     agentGroupId: prov.agentGroupId,

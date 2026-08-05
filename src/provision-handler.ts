@@ -148,9 +148,12 @@ const DEFAULT_ASSISTANT_NAME = "ג'וני";
  * body carries no model/effort/cost fields, so a caller cannot raise any of
  * them. Change the pilot tier here, in one place, not per request.
  */
-// claude-haiku-4-5 since 2026-07-29 (Elia): pilots run on haiku after the
-// Hebrew-spelling fixes landed in the agent script; was claude-sonnet-4-6.
-const PILOT_MODEL = 'claude-haiku-4-5';
+// claude-sonnet-4-5 since 2026-08-05 (Elia): the whole live fleet was raised
+// to sonnet-4-5 after haiku kept producing broken-Hebrew replies despite the
+// proofreading rules (canary pilot-0641c8 verified clean). New pilots must
+// match the fleet — stamping haiku here was the residual gap that gave fresh
+// signups (רינת, 05.08) garbled Hebrew on day one.
+const PILOT_MODEL = 'claude-sonnet-4-5';
 // Reasoning effort, pinned low for cost. Joni is a conversational chat agent;
 // its Hebrew tone + "no em-dash / no AI-isms / be concise" rules live in the
 // persona prompt, not in extended thinking, so low effort keeps day-to-day
