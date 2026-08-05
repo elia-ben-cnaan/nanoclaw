@@ -58,6 +58,23 @@ function resolvePilotSlug(platformId: string): string | null {
  * Both are optional: a bare walk-up text yields nulls and the dashboard
  * shows what it actually knows.
  */
+/**
+ * Natural-language origin phrases → campaign src slugs. The landing's
+ * campaign pages (click2agent vercel.json redirects: /avigail/linkedin,
+ * /linkers, /elia/linkedin, /learning) append one of these phrases to the
+ * pre-filled first message instead of a machine-looking "(tag)" — per Elia's
+ * 30.7 decision the message must read like the user wrote it. Keep in sync
+ * with SRC_PHRASES in the landing's whatsapp.html. Anchored on the full
+ * "הגעתי דרך… / I got here through…" wording so a campaign name mentioned
+ * casually mid-conversation can't false-attribute a signup.
+ */
+const SRC_PHRASES: Array<[RegExp, string]> = [
+  [/הגעתי דרך אביגיל|got here through Avigail/i, 'avigail-linkedin-1'],
+  [/הגעתי דרך קהילת Linkers|got here through the Linkers community/i, 'linkers-1'],
+  [/הגעתי דרך הפוסט של אליה|got here through Elia'?s LinkedIn post/i, 'elia-linkedin-1'],
+  [/הגעתי דרך קהילת הלמידה|got here through the learning community/i, 'learning-1'],
+];
+
 export function parseWalkupAttribution(text: string): { name: string | null; src: string | null } {
   const trimmed = text.trim();
   // Preferred: tag at the very end (the landing's canonical placement).
@@ -72,7 +89,17 @@ export function parseWalkupAttribution(text: string): { name: string | null; src
     const all = [...trimmed.matchAll(/\(([A-Za-z][A-Za-z0-9._-]{1,40})\)/g)];
     if (all.length > 0) srcMatch = all[all.length - 1];
   }
-  const src = srcMatch ? srcMatch[1] : null;
+  let src = srcMatch ? srcMatch[1] : null;
+  if (!src) {
+    // Natural-phrase attribution — the campaign pages' human-sounding origin
+    // sentence ("הגעתי דרך אביגיל") maps back to its slug.
+    for (const [re, slug] of SRC_PHRASES) {
+      if (re.test(trimmed)) {
+        src = slug;
+        break;
+      }
+    }
+  }
   const body = srcMatch ? trimmed.replace(srcMatch[0], ' ') : text;
   const nameMatch = body.match(/(?:קוראים לי|שמי|my name is|i'?m)\s+([^,.\n()]{2,40})/i);
   const name = nameMatch ? nameMatch[1].trim() : null;
