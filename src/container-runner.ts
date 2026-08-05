@@ -442,6 +442,16 @@ export function buildMounts(
     mounts.push({ hostPath: skillsSrc, containerPath: '/app/skills', readonly: true });
   }
 
+  // Vendored patched npm packages — read-only, available to every container's
+  // MCP servers at a stable path. Holds our patched @fre4x/openai bundle (the
+  // gpt-image `response_format` param removed — upstream sends it and OpenAI
+  // rejects it with 400). MCP configs reference /opt/vendor/... directly so a
+  // `pnpm dlx` re-fetch can never reintroduce the bug. Guarded: absent dir = skip.
+  const vendorSrc = path.join(projectRoot, 'container', 'vendor');
+  if (fs.existsSync(vendorSrc)) {
+    mounts.push({ hostPath: vendorSrc, containerPath: '/opt/vendor', readonly: true });
+  }
+
   // Additional mounts from container config
   if (containerConfig.additionalMounts && containerConfig.additionalMounts.length > 0) {
     const validated = validateAdditionalMounts(containerConfig.additionalMounts, agentGroup.name);

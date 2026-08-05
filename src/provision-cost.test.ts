@@ -25,6 +25,7 @@ vi.mock('./db/container-configs.js', () => ({
   updateContainerConfigScalars: (_id: string, updates: Record<string, unknown>) => {
     capturedConfig = updates;
   },
+  updateContainerConfigJson: () => {},
 }));
 vi.mock('./db/usage-metering.js', () => ({ setCostCapUsd: () => {} }));
 vi.mock('./db/sessions.js', () => ({ findSessionByAgentGroup: () => null }));

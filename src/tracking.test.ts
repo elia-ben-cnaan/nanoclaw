@@ -80,9 +80,9 @@ describe('buildSummary — funnel fold', () => {
 
   it('groups bySource on raw src, descending by entered', () => {
     expect(s.bySource).toEqual([
-      { label: 'google', entered: 2, reachedForm: 2, submitted: 1 },
-      { label: 'twitter', entered: 1, reachedForm: 0, submitted: 0 },
-      { label: '', entered: 1, reachedForm: 0, submitted: 0 },
+      { label: 'google', entered: 2, reachedForm: 2, submitted: 1, firstAt: null, lastAt: null },
+      { label: 'twitter', entered: 1, reachedForm: 0, submitted: 0, firstAt: null, lastAt: null },
+      { label: '', entered: 1, reachedForm: 0, submitted: 0, firstAt: null, lastAt: null },
     ]);
   });
 
@@ -111,7 +111,9 @@ describe('buildSummary — funnel fold', () => {
       [row({ vid: 'X', src: '' }), row({ vid: 'X', src: 'newsletter' }), row({ vid: 'X', src: 'other' })],
       NOW,
     );
-    expect(one.bySource).toEqual([{ label: 'newsletter', entered: 1, reachedForm: 0, submitted: 0 }]);
+    expect(one.bySource).toEqual([
+      { label: 'newsletter', entered: 1, reachedForm: 0, submitted: 0, firstAt: null, lastAt: null },
+    ]);
   });
 
   it('median of an even count averages the two middles', () => {
@@ -286,6 +288,28 @@ describe('storage round-trip', () => {
     expect(s.funnel.entered).toBe(1);
     expect(s.funnel.submitted).toBe(1);
     expect(s.funnel.reachedForm).toBe(1);
-    expect(s.bySource).toEqual([{ label: 'google', entered: 1, reachedForm: 1, submitted: 1 }]);
+    expect(s.bySource).toEqual([
+      { label: 'google', entered: 1, reachedForm: 1, submitted: 1, firstAt: NOW, lastAt: NOW },
+    ]);
+  });
+
+  it('reports per-source firstAt/lastAt as the min/max received_at across the source’s visitors', () => {
+    // received_at is the trusted server stamp; supply it explicitly here.
+    const withRa = (r: Partial<StoredRow>, received_at: string): Partial<StoredRow> => ({ ...r, received_at });
+    const rows = [
+      // source "li": visitor P spans two stamps, visitor Q one later stamp
+      withRa(row({ vid: 'P', src: 'li' }), '2026-07-10T08:00:00.000Z'),
+      withRa(row({ vid: 'P', src: 'li', max_step: 4 }), '2026-07-10T09:30:00.000Z'),
+      withRa(row({ vid: 'Q', src: 'li' }), '2026-07-12T15:00:00.000Z'),
+      // source "fb": single visitor, single stamp
+      withRa(row({ vid: 'R', src: 'fb' }), '2026-07-11T06:00:00.000Z'),
+    ];
+    const s = buildSummary(rows, NOW);
+    const li = s.bySource.find((b) => b.label === 'li')!;
+    const fb = s.bySource.find((b) => b.label === 'fb')!;
+    expect(li.firstAt).toBe('2026-07-10T08:00:00.000Z'); // earliest across P+Q
+    expect(li.lastAt).toBe('2026-07-12T15:00:00.000Z'); // latest across P+Q
+    expect(fb.firstAt).toBe('2026-07-11T06:00:00.000Z');
+    expect(fb.lastAt).toBe('2026-07-11T06:00:00.000Z');
   });
 });

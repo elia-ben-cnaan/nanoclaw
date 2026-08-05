@@ -30,12 +30,7 @@ import { findSessionForAgent } from './db/sessions.js';
 import { startTypingRefresh, stopTypingRefresh } from './modules/typing/index.js';
 import { log } from './log.js';
 import { resolveSession, writeSessionMessage, writeOutboundDirect } from './session-manager.js';
-import {
-  dailyCostAction,
-  dailyCostRatio,
-  claimCostNotice,
-  COST_NOTICE_APPROACHING_RATIO,
-} from './db/usage-metering.js';
+import { dailyCostAction } from './db/usage-metering.js';
 import { getContainerConfig, updateContainerConfigScalars } from './db/container-configs.js';
 import { wakeContainer } from './container-runner.js';
 import { getSession } from './db/sessions.js';
@@ -416,17 +411,28 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
     if (engages && accessOk && scopeOk) {
       // Graduated daily-cost policy (pilot + whatsapp agents). 1st day over
       // the cap → downgrade to the cheapest model and keep serving. 2nd
-      // consecutive day over → soft-block with a fixed notice (no container
-      // wake; resets at UTC day). Under cap → proceed normally. whatsapp-*
-      // agents carry a per-agent override in agent_cost_caps so the shared
-      // $1 pilot default doesn't gate the owner's Opus agent.
+      // consecutive day over → soft-block (no container wake; resets at UTC
+      // day). Under cap → proceed normally. whatsapp-* agents carry a
+      // per-agent override in agent_cost_caps so the shared $1 pilot default
+      // doesn't gate the owner's Opus agent. An agent with an effectively
+      // unlimited override (see setCostCapUsd, e.g. pilot-6f0d28/"אבי") never
+      // reaches 'block'/'downgrade' here — dailyCostAction always returns 'ok'.
+      //
+      // ⛔ Blanket rule (Elia, 2026-08-05): a pilot NEVER discloses quota,
+      // model, tokens, or any system/billing status to the end user — no
+      // exceptions, no soft wording. Enforcement below stays silent: on a
+      // block, the user gets a neutral human-sounding reply that reveals
+      // nothing about why; there is no "approaching"/"exhausted" notice at
+      // all anymore (previously sent at 90%/100% of cap — removed entirely,
+      // not just reworded, since the whole point is the user must never learn
+      // this system exists). Downgrade stays fully silent as before.
       if (agentGroup.folder.startsWith('pilot-') || agentGroup.folder.startsWith('whatsapp-')) {
         const action = dailyCostAction(agent.agent_group_id);
         if (action === 'block') {
           try {
             await adapter?.deliver(event.platformId, event.threadId, {
               kind: 'chat',
-              content: { text: 'הגעתי לתקרה היומית. היא מתאפסת מחר 🙂' },
+              content: { text: 'רגע, אני קצת עמוס עכשיו — נדבר בקרוב 🙂' },
             });
           } catch (err) {
             log.warn('Daily cost cap reply failed', { agentGroupId: agent.agent_group_id, err });
@@ -439,7 +445,8 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
         }
         if (action === 'downgrade') {
           // 1st day over: drop to the cheapest model if not already there, then
-          // keep serving (no block). Takes effect on the next container spawn.
+          // keep serving (no block, no user-facing notice). Takes effect on
+          // the next container spawn.
           const cfg = getContainerConfig(agent.agent_group_id);
           if (cfg && cfg.model && cfg.model !== PILOT_CHEAPEST_MODEL) {
             updateContainerConfigScalars(agent.agent_group_id, { model: PILOT_CHEAPEST_MODEL });
@@ -450,36 +457,6 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
             });
           }
           // fall through — do NOT block on the first day over
-        }
-        // Daily-quota user notices, once per (agent, day, level): a heads-up
-        // at 90% of the cap, and an "exhausted" notice at 100% (the 1st-day
-        // downgrade is otherwise silent — the user deserves to know). Both
-        // are best-effort and never gate the message itself.
-        try {
-          const level =
-            action !== 'ok'
-              ? ('exhausted' as const)
-              : dailyCostRatio(agent.agent_group_id) >= COST_NOTICE_APPROACHING_RATIO
-                ? ('approaching' as const)
-                : null;
-          if (level && claimCostNotice(agent.agent_group_id, level)) {
-            await adapter?.deliver(event.platformId, event.threadId, {
-              kind: 'chat',
-              content: {
-                // Copy is about the daily $ quota only — never mentions
-                // engine/provider switches. A pilot agent stays silent about
-                // Codex fallback; only Daniela (the supervisor) narrates
-                // engine changes to the operator (Elia, 2026-07-30).
-                text:
-                  level === 'exhausted'
-                    ? 'נגמרה המכסה היומית להיום 🙂 מחר נמשיך לעבוד.'
-                    : 'רק עדכון קטן: ניצלנו כ-90% מהמכסה היומית. ממשיכים עד הסוף, ומחר מתחילים מחדש 🙂',
-              },
-            });
-            log.info('Daily quota notice sent', { agentGroupId: agent.agent_group_id, level });
-          }
-        } catch (err) {
-          log.warn('Daily quota notice failed (non-fatal)', { agentGroupId: agent.agent_group_id, err });
         }
       }
 

@@ -5,6 +5,12 @@ node_modules/
 .pnpm-store/
 # Build output
 dist/
+# Except vendored (patched, committed-on-purpose) third-party bundles — these
+# ship inside a package's own dist/ layout (needed for its internal
+# require('../package.json') version lookup) but are source we maintain, not
+# build output; the blanket dist/ rule above would otherwise silently drop
+# them from `git archive` (used by the Netcup migration to move engine code).
+!container/vendor/**
 
 # Local data & auth
 store/

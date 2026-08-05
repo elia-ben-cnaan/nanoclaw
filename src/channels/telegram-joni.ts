@@ -55,6 +55,7 @@ import {
   type PilotLang,
 } from '../modules/pilot-activation/db.js';
 import { registerChannelAdapter } from './channel-registry.js';
+import { wrapWithTelegramTyping } from './telegram-typing.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage, OutboundMessage } from './adapter.js';
 import { sanitizeTelegramLegacyMarkdown } from './telegram-markdown-sanitize.js';
 
@@ -183,14 +184,13 @@ async function sendJoniText(token: string, platformId: string, text: string): Pr
  * agent (loaded with the full script) carries the conversation from here.
  */
 async function sendJohnnyGreeting(token: string, platformId: string, lang: PilotLang): Promise<void> {
+  // Short single opening, no "world is moving to agents" pitch — mirrors the
+  // master template's own line (pilot_agent_script_v2.md, "הפתיחה והזרימה").
+  // Replaces the old 3-part pitch per pending_after_wa_e2e.md item 1.
   const text =
     lang === 'en'
-      ? `Hi, I'm Johnny, Elia developed me just for you. 👋\n\n` +
-        `The world is already moving to work with personal AI agents, and I'm here so you can feel what that looks like and how it changes the way you work.\n\n` +
-        `Want a quick tour, or shall we jump straight in? 🙂`
-      : `היי, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋\n\n` +
-        `העולם כבר עובר לעבוד עם סוכנים אישיים, ואני כאן כדי שתרגיש איך זה נראה ואיך זה משנה את העבודה.\n\n` +
-        `רוצה שאקח אותך לסיבוב קצר, או שנתחיל ישר? 🙂`;
+      ? `Hi, I'm Johnny. Elia developed me just for you. 👋 What's on your mind today — anything we can work on together?`
+      : `היי, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋 מה הכי מעסיק אותך היום, יש משהו שנעבוד עליו יחד?`;
   await sendJoniText(token, platformId, text);
 }
 
@@ -474,6 +474,6 @@ registerChannelAdapter(CHANNEL_TYPE, {
     };
 
     log.info('Joni Telegram adapter initialized', { channelType: CHANNEL_TYPE });
-    return wrapped;
+    return wrapWithTelegramTyping(wrapped, token);
   },
 });

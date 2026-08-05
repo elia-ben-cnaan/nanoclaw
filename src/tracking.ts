@@ -203,6 +203,8 @@ export interface Journey {
   clicked: boolean;
   reachedForm: boolean;
   submitted: boolean;
+  firstAt: string | null; // earliest received_at (server UTC) seen for this visitor
+  lastAt: string | null; // latest received_at (server UTC) seen for this visitor
 }
 
 /**
@@ -223,13 +225,29 @@ export function foldJourneys(rows: Array<Partial<StoredRow>>): Journey[] {
     clickedEv: boolean;
     reachedFormEv: boolean;
     submitted: boolean;
+    firstMs: number;
+    firstAt: string | null;
+    lastMs: number;
+    lastAt: string | null;
   }
   const map = new Map<string, Acc>();
   for (const r of rows) {
     const vid = typeof r.vid === 'string' ? r.vid : String(r.vid ?? '');
     let a = map.get(vid);
     if (!a) {
-      a = { vid, src: '', maxStep: 0, dwell: 0, clickedEv: false, reachedFormEv: false, submitted: false };
+      a = {
+        vid,
+        src: '',
+        maxStep: 0,
+        dwell: 0,
+        clickedEv: false,
+        reachedFormEv: false,
+        submitted: false,
+        firstMs: Infinity,
+        firstAt: null,
+        lastMs: -Infinity,
+        lastAt: null,
+      };
       map.set(vid, a);
     }
     const src = typeof r.src === 'string' ? r.src : '';
@@ -238,6 +256,21 @@ export function foldJourneys(rows: Array<Partial<StoredRow>>): Journey[] {
     if (ms > a.maxStep) a.maxStep = ms;
     const dw = toInt(r.dwell_ms);
     if (dw > a.dwell) a.dwell = dw;
+    // Track first/last activity on received_at, the trusted server-side UTC
+    // receipt stamp (never the client's ts). Rows with an unparseable stamp
+    // don't move the window.
+    const ra = typeof r.received_at === 'string' ? r.received_at : '';
+    const raMs = Date.parse(ra);
+    if (Number.isFinite(raMs)) {
+      if (raMs < a.firstMs) {
+        a.firstMs = raMs;
+        a.firstAt = ra;
+      }
+      if (raMs > a.lastMs) {
+        a.lastMs = raMs;
+        a.lastAt = ra;
+      }
+    }
     const names = parseEventNames(r.events);
     if (names.includes('cta_click')) a.clickedEv = true;
     if (names.includes('reached_form')) a.reachedFormEv = true;
@@ -251,6 +284,8 @@ export function foldJourneys(rows: Array<Partial<StoredRow>>): Journey[] {
     clicked: a.clickedEv || a.maxStep >= 1,
     reachedForm: a.reachedFormEv || a.maxStep >= 4,
     submitted: a.submitted,
+    firstAt: a.firstAt,
+    lastAt: a.lastAt,
   }));
 }
 
@@ -291,7 +326,14 @@ export interface FunnelSummary {
   };
   depth: [number, number, number, number, number];
   medDwellMs: number;
-  bySource: Array<{ label: string; entered: number; reachedForm: number; submitted: number }>;
+  bySource: Array<{
+    label: string;
+    entered: number;
+    reachedForm: number;
+    submitted: number;
+    firstAt: string | null; // earliest entry across this source's visitors (server UTC), null if unknown
+    lastAt: string | null; // latest entry across this source's visitors (server UTC), null if unknown
+  }>;
   generated_at: string;
 }
 
@@ -362,7 +404,10 @@ export function buildSummary(rows: Array<Partial<StoredRow>>, nowIso: string): F
   let submitted = 0;
   const depth: [number, number, number, number, number] = [0, 0, 0, 0, 0];
   const dwells: number[] = [];
-  const bySrc = new Map<string, { label: string; entered: number; reachedForm: number; submitted: number }>();
+  const bySrc = new Map<
+    string,
+    { label: string; entered: number; reachedForm: number; submitted: number; firstAt: string | null; lastAt: string | null }
+  >();
 
   for (const j of journeys) {
     if (j.clicked) clicked++;
@@ -378,12 +423,16 @@ export function buildSummary(rows: Array<Partial<StoredRow>>, nowIso: string): F
     const key = j.src || '';
     let b = bySrc.get(key);
     if (!b) {
-      b = { label: key, entered: 0, reachedForm: 0, submitted: 0 };
+      b = { label: key, entered: 0, reachedForm: 0, submitted: 0, firstAt: null, lastAt: null };
       bySrc.set(key, b);
     }
     b.entered++;
     if (j.reachedForm) b.reachedForm++;
     if (j.submitted) b.submitted++;
+    // Widen the source's activity window with this visitor's first/last stamps.
+    // ISO-8601 UTC strings sort lexicographically, so string compare = time compare.
+    if (j.firstAt && (b.firstAt === null || j.firstAt < b.firstAt)) b.firstAt = j.firstAt;
+    if (j.lastAt && (b.lastAt === null || j.lastAt > b.lastAt)) b.lastAt = j.lastAt;
   }
 
   const entered = journeys.length;

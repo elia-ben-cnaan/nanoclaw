@@ -35,7 +35,8 @@ import path from 'path';
 
 import { GROUPS_DIR } from './config.js';
 import { createAgentGroup, getAgentGroup, getAgentGroupByFolder } from './db/agent-groups.js';
-import { ensureContainerConfig, updateContainerConfigScalars } from './db/container-configs.js';
+import { ensureContainerConfig, updateContainerConfigJson, updateContainerConfigScalars } from './db/container-configs.js';
+import type { McpServerConfig } from './container-config.js';
 import { setCostCapUsd } from './db/usage-metering.js';
 import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
@@ -163,6 +164,28 @@ const PILOT_DAILY_COST_CAP_USD = 1.0;
 // follow-up pushes hit it mid-conversation in QA (30.7). 30 gives headroom;
 // the daily cost cap stays the real spend guard.
 const PILOT_MAX_TURNS = 30;
+
+// OpenAI MCP for every pilot — gives Johnny transcription (whisper-1, so a
+// WhatsApp/Telegram voice note becomes text the agent can act on), vision
+// (analyze_media) and image generation. Points at the VENDORED patched bundle
+// mounted read-only at /opt/vendor (see buildMounts in container-runner.ts) —
+// NOT `pnpm dlx @fre4x/openai`, whose published builds send a `response_format`
+// param gpt-image rejects with 400. Credentials are injected by the OneCLI
+// gateway at request time; never a real key in config. Mirrors Daniela's
+// openai server so every app-created pilot inherits the capability with no
+// manual wiring.
+const PILOT_MCP_SERVERS: Record<string, McpServerConfig> = {
+  openai: {
+    command: 'node',
+    args: ['/opt/vendor/fre4x-openai/dist/index.mjs'],
+    env: { OPENAI_API_KEY: 'onecli-gateway-injected' },
+    instructions:
+      'The `openai` MCP server provides transcription (whisper-1), image/audio analysis, ' +
+      'and image generation. When the user sends a voice message you receive it as an audio ' +
+      'file path under /workspace/inbox/…; transcribe it with this server, then act on the ' +
+      'transcript. Credentials are injected by the OneCLI gateway; never ask the user for an API key.',
+  },
+};
 
 // Resolved once at startup from the Johnny bot token via getMe. The /provision
 // deep link points at @joni_agent_bot as of 2026-07-06 (Johnny replaces the
@@ -428,6 +451,11 @@ export function provisionPilotAtPress(input: {
     max_turns: PILOT_MAX_TURNS,
   });
   setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
+
+  // Give the pilot the OpenAI MCP (transcription/vision/image-gen) so a voice
+  // note is actionable out of the box. Wholesale-set is safe: a fresh pilot
+  // has no other MCP servers.
+  updateContainerConfigJson(agentGroupId, 'mcp_servers', PILOT_MCP_SERVERS);
 
   // Supervisor visibility + reachability.
   wirePilotToSupervisor(agentGroupId, slug);

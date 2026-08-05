@@ -27,6 +27,7 @@ vi.mock('./db/agent-groups.js', () => ({
 vi.mock('./db/container-configs.js', () => ({
   ensureContainerConfig: () => {},
   updateContainerConfigScalars: () => {},
+  updateContainerConfigJson: () => {},
 }));
 vi.mock('./db/usage-metering.js', () => ({ setCostCapUsd: () => {} }));
 vi.mock('./db/sessions.js', () => ({ findSessionByAgentGroup: () => null }));

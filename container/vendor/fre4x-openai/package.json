@@ -1,0 +1,27 @@
+{
+  "name": "@fre4x/openai",
+  "version": "1.1.7",
+  "description": "OpenAI MCP server providing multimodal analysis, image generation, and transcription.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "openai": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../scripts/build-package.mjs",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "node --max-old-space-size=4096 ../node_modules/typescript/bin/tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run build",
+    "test": "node ../scripts/run-vitest.mjs run --exclude dist",
+    "test:watch": "node ../scripts/run-vitest.mjs",
+    "inspector": "npm run build && node ../scripts/run-official-inspector.mjs node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "openai": "^6.38.0",
+    "zod": "4.3.6"
+  }
+}
