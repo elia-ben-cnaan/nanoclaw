@@ -13,6 +13,7 @@ const envConfig = readEnvFile([
   'ONECLI_API_KEY',
   'TZ',
   'DEFAULT_AGENT_PROVIDER',
+  'DEFAULT_AGENT_MODEL',
   'CONTAINER_CPU_LIMIT',
   'CONTAINER_MEMORY_LIMIT',
   'NANOCLAW_EGRESS_LOCKDOWN',
@@ -37,6 +38,17 @@ export const DEFAULT_AGENT_PROVIDER = (
   envConfig.DEFAULT_AGENT_PROVIDER ||
   'claude'
 ).toLowerCase();
+
+// Instance-wide default model for newly created groups. Unlike the provider
+// default (which stores NULL for the built-in and lets the SDK decide), this
+// stamps a concrete model ID onto the config row at group-creation time so a
+// new agent never falls through to the SDK's built-in default (which is a Haiku
+// tier). `claude-sonnet-4-5` unless an operator overrides via env. Applied only
+// at creation (stamped onto the fresh row) — never in model resolution — so
+// existing groups keep whatever model they already have. Per-group
+// `ncl groups config update --model` still overrides it.
+export const DEFAULT_AGENT_MODEL =
+  process.env.DEFAULT_AGENT_MODEL || envConfig.DEFAULT_AGENT_MODEL || 'claude-sonnet-4-5';
 
 /**
  * @deprecated WhatsApp adapter copies now read the ASSISTANT_HAS_OWN_NUMBER
