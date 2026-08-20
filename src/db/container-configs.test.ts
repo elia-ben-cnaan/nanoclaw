@@ -57,3 +57,36 @@ describe('ensureContainerConfig provider stamping', () => {
     expect(getContainerConfig('ag-existing')?.provider).toBe('codex');
   });
 });
+
+describe('ensureContainerConfig model stamping', () => {
+  beforeEach(() => {
+    const db = initTestDb();
+    runMigrations(db);
+  });
+  afterEach(() => {
+    closeDb();
+  });
+
+  it('stamps the instance-default model on a fresh row so new agents never fall through to the SDK (Haiku) default', () => {
+    makeGroup('ag-default');
+    ensureContainerConfig('ag-default');
+    // DEFAULT_AGENT_MODEL — claude-sonnet-4-5 unless an operator overrides via env.
+    expect(getContainerConfig('ag-default')?.model).toBe('claude-sonnet-4-5');
+  });
+
+  it('honors an explicit model over the default', () => {
+    makeGroup('ag-explicit');
+    ensureContainerConfig('ag-explicit', null, 'claude-opus-4-8');
+    expect(getContainerConfig('ag-explicit')?.model).toBe('claude-opus-4-8');
+  });
+
+  it('never overwrites an existing row — existing agents keep their model', () => {
+    makeGroup('ag-frozen');
+    ensureContainerConfig('ag-frozen', null, 'claude-opus-4-8');
+    expect(getContainerConfig('ag-frozen')?.model).toBe('claude-opus-4-8');
+
+    // A later ensure carrying the new default must NOT change the stored model.
+    ensureContainerConfig('ag-frozen');
+    expect(getContainerConfig('ag-frozen')?.model).toBe('claude-opus-4-8');
+  });
+});

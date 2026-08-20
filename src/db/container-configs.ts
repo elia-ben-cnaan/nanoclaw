@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT_PROVIDER } from '../config.js';
+import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER } from '../config.js';
 import type { ContainerConfigRow } from '../types.js';
 import { getDb } from './connection.js';
 
@@ -49,8 +49,14 @@ export function createContainerConfig(config: ContainerConfigRow): void {
  * An absent `provider` takes the instance default (`DEFAULT_AGENT_PROVIDER`);
  * `claude` and an absent value that resolves to claude are stored as NULL — the
  * column means "follows the built-in default", matching pre-feature rows.
+ *
+ * An absent `model` takes the instance default (`DEFAULT_AGENT_MODEL`,
+ * `claude-sonnet-4-5`), stamped as a concrete ID onto the fresh row so a new
+ * group never inherits the SDK's built-in (Haiku) default. Unlike provider, the
+ * literal is always stored — a NULL model means "SDK default", which is exactly
+ * what we're overriding.
  */
-export function ensureContainerConfig(agentGroupId: string, provider?: string | null): void {
+export function ensureContainerConfig(agentGroupId: string, provider?: string | null, model?: string | null): void {
   // Single chokepoint for the instance default: a fresh row with no explicit
   // provider is stamped with DEFAULT_AGENT_PROVIDER, so every new-group creation
   // path inherits it without each having to remember. INSERT OR IGNORE keeps an
@@ -64,12 +70,16 @@ export function ensureContainerConfig(agentGroupId: string, provider?: string | 
   // column matches what resolution lowercases to.
   const normalized = (provider ?? DEFAULT_AGENT_PROVIDER).toLowerCase();
   const stamped = normalized && normalized !== 'claude' ? normalized : null;
+  // Model default is stamped as a concrete ID (no NULL normalization): the point
+  // is to override the SDK's built-in default, so a fresh row always carries an
+  // explicit model. INSERT OR IGNORE still leaves any EXISTING row untouched.
+  const stampedModel = model ?? DEFAULT_AGENT_MODEL;
   getDb()
     .prepare(
-      `INSERT OR IGNORE INTO container_configs (agent_group_id, provider, updated_at)
-       VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO container_configs (agent_group_id, provider, model, updated_at)
+       VALUES (?, ?, ?, ?)`,
     )
-    .run(agentGroupId, stamped, new Date().toISOString());
+    .run(agentGroupId, stamped, stampedModel, new Date().toISOString());
 }
 
 /** Update scalar fields on a config row. Only touches fields present in `updates`. */
