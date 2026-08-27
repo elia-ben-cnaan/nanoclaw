@@ -375,8 +375,16 @@ function evaluateEngage(
       try {
         return new RegExp(pat).test(text);
       } catch {
-        // Bad regex: fail open so admin sees the agent responding + can fix.
-        return true;
+        // Bad regex: fail closed. A wiring that was deliberately neutralized
+        // (or simply misconfigured) must never spring back to answering
+        // everything — that inverts the operator's intent. The loud warn is
+        // the admin's signal to fix the pattern.
+        log.warn('Invalid engage_pattern regex — wiring will not engage', {
+          messagingGroupAgentId: agent.id,
+          agentGroupId: agent.agent_group_id,
+          engagePattern: pat,
+        });
+        return false;
       }
     }
     case 'mention':

@@ -16,6 +16,7 @@ import {
   createAgentGroup,
   createMessagingGroup,
   createMessagingGroupAgent,
+  updateMessagingGroupAgent,
 } from './db/index.js';
 import {
   resolveSession,
@@ -424,6 +425,31 @@ describe('router', () => {
 
     // Verify container was woken
     expect(wakeContainer).toHaveBeenCalled();
+  });
+
+  it('does not engage on an invalid engage_pattern regex (fail closed)', async () => {
+    // A wiring can be deliberately neutralized by an operator (pattern that
+    // matches nothing); a typo'd/broken pattern must not fail open into
+    // answering everything. The router logs a warning instead.
+    const { routeInbound } = await import('./router.js');
+    const { wakeContainer } = await import('./container-runner.js');
+    updateMessagingGroupAgent('mga-1', { engage_pattern: '(unclosed' });
+    const wakesBefore = vi.mocked(wakeContainer).mock.calls.length;
+
+    await routeInbound({
+      channelType: 'discord',
+      platformId: 'chan-123',
+      threadId: null,
+      message: {
+        id: 'msg-in-badregex',
+        kind: 'chat',
+        content: JSON.stringify({ sender: 'User', text: 'Hello agent!' }),
+        timestamp: now(),
+      },
+    });
+
+    expect(findSession('mg-1', null)).toBeUndefined();
+    expect(vi.mocked(wakeContainer).mock.calls.length).toBe(wakesBefore);
   });
 
   it('auto-creates messaging group only when the bot is addressed (mention/DM)', async () => {
