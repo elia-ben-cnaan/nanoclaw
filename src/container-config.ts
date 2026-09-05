@@ -50,6 +50,9 @@ export interface ContainerConfig {
   /** Per-group model override for the quota-overflow (fallback) provider. Unset = provider's own env-var default. */
   fallbackModel?: string;
   effort?: string;
+  /** Per-tenant OneCLI gateway URL. Unset = host-global ONECLI_URL. */
+  onecliUrl?: string;
+  onecliApiKey?: string;
 }
 
 /** Build a `ContainerConfig` from a DB row + agent group identity. */
@@ -74,6 +77,8 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     taskModel: row.task_model ?? undefined,
     fallbackModel: row.fallback_model ?? undefined,
     effort: row.effort ?? undefined,
+    onecliUrl: row.onecli_url ?? undefined,
+    onecliApiKey: row.onecli_api_key ?? undefined,
   };
 }
 

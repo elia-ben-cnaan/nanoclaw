@@ -53,7 +53,12 @@ import {
 } from './session-manager.js';
 import type { AgentGroup, Session } from './types.js';
 
-const onecli = new OneCLI({ url: ONECLI_URL, apiKey: ONECLI_API_KEY });
+/** Resolve the OneCLI client for a group: its own gateway if set, else the
+ *  host-global default. Per-tenant routing keeps each tenant's identity
+ *  (Google/Gmail/etc.) isolated in its own OneCLI stack. */
+function resolveOneCLI(cfg: { onecliUrl?: string; onecliApiKey?: string }): OneCLI {
+  return new OneCLI({ url: cfg.onecliUrl || ONECLI_URL, apiKey: cfg.onecliApiKey || ONECLI_API_KEY });
+}
 
 /** Active containers tracked by session ID. */
 const activeContainers = new Map<string, { process: ChildProcess; containerName: string }>();
@@ -594,6 +599,7 @@ async function buildContainerArgs(
   // the gateway, we don't spawn. The caller (router or host-sweep) catches
   // the throw, leaves the inbound message pending, and the next sweep tick
   // retries.
+  const onecli = resolveOneCLI(containerConfig);
   if (agentIdentifier) {
     await onecli.ensureAgent({ name: agentGroup.name, identifier: agentIdentifier });
   }

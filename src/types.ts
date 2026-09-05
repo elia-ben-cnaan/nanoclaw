@@ -22,6 +22,9 @@ export interface ContainerConfigRow {
   /** Per-group model override for the quota-overflow (fallback) provider. NULL = provider's own env-var default (e.g. Codex's CODEX_MODEL). */
   fallback_model: string | null;
   effort: string | null;
+  /** Per-tenant OneCLI gateway override. NULL = host-global ONECLI_URL. */
+  onecli_url: string | null;
+  onecli_api_key: string | null;
   image_tag: string | null;
   assistant_name: string | null;
   max_messages_per_prompt: number | null;

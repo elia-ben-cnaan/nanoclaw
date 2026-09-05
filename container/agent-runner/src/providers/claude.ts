@@ -420,7 +420,7 @@ export class ClaudeProvider implements AgentProvider {
     this.additionalDirectories = options.additionalDirectories;
     this.model = options.model;
     this.effort = options.effort;
-    this.maxTurns = options.maxTurns ?? 15;
+    this.maxTurns = options.maxTurns ?? 60;
     this.env = {
       ...(options.env ?? {}),
       CLAUDE_CODE_AUTO_COMPACT_WINDOW,

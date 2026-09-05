@@ -259,6 +259,82 @@ function stampInstance(platformId: string): void {
     .run(INSTANCE, CHANNEL_TYPE, platformId);
 }
 
+/**
+ * Native WhatsApp URL button (isolated add-on, 2026-08-31).
+ * The `@chat-adapter/whatsapp` SDK (v4.29.0) has no `cta_url` support, so a
+ * card whose only action is an https link flattens to plain text. We detect
+ * that exact shape and send a native interactive `cta_url` via the Cloud API.
+ * Any other shape (no card / >1 action / missing or non-https url) returns
+ * null and delivery falls through to the existing path unchanged.
+ */
+interface CtaUrlSpec {
+  body: string;
+  header: string | null;
+  displayText: string;
+  url: string;
+}
+
+function ctaUrlFromCardContent(content: unknown): CtaUrlSpec | null {
+  const c = content as Record<string, unknown> | null;
+  if (!c || c.type !== 'card' || !c.card || typeof c.card !== 'object') return null;
+  const card = c.card as Record<string, unknown>;
+  const actions = Array.isArray(card.actions) ? (card.actions as Array<Record<string, unknown>>) : [];
+  if (actions.length !== 1) return null;
+  const a = actions[0];
+  const url = typeof a.url === 'string' ? a.url : '';
+  const label = typeof a.label === 'string' ? a.label : '';
+  if (!url || !label || !/^https:\/\//i.test(url)) return null;
+  const title = typeof card.title === 'string' ? card.title : '';
+  const parts: string[] = [];
+  if (typeof card.description === 'string' && card.description) parts.push(card.description);
+  if (Array.isArray(card.children)) {
+    for (const ch of card.children as unknown[]) {
+      if (typeof ch === 'string' && ch) parts.push(ch);
+      else if (ch && typeof ch === 'object' && typeof (ch as Record<string, unknown>).text === 'string') {
+        parts.push((ch as Record<string, string>).text);
+      }
+    }
+  }
+  let body = parts.join('\n\n').trim();
+  if (!body) body = typeof c.fallbackText === 'string' && c.fallbackText ? c.fallbackText : title;
+  if (!body) body = title || label;
+  return {
+    body: body.slice(0, 1024),
+    header: title ? title.slice(0, 60) : null,
+    displayText: label.slice(0, 20),
+    url,
+  };
+}
+
+async function sendCtaUrlViaCloudApi(toNumber: string, cta: CtaUrlSpec): Promise<string | undefined> {
+  const env = readEnvFile(['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID']);
+  const token = env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId) throw new Error('WhatsApp Cloud credentials missing for cta_url send');
+  const interactive: Record<string, unknown> = {
+    type: 'cta_url',
+    body: { text: cta.body },
+    action: { name: 'cta_url', parameters: { display_text: cta.displayText, url: cta.url } },
+  };
+  if (cta.header) interactive.header = { type: 'text', text: cta.header };
+  const res = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toNumber,
+      type: 'interactive',
+      interactive,
+    }),
+  });
+  const sent = (await res.json()) as { messages?: { id: string }[]; error?: { message?: string } };
+  if (!res.ok || !sent.messages?.length) {
+    throw new Error(`WhatsApp cta_url send failed: ${sent.error?.message ?? res.status}`);
+  }
+  return sent.messages[0].id;
+}
+
 export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapter {
   const sendText = async (platformId: string, text: string): Promise<void> => {
     stopTyping(platformId); // greetings/errors bypass the wrapper's deliver()
@@ -453,6 +529,26 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
 
     async deliver(platformId, threadId, message) {
       stopTyping(platformId);
+      // Native URL button (isolated add-on): a single-action https-link card
+      // becomes a WhatsApp interactive cta_url instead of flattening to text.
+      const ctaSpec = ctaUrlFromCardContent(message.content);
+      if (ctaSpec) {
+        const toNumber = senderNumberFromPlatformId(platformId);
+        if (toNumber) {
+          const ctaId = await sendCtaUrlViaCloudApi(toNumber, ctaSpec);
+          log.info('WhatsApp Cloud cta_url sent', { platformId, url: ctaSpec.url });
+          try {
+            const slug = resolvePilotSlug(platformId);
+            if (slug) {
+              const mirrored = outboundMirrorText(message);
+              if (mirrored) mirrorToSupervisor(slug, 'agent', mirrored);
+            }
+          } catch (err) {
+            log.warn('WhatsApp Cloud cta_url mirror failed', { err, platformId });
+          }
+          return ctaId;
+        }
+      }
       // Send attachments FIRST and let failures throw — if a document can't
       // go out, the whole delivery must fail loudly (agent retries / errors)
       // rather than the text landing with a phantom "sent you the file".

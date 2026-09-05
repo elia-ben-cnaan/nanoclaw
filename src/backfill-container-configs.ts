@@ -58,6 +58,8 @@ export function backfillContainerConfigs(): void {
       model: null,
       task_model: null,
       fallback_model: null,
+      onecli_url: null,
+      onecli_api_key: null,
       effort: null,
       max_turns: null,
       image_tag: legacy.imageTag ?? null,

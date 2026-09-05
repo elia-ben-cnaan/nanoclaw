@@ -11,33 +11,42 @@ import { registerDeliveryAction } from '../delivery.js';
 import { insertMessage } from '../db/session-db.js';
 import { log } from '../log.js';
 import { dispatch } from './dispatch.js';
-import type { RequestFrame } from './frame.js';
+import type { RequestFrame, ResponseFrame } from './frame.js';
 import type { Session } from '../types.js';
 
-registerDeliveryAction('cli_request', async (content, session, inDb) => {
-  const requestId = content.requestId as string;
-  const command = content.command as string;
-  const args = (content.args as Record<string, unknown>) ?? {};
+const LOOP_WINDOW_MS = parsePositiveInt(process.env.NANOCLAW_CLI_LOOP_WINDOW_MS, 60_000);
+const LOOP_MAX_REPEATS = parsePositiveInt(process.env.NANOCLAW_CLI_LOOP_MAX_REPEATS, 12);
 
-  if (!requestId || !command) {
-    log.warn('cli_request missing requestId or command', { sessionId: session.id });
-    return;
+type CliLoopEntry = {
+  firstSeen: number;
+  count: number;
+};
+
+const cliLoopEntries = new Map<string, CliLoopEntry>();
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const n = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function canonicalArgs(args: Record<string, unknown>): string {
+  return JSON.stringify(args, Object.keys(args).sort());
+}
+
+function detectCliLoop(sessionId: string, command: string, args: Record<string, unknown>, now = Date.now()): number {
+  const key = `${sessionId}:${command}:${canonicalArgs(args)}`;
+  const entry = cliLoopEntries.get(key);
+  if (!entry || now - entry.firstSeen > LOOP_WINDOW_MS) {
+    cliLoopEntries.set(key, { firstSeen: now, count: 1 });
+    return 1;
   }
+  entry.count += 1;
+  return entry.count;
+}
 
-  const req: RequestFrame = { id: requestId, command, args };
-  const ctx = {
-    caller: 'agent' as const,
-    sessionId: session.id,
-    agentGroupId: session.agent_group_id,
-    messagingGroupId: session.messaging_group_id ?? '',
-  };
-
-  log.info('CLI request from agent', { requestId, command, sessionId: session.id });
-
-  const response = await dispatch(req, ctx);
-
+function writeCliResponse(inDb: Database.Database, requestId: string, response: ResponseFrame): void {
   // Write response to inbound.db so the container can read it.
-  // trigger=0: don't wake the agent — this is an inline response to a tool call.
+  // trigger=0: don't wake the agent - this is an inline response to a tool call.
   insertMessage(inDb, {
     id: `cli-resp-${requestId}`,
     kind: 'system',
@@ -54,6 +63,46 @@ registerDeliveryAction('cli_request', async (content, session, inDb) => {
     recurrence: null,
     trigger: 0,
   });
+}
+
+registerDeliveryAction('cli_request', async (content, session, inDb) => {
+  const requestId = content.requestId as string;
+  const command = content.command as string;
+  const args = (content.args as Record<string, unknown>) ?? {};
+
+  if (!requestId || !command) {
+    log.warn('cli_request missing requestId or command', { sessionId: session.id });
+    return;
+  }
+
+  const repeatCount = detectCliLoop(session.id, command, args);
+  if (repeatCount > LOOP_MAX_REPEATS) {
+    const response: ResponseFrame = {
+      id: requestId,
+      ok: false,
+      error: {
+        code: 'handler-error',
+        message: `Repeated identical CLI request blocked after ${LOOP_MAX_REPEATS} calls in ${LOOP_WINDOW_MS}ms. Stop retrying this command and choose a different diagnostic path.`,
+      },
+    };
+    log.warn('CLI loop detected from agent', { requestId, command, sessionId: session.id, repeatCount });
+    writeCliResponse(inDb, requestId, response);
+    return;
+  }
+
+  const req: RequestFrame = { id: requestId, command, args };
+  const ctx = {
+    caller: 'agent' as const,
+    sessionId: session.id,
+    agentGroupId: session.agent_group_id,
+    messagingGroupId: session.messaging_group_id ?? '',
+  };
+
+  log.info('CLI request from agent', { requestId, command, sessionId: session.id });
+
+  const response = await dispatch(req, ctx);
+
+  writeCliResponse(inDb, requestId, response);
 
   log.info('CLI response written', { requestId, ok: response.ok, sessionId: session.id });
 });

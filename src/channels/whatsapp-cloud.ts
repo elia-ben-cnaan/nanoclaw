@@ -39,13 +39,156 @@ registerChannelAdapter('whatsapp-cloud', {
     // channelType stays 'whatsapp' (the semantic platform key). See #2911.
     // Pilot wrapper: activation-code / walk-up provisioning + Daniela
     // mirroring, ported from the retired Baileys adapter.
-    return wrapWithPilotProvisioning(
-      createChatSdkBridge({
-        adapter: whatsappAdapter,
-        instance: 'whatsapp-cloud',
-        concurrency: 'concurrent',
-        supportsThreads: false,
-      }),
-    );
+    const bridge = createChatSdkBridge({
+      adapter: whatsappAdapter,
+      instance: 'whatsapp-cloud',
+      concurrency: 'concurrent',
+      supportsThreads: false,
+    });
+    // Additive: intercept a clean single-https-button send_card and deliver it
+    // as a native interactive cta_url message (one clickable button) instead of
+    // the text + link-button fallback. Confined to this channel — the shared
+    // bridge and the Telegram/general text path are untouched. Anything that is
+    // not a single-https-button card (multi-button, non-https, empty) falls
+    // through to the original deliver. If the Graph send fails (e.g. the 24h
+    // service window is closed) it also falls through — nothing breaks.
+    const origDeliver = bridge.deliver.bind(bridge);
+    bridge.deliver = async (platformId, threadId, message) => {
+      try {
+        const cta = buildCtaFromCard((message as { content?: unknown })?.content);
+        if (cta) {
+          const to = String(threadId ?? platformId).replace(/[^0-9]/g, '');
+          if (to) {
+            const res = await sendCtaUrl({ to, ...cta });
+            if (res.ok) {
+              const rb = res.body as { messages?: Array<{ id?: string }> };
+              return rb?.messages?.[0]?.id;
+            }
+            // Graph rejected (window closed etc.) — fall through to text.
+          }
+        }
+      } catch {
+        // Never let the native path break delivery — fall through.
+      }
+      return origDeliver(platformId, threadId, message);
+    };
+    return wrapWithPilotProvisioning(bridge);
   },
 });
+
+// ---------------------------------------------------------------------------
+// Additive: native interactive cta_url card sender (single https URL button).
+// Posts directly to the Graph API. Works inside the 24h customer-service
+// window; outside it an approved template is required (see stub below).
+// ---------------------------------------------------------------------------
+const CTA_GRAPH_VERSION = 'v25.0';
+
+export interface CtaUrlOptions {
+  to: string; // recipient wa_id, digits only e.g. 972528738698
+  body: string; // body text, up to 1024 chars
+  buttonText: string; // button label, up to 20 chars
+  url: string; // https URL the button opens
+  footer?: string; // optional footer, up to 60 chars
+  headerImageUrl?: string; // optional public https PNG/JPG header (logo)
+}
+
+export async function sendCtaUrl(opts: CtaUrlOptions): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const env = readEnvFile(['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID']);
+  const token = env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) {
+    return { ok: false, status: 0, body: { error: 'missing WHATSAPP_ACCESS_TOKEN/PHONE_NUMBER_ID' } };
+  }
+  const interactive: Record<string, unknown> = {
+    type: 'cta_url',
+    body: { text: opts.body },
+    action: {
+      name: 'cta_url',
+      parameters: { display_text: opts.buttonText, url: opts.url },
+    },
+  };
+  if (opts.footer) interactive.footer = { text: opts.footer };
+  if (opts.headerImageUrl) {
+    interactive.header = { type: 'image', image: { link: opts.headerImageUrl } };
+  }
+  const res = await fetch(`https://graph.facebook.com/${CTA_GRAPH_VERSION}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: opts.to,
+      type: 'interactive',
+      interactive,
+    }),
+  });
+  let parsed: unknown;
+  try {
+    parsed = await res.json();
+  } catch {
+    parsed = await res.text();
+  }
+  return { ok: res.ok, status: res.status, body: parsed };
+}
+
+// TODO(cta_url template fallback): outside the 24h service window the cta_url
+// interactive message is rejected by Meta. Reopening requires an approved
+// Utility/Marketing template carrying a URL button — separate track, left as a
+// stub so it does not block the in-window path.
+export async function sendCtaUrlTemplateFallback(_opts: CtaUrlOptions): Promise<never> {
+  throw new Error('cta_url template fallback not implemented: requires an approved Meta template');
+}
+
+// ---------------------------------------------------------------------------
+// Additive: map a fire-and-forget send_card payload to cta_url options when it
+// is a clean single-https-button card. Returns null for anything else so the
+// caller falls back to the existing text/link-button rendering. No header image
+// or footer yet (icon design is a later step); an emoji prefix hints the action
+// type. Function declarations are hoisted, so the factory above can call these.
+// ---------------------------------------------------------------------------
+function ctaEmojiForUrl(url: string): string {
+  try {
+    const t = new URL(url).searchParams.get('t');
+    if (t === 'email' || t === 'outlook') return '\uD83D\uDCE7 '; // envelope
+    if (t === 'wa') return '\uD83D\uDCAC '; // speech balloon
+    if (t === 'cal') return '\uD83D\uDCC5 '; // calendar
+    if (t === 'teams') return '\uD83D\uDCBC '; // briefcase
+  } catch {
+    // not a parseable URL — no prefix
+  }
+  return '';
+}
+
+function buildCtaFromCard(content: unknown): { body: string; buttonText: string; url: string } | null {
+  if (!content || typeof content !== 'object') return null;
+  const c = content as Record<string, unknown>;
+  if (c.type !== 'card' || !c.card || typeof c.card !== 'object') return null;
+  const card = c.card as Record<string, unknown>;
+  const actions = card.actions;
+  if (!Array.isArray(actions) || actions.length !== 1) return null; // multi-button -> fallback
+  const a = actions[0] as Record<string, unknown>;
+  const url = typeof a.url === 'string' ? a.url : '';
+  const label = typeof a.label === 'string' ? a.label : '';
+  if (!url || !/^https:\/\//i.test(url)) return null; // non-https -> fallback
+  const title = typeof card.title === 'string' ? card.title : '';
+  const description = typeof card.description === 'string' ? card.description : '';
+  const fallbackText = typeof c.fallbackText === 'string' ? c.fallbackText : '';
+  const parts: string[] = [];
+  if (description) parts.push(description);
+  if (Array.isArray(card.children)) {
+    for (const ch of card.children) {
+      if (typeof ch === 'string' && ch) {
+        parts.push(ch);
+      } else if (ch && typeof ch === 'object' && typeof (ch as Record<string, unknown>).text === 'string') {
+        parts.push((ch as Record<string, string>).text);
+      }
+    }
+  }
+  const bodyText = parts.join('\n') || title || fallbackText;
+  if (!bodyText) return null; // nothing to say -> let original path decide
+  const buttonText = (label || '\u05E4\u05EA\u05D7 \u05D5\u05E9\u05DC\u05D7').slice(0, 20);
+  return { body: ctaEmojiForUrl(url) + bodyText, buttonText, url };
+}

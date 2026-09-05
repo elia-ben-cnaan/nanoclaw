@@ -13,6 +13,8 @@ const SCALAR_COLUMNS = new Set([
   'max_messages_per_prompt',
   'max_turns',
   'cli_scope',
+  'onecli_url',
+  'onecli_api_key',
 ]);
 const JSON_COLUMNS = new Set(['skills', 'mcp_servers', 'packages_apt', 'packages_npm', 'additional_mounts']);
 
@@ -70,6 +72,8 @@ export function updateContainerConfigScalars(
       | 'max_messages_per_prompt'
       | 'max_turns'
       | 'cli_scope'
+      | 'onecli_url'
+      | 'onecli_api_key'
     >
   >,
 ): void {

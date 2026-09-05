@@ -45,6 +45,10 @@ import { inboundDbPath, outboundDbPath } from './session-manager.js';
 import { readEnvFile } from './env.js';
 import { log } from './log.js';
 import { getActivationByAgentGroup } from './modules/pilot-activation/db.js';
+import { buildUsersBoard } from './users-board-data.js';
+import { buildUserDetail } from './users-board-detail.js';
+import { renderUsersBoardPage } from './users-board-page.js';
+import { getCachedAggregate, getCachedTopics, refreshAllSummaries } from './users-board-summarize.js';
 
 const ADMIN_KEY: string = (() => {
   const fromEnv = readEnvFile(['ADMIN_KEY']);
@@ -938,6 +942,52 @@ export async function handleAdmin(req: http.IncomingMessage, res: http.ServerRes
   if (pathname === '/admin' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(renderPage(ADMIN_KEY));
+    return;
+  }
+
+  // GET /admin/users → Users Board HTML
+  if (pathname === '/admin/users' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(renderUsersBoardPage(ADMIN_KEY));
+    return;
+  }
+
+  // GET /admin/users-board → Users Board JSON (scores, actions, rollup, cached aggregate insights)
+  if (pathname === '/admin/users-board' && req.method === 'GET') {
+    try {
+      const board = buildUsersBoard();
+      const topics = getCachedTopics();
+      const users = board.users.map((u) => ({ ...u, topic: topics.get(u.agentGroupId) ?? null }));
+      sendJson(res, 200, { ...board, users, aggregateInsights: getCachedAggregate() });
+    } catch (err) {
+      log.error('admin: users-board build failed', { err });
+      sendJson(res, 500, { error: 'users-board build failed' });
+    }
+    return;
+  }
+
+  // POST /admin/users-board/refresh → (re)generate qualitative summaries (Haiku, cached, cost-bounded)
+  if (pathname === '/admin/users-board/refresh' && req.method === 'POST') {
+    try {
+      const result = await refreshAllSummaries();
+      sendJson(res, 200, result);
+    } catch (err) {
+      log.error('admin: users-board refresh failed', { err });
+      sendJson(res, 500, { error: 'refresh failed' });
+    }
+    return;
+  }
+
+  // GET /admin/user/:slug → one user's full qualitative detail (topic, days, quotes, insights)
+  const detailMatch = pathname.match(/^\/admin\/user\/([^/]+)$/);
+  if (detailMatch && req.method === 'GET') {
+    const slug = decodeURIComponent(detailMatch[1]);
+    const detail = buildUserDetail(slug);
+    if (!detail) {
+      sendJson(res, 404, { error: 'user not found' });
+      return;
+    }
+    sendJson(res, 200, detail);
     return;
   }
 
