@@ -404,6 +404,48 @@ function transcriptStartMs(transcriptPath: string): number | null {
 const CLAUDE_CODE_AUTO_COMPACT_WINDOW = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW || '165000';
 
 /**
+ * Per-prompt turn cap handed to the SDK explicitly.
+ *
+ * Claude Code enforces `maxTurns` from the SDK option and, when the option is
+ * absent, falls back to the `CLAUDE_CODE_MAX_TURNS` env var — which can leak
+ * in from a `.claude/settings.json` `env` block or a host drop-in and silently
+ * cap every autonomous task at a handful of tool calls ("Reached maximum
+ * number of turns (15)" observed live). Every tool call is one turn, so a
+ * real cap must be generous; this is a runaway guard, not a budget. Operator
+ * override: NANOCLAW_CLAUDE_MAX_TURNS in the container env (the host forwards
+ * it when set). The poll-loop additionally auto-continues a capped turn, so
+ * even a low override degrades gracefully instead of dropping the task.
+ */
+const DEFAULT_MAX_TURNS_PER_PROMPT = 1000;
+
+export function resolveMaxTurns(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : DEFAULT_MAX_TURNS_PER_PROMPT;
+}
+
+const MAX_TURNS_PER_PROMPT = resolveMaxTurns(process.env.NANOCLAW_CLAUDE_MAX_TURNS);
+
+/**
+ * Env vars that must never reach the Claude Code subprocess: each one changes
+ * turn semantics in a way the poll-loop can't see. `CLAUDE_CODE_MAX_TURNS`
+ * is the observed offender (see MAX_TURNS_PER_PROMPT). The explicit SDK
+ * option wins over the env var anyway; stripping it as well keeps the
+ * subprocess environment honest and logs where a stray cap came from.
+ */
+const FORBIDDEN_SDK_ENV_KEYS = ['CLAUDE_CODE_MAX_TURNS'];
+
+export function sanitizeSdkEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const out = { ...env };
+  for (const key of FORBIDDEN_SDK_ENV_KEYS) {
+    if (key in out) {
+      log(`Ignoring inherited ${key}=${String(out[key])} — NanoClaw sets the SDK turn cap explicitly`);
+      delete out[key];
+    }
+  }
+  return out;
+}
+
+/**
  * Stale-session detection. Matches Claude Code's error text when a
  * resumed session can't be found — missing transcript .jsonl, unknown
  * session ID, etc.
@@ -427,11 +469,11 @@ export class ClaudeProvider implements AgentProvider {
     this.additionalDirectories = options.additionalDirectories;
     this.model = options.model;
     this.effort = options.effort;
-    this.env = {
+    this.env = sanitizeSdkEnv({
       ...(options.env ?? {}),
       CLAUDE_CODE_AUTO_COMPACT_WINDOW,
       CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
-    };
+    });
   }
 
   registerMemorySessionHook(hook: MemorySessionHookRegistration): void {
@@ -499,6 +541,7 @@ export class ClaudeProvider implements AgentProvider {
         allowedTools: [...TOOL_ALLOWLIST, ...Object.keys(this.mcpServers).map(mcpAllowPattern)],
         disallowedTools: SDK_DISALLOWED_TOOLS,
         env: this.env,
+        maxTurns: MAX_TURNS_PER_PROMPT,
         model: this.model,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         effort: this.effort as any,
@@ -543,7 +586,14 @@ export class ClaudeProvider implements AgentProvider {
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'compact_boundary') {
           const meta = (message as { compact_metadata?: { pre_tokens?: number } }).compact_metadata;
           const detail = meta?.pre_tokens ? ` (${meta.pre_tokens.toLocaleString()} tokens compacted)` : '';
-          yield { type: 'result', text: `Context compacted${detail}.` };
+          // Not a `result`: the poll loop treats result text as the agent's turn
+          // output — a synthetic "Context compacted." result has no <message>
+          // block, so it leaked to the user's chat verbatim AND triggered the
+          // "response was not delivered — please re-send" nudge, costing a
+          // turn and duplicating the previous reply. Compaction is
+          // bookkeeping: log it, count it as activity only.
+          log(`Context compacted${detail}.`);
+          yield { type: 'activity' };
         } else if (message.type === 'system' && (message as { subtype?: string }).subtype === 'task_notification') {
           const tn = message as { summary?: string };
           yield { type: 'progress', message: tn.summary || 'Task notification' };

@@ -114,3 +114,26 @@ describe('syncSkillSymlinks blocked-entry warning (structural)', () => {
     expect(tail).toMatch(/log\.warn\(\s*'Shared skill not symlinked/);
   });
 });
+
+describe('claude tuning env passthrough', () => {
+  it('forwards only the known knobs, and only when set on the host', async () => {
+    const { claudeTuningEnv, CLAUDE_TUNING_ENV_KEYS } = await import('./container-runner.js');
+    expect(CLAUDE_TUNING_ENV_KEYS).toEqual(['CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'NANOCLAW_CLAUDE_MAX_TURNS']);
+    expect(claudeTuningEnv({})).toEqual({});
+    expect(claudeTuningEnv({ CLAUDE_CODE_AUTO_COMPACT_WINDOW: '', NANOCLAW_CLAUDE_MAX_TURNS: '  ' })).toEqual({});
+    expect(
+      claudeTuningEnv({
+        CLAUDE_CODE_AUTO_COMPACT_WINDOW: '120000',
+        NANOCLAW_CLAUDE_MAX_TURNS: '500',
+        CLAUDE_CODE_MAX_TURNS: '15',
+        TZ: 'UTC',
+      }),
+    ).toEqual({ CLAUDE_CODE_AUTO_COMPACT_WINDOW: '120000', NANOCLAW_CLAUDE_MAX_TURNS: '500' });
+  });
+
+  it('spawn args carry the knobs (structural)', () => {
+    const src = fs.readFileSync(path.join(process.cwd(), 'src', 'container-runner.ts'), 'utf-8');
+    expect(src).toContain('claudeTuningEnv(process.env)');
+    expect(src).toContain('guardGroupClaudeSettings(claudeDir, groupDir)');
+  });
+});

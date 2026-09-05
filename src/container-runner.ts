@@ -28,6 +28,7 @@ import { updateContainerConfigScalars } from './db/container-configs.js';
 import { CONTAINER_RUNTIME_BIN, hostGatewayArgs, readonlyMountArgs, stopContainer } from './container-runtime.js';
 import { EGRESS_NETWORK, egressNetworkArgs, ensureEgressNetwork } from './egress-lockdown.js';
 import { composeGroupClaudeMd } from './claude-md-compose.js';
+import { guardGroupClaudeSettings } from './claude-settings-guard.js';
 import { getAgentGroup } from './db/agent-groups.js';
 import { getDb, hasTable } from './db/connection.js';
 import { initGroupFilesystem } from './group-init.js';
@@ -212,6 +213,27 @@ async function spawnContainer(session: Session): Promise<void> {
   });
 }
 
+/**
+ * Host env vars the Claude provider honors inside the container, forwarded
+ * verbatim when set:
+ *   - CLAUDE_CODE_AUTO_COMPACT_WINDOW — auto-compaction threshold (tokens).
+ *     Lower it on a RAM-constrained host: a long context is the main driver
+ *     of the Claude Code subprocess's memory, and an OOM-kill surfaces as
+ *     "Claude Code process terminated by signal SIGKILL".
+ *   - NANOCLAW_CLAUDE_MAX_TURNS — per-prompt SDK turn cap (default 1000).
+ * Exported for tests.
+ */
+export const CLAUDE_TUNING_ENV_KEYS = ['CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'NANOCLAW_CLAUDE_MAX_TURNS'] as const;
+
+export function claudeTuningEnv(hostEnv: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of CLAUDE_TUNING_ENV_KEYS) {
+    const value = hostEnv[key]?.trim();
+    if (value) out[key] = value;
+  }
+  return out;
+}
+
 /** Kill a container for a session. */
 export function killContainer(sessionId: string, reason: string, onExit?: () => void): void {
   const entry = activeContainers.get(sessionId);
@@ -291,6 +313,11 @@ export function buildMounts(
   const mounts: VolumeMount[] = [];
   const sessDir = sessionDir(agentGroup.id, session.id);
   const groupDir = path.resolve(GROUPS_DIR, agentGroup.folder);
+
+  // Strip turn-limiting env keys (CLAUDE_CODE_MAX_TURNS) an agent or operator
+  // may have left in any Claude settings file the container will load. Runs
+  // every spawn so the cap can never silently return. See claude-settings-guard.
+  if (defaultSurfaces) guardGroupClaudeSettings(claudeDir, groupDir);
 
   // Session folder at /workspace (contains inbound.db, outbound.db, outbox/, .claude/)
   mounts.push({ hostPath: sessDir, containerPath: '/workspace', readonly: false });
@@ -452,6 +479,12 @@ async function buildContainerArgs(
   // Environment — only vars read by code we don't own.
   // Everything NanoClaw-specific is in container.json (read by runner at startup).
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Operator tuning knobs for the Claude provider, forwarded only when set on
+  // the host so a stock install's spawn args stay byte-identical.
+  for (const [key, value] of Object.entries(claudeTuningEnv(process.env))) {
+    args.push('-e', `${key}=${value}`);
+  }
 
   // Provider-contributed env vars (e.g. XDG_DATA_HOME, OPENCODE_*, NO_PROXY).
   if (providerContribution.env) {

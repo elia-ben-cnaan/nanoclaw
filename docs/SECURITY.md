@@ -189,6 +189,34 @@ Only `--memory` is a container-level cap; whether it's a *hard* cap depends on
 the host having no swap (a deployment concern). On a swapless host a runaway is
 OOM-killed at the limit.
 
+**What an OOM-kill looks like from the chat:** the kernel kills the largest
+process in the container — the Claude Code subprocess, not the agent-runner —
+and the turn ends with `Error: Claude Code process terminated by signal
+SIGKILL`. The runner now re-runs the batch once on the resumed session, but the
+fix is capacity: give the host swap (`fallocate -l 4G /swapfile && mkswap
+/swapfile && swapon /swapfile`), size `CONTAINER_MEMORY_LIMIT` to what the host
+can actually give each concurrent agent, and lower
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` (host `.env`, forwarded to the container; the
+provider default is 165000 tokens) so the subprocess compacts earlier and holds
+less context in memory. Confirm the cause with `journalctl -k | grep -i
+oom` or `docker inspect --format '{{.State.OOMKilled}}' <container>`.
+
+## Turn limits
+
+Claude Code stops a prompt after `maxTurns` tool-call rounds and reports
+`Reached maximum number of turns (N)`. When the SDK option is absent it falls
+back to the `CLAUDE_CODE_MAX_TURNS` env var, which any `.claude/settings.json`
+`env` block (agent-writable) can set — a live install picked up `15` this way
+and every long task died within minutes. NanoClaw therefore:
+
+- passes an explicit per-prompt `maxTurns` (default 1000, override with
+  `NANOCLAW_CLAUDE_MAX_TURNS` on the host) — a runaway guard, not a budget;
+- strips `CLAUDE_CODE_MAX_TURNS` from the SDK subprocess env and from every
+  Claude settings file of the group at spawn (`src/claude-settings-guard.ts`,
+  logged at `warn` so the origin is visible);
+- auto-continues a capped or malformed-tool-call turn up to 3 times before
+  surfacing the error (`container/agent-runner/src/harness-recovery.ts`).
+
 ## Security Architecture Diagram
 
 ```

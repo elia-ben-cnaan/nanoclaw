@@ -4,9 +4,9 @@ import { initTestSessionDb, closeSessionDb, getInboundDb, getOutboundDb } from '
 import { getPendingMessages, markCompleted } from './db/messages-in.js';
 import { getUndeliveredMessages } from './db/messages-out.js';
 import { formatMessages, extractRouting } from './formatter.js';
-import { isCorruptionError, processQuery } from './poll-loop.js';
+import { isCorruptionError, processQuery, runPollLoop } from './poll-loop.js';
 import { MockProvider } from './providers/mock.js';
-import type { AgentQuery, ProviderEvent } from './providers/types.js';
+import type { AgentProvider, AgentQuery, ProviderEvent } from './providers/types.js';
 
 beforeEach(() => {
   initTestSessionDb();
@@ -220,7 +220,13 @@ describe('origin metadata (from= attribute)', () => {
       .run(name, name, channelType, platformId);
   }
 
-  function insertWithRouting(id: string, kind: string, content: object, channelType: string | null, platformId: string | null): void {
+  function insertWithRouting(
+    id: string,
+    kind: string,
+    content: object,
+    channelType: string | null,
+    platformId: string | null,
+  ): void {
     getInboundDb()
       .prepare(
         `INSERT INTO messages_in (id, kind, timestamp, status, platform_id, channel_type, content)
@@ -470,9 +476,9 @@ const TASK_ROUTING = {
 
 function taskLogRows(): Array<{ text: string }> {
   return (
-    getOutboundDb()
-      .prepare("SELECT content FROM messages_out WHERE kind = 'task_log' ORDER BY seq")
-      .all() as Array<{ content: string }>
+    getOutboundDb().prepare("SELECT content FROM messages_out WHERE kind = 'task_log' ORDER BY seq").all() as Array<{
+      content: string;
+    }>
   ).map((r) => JSON.parse(r.content) as { text: string });
 }
 
@@ -538,5 +544,227 @@ describe('task-run turn wiring (real processQuery)', () => {
     expect(logs[1]).toContain('[undelivered → local-cli] fire two result');
     expect(logs).not.toContain('first delivery decision handled');
     expect(logs).not.toContain('second delivery decision handled');
+  });
+});
+
+/**
+ * Stub query whose event stream is scripted: each entry in `script` is
+ * yielded in order, and `'await-push'` blocks until the loop pushes a nudge.
+ * Lets a test drive the harness-recovery path (error result → nudge → next
+ * result) without a real SDK.
+ */
+function makeScriptedQuery(script: Array<ProviderEvent | 'await-push'>): { query: AgentQuery; pushes: string[] } {
+  const pushes: string[] = [];
+  let release: (() => void) | null = null;
+  async function* events(): AsyncGenerator<ProviderEvent> {
+    yield { type: 'init', continuation: 'sess-1' };
+    for (const step of script) {
+      if (step === 'await-push') {
+        if (pushes.length === 0) {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        continue;
+      }
+      yield step;
+    }
+  }
+  return {
+    pushes,
+    query: {
+      push: (m: string) => {
+        pushes.push(m);
+        release?.();
+        release = null;
+      },
+      end: () => {},
+      events: events(),
+      abort: () => {},
+    },
+  };
+}
+
+describe('harness-failure auto-continue', () => {
+  const MAX_TURNS_TEXT = 'Reached maximum number of turns (15)';
+  const MALFORMED_TEXT = "The model's tool call could not be parsed (retry also failed).";
+
+  it('pushes a continue-nudge on a turn-cap error instead of delivering it', async () => {
+    const { query, pushes } = makeScriptedQuery([
+      { type: 'result', text: MAX_TURNS_TEXT, isError: true },
+      'await-push',
+      { type: 'result', text: null },
+    ]);
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    expect(getUndeliveredMessages()).toHaveLength(0);
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toContain('<system>');
+    expect(pushes[0]).toContain('turn limit');
+    expect(pushes[0]).toContain('Continue the same task');
+  });
+
+  it('pushes a smaller-tool-inputs nudge on a malformed tool call', async () => {
+    const { query, pushes } = makeScriptedQuery([
+      { type: 'result', text: MALFORMED_TEXT, isError: true },
+      'await-push',
+      { type: 'result', text: null },
+    ]);
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    expect(getUndeliveredMessages()).toHaveLength(0);
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toContain('smaller pieces');
+  });
+
+  it('delivers the error once the per-prompt recovery budget is exhausted', async () => {
+    const { MAX_HARNESS_RECOVERIES } = await import('./harness-recovery.js');
+    const script: Array<ProviderEvent | 'await-push'> = [];
+    for (let i = 0; i < MAX_HARNESS_RECOVERIES; i++) {
+      script.push({ type: 'result', text: MAX_TURNS_TEXT, isError: true });
+      script.push('await-push');
+    }
+    // One more than the budget allows → this one must reach the user.
+    script.push({ type: 'result', text: MAX_TURNS_TEXT, isError: true });
+    const { query, pushes } = makeScriptedQuery(script);
+
+    // The stub's await-push only blocks while no push has happened yet, so
+    // after the first nudge the remaining error results stream straight
+    // through; the count of nudges is what matters.
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    expect(pushes).toHaveLength(MAX_HARNESS_RECOVERIES);
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toBe(MAX_TURNS_TEXT);
+  });
+
+  it('does not touch a non-harness error result (billing still delivered, no nudge)', async () => {
+    const budgetText = 'Spending limit reached. Add your own key at https://example.com/keys';
+    const { query, pushes } = makeScriptedQuery([{ type: 'result', text: budgetText, isError: true }]);
+
+    await processQuery(query, ERR_ROUTING, ['m1'], 'claude', undefined, 'prompt', undefined);
+
+    expect(pushes).toHaveLength(0);
+    expect(getUndeliveredMessages()).toHaveLength(1);
+  });
+});
+
+describe('crashed SDK subprocess retry', () => {
+  /**
+   * Provider whose first query dies mid-stream the way the SDK's process
+   * transport reports an OOM-kill, and whose second query completes. Records
+   * every query input so the test can assert the retry resumed the session
+   * and carried the crash note.
+   */
+  function makeCrashingProvider(crashMessage: string, onSecondQueryDone: () => void) {
+    const inputs: Array<{ prompt: string; continuation?: string }> = [];
+    const provider: AgentProvider = {
+      supportsNativeSlashCommands: false,
+      registerMemorySessionHook() {},
+      isSessionInvalid: () => false,
+      query(input) {
+        inputs.push({ prompt: input.prompt, continuation: input.continuation });
+        const attempt = inputs.length;
+        async function* events(): AsyncGenerator<ProviderEvent> {
+          yield { type: 'init', continuation: 'sess-1' };
+          if (attempt === 1) throw new Error(crashMessage);
+          yield { type: 'result', text: '<message to="Discord">done</message>' };
+          onSecondQueryDone();
+        }
+        return { push() {}, end() {}, events: events(), abort() {} };
+      },
+    };
+    return { provider, inputs };
+  }
+
+  it('re-runs an unanswered batch once on the resumed session after SIGKILL', async () => {
+    insertMessage('m1', 'chat', { sender: 'User', text: 'do the thing' });
+    const controller = new AbortController();
+    const { provider, inputs } = makeCrashingProvider('Claude Code process terminated by signal SIGKILL', () =>
+      controller.abort(),
+    );
+
+    await runPollLoop({ provider, providerName: 'mock', cwd: '/tmp', signal: controller.signal });
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0].continuation).toBeUndefined();
+    // The retry resumes the session persisted at `init` and tells the agent
+    // the previous attempt crashed.
+    expect(inputs[1].continuation).toBe('sess-1');
+    expect(inputs[1].prompt).toContain('do the thing');
+    expect(inputs[1].prompt).toContain('runtime crash');
+    expect(inputs[1].prompt).toContain('SIGKILL');
+    // No "Error: …" reached the user — the retry answered instead.
+    const errorRows = getUndeliveredMessages().filter((m) => JSON.parse(m.content).text?.startsWith('Error:'));
+    expect(errorRows).toHaveLength(0);
+    // Batch acked.
+    expect(getPendingMessages()).toHaveLength(0);
+  });
+
+  it('gives up after the retry budget and surfaces the error', async () => {
+    insertMessage('m1', 'chat', { sender: 'User', text: 'do the thing' });
+    const controller = new AbortController();
+    let calls = 0;
+    const provider: AgentProvider = {
+      supportsNativeSlashCommands: false,
+      registerMemorySessionHook() {},
+      isSessionInvalid: () => false,
+      query() {
+        calls++;
+        async function* events(): AsyncGenerator<ProviderEvent> {
+          yield { type: 'init', continuation: 'sess-1' };
+          throw new Error('Claude Code process terminated by signal SIGKILL');
+        }
+        return { push() {}, end() {}, events: events(), abort() {} };
+      },
+    };
+    // Abort as soon as the loop has finished the batch (it re-polls after).
+    const poll = runPollLoop({ provider, providerName: 'mock', cwd: '/tmp', signal: controller.signal });
+    const stop = setInterval(() => {
+      if (getPendingMessages().length === 0 && getUndeliveredMessages().length > 0) {
+        controller.abort();
+        clearInterval(stop);
+      }
+    }, 20);
+    await poll;
+
+    const { MAX_CRASH_RETRIES } = await import('./harness-recovery.js');
+    expect(calls).toBe(1 + MAX_CRASH_RETRIES);
+    const out = getUndeliveredMessages();
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0].content).text).toContain('Error: Claude Code process terminated by signal SIGKILL');
+  });
+
+  it('does not retry a crash that happens after the batch was answered', async () => {
+    insertMessage('m1', 'chat', { sender: 'User', text: 'hi' });
+    const controller = new AbortController();
+    let calls = 0;
+    const provider: AgentProvider = {
+      supportsNativeSlashCommands: false,
+      registerMemorySessionHook() {},
+      isSessionInvalid: () => false,
+      query() {
+        calls++;
+        async function* events(): AsyncGenerator<ProviderEvent> {
+          yield { type: 'init', continuation: 'sess-1' };
+          yield { type: 'result', text: '<message to="Discord">answered</message>' };
+          throw new Error('Claude Code process terminated by signal SIGKILL');
+        }
+        return { push() {}, end() {}, events: events(), abort() {} };
+      },
+    };
+    const poll = runPollLoop({ provider, providerName: 'mock', cwd: '/tmp', signal: controller.signal });
+    const stop = setInterval(() => {
+      if (getPendingMessages().length === 0 && getUndeliveredMessages().length > 0) {
+        controller.abort();
+        clearInterval(stop);
+      }
+    }, 20);
+    await poll;
+
+    expect(calls).toBe(1);
   });
 });
