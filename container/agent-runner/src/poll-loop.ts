@@ -24,6 +24,14 @@ import {
   stripInternalTags,
   type RoutingContext,
 } from './formatter.js';
+import {
+  MAX_CRASH_RETRIES,
+  MAX_HARNESS_RECOVERIES,
+  buildCrashResumeNote,
+  buildHarnessRecoveryNudge,
+  classifyHarnessError,
+  isCrashedSubprocessError,
+} from './harness-recovery.js';
 import { isUploadTraceCommand, uploadTrace } from './upload-trace.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, ProviderExchange } from './providers/types.js';
 
@@ -38,6 +46,9 @@ const ACTIVE_POLL_INTERVAL_MS = 500;
  * page cache (host-sweep then respawns with a fresh mount).
  */
 const CORRUPTION_STREAK_EXIT = 10;
+
+/** Breather before re-spawning the SDK after a subprocess crash (OOM settle). */
+const CRASH_RETRY_DELAY_MS = 3000;
 
 /**
  * True for SQLite errors that indicate a corrupt READ view — almost always a
@@ -123,6 +134,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
   let pollCount = 0;
   let isFirstPoll = true;
+  let lastCrashMessage: string | undefined;
   while (true) {
     if (config.signal?.aborted) return;
     // Skip system messages — they're responses for MCP tools (e.g., ask_user_question)
@@ -236,63 +248,104 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
     log(`Processing ${keep.length} message(s), kinds: ${[...new Set(keep.map((m) => m.kind))].join(',')}`);
 
-    const query = config.provider.query({
-      prompt,
-      continuation,
-      cwd: config.cwd,
-      systemContext: config.systemContext,
-    });
-
     // Process the query while concurrently polling for new messages
     const skippedSet = new Set(skipped.map((s) => s.id));
     const processingIds = ids.filter((id) => !commandIds.includes(id) && !skippedSet.has(id));
-    // Publish the batch's in_reply_to so MCP tools (send_message, send_file)
-    // can stamp it on outbound rows — needed for a2a return-path routing.
-    setCurrentInReplyTo(routing.inReplyTo);
-    try {
-      const result = await processQuery(
-        query,
-        routing,
-        processingIds,
-        config.providerName,
-        config.provider.onExchangeComplete?.bind(config.provider),
-        prompt,
+
+    // A crashed SDK subprocess (OOM-kill → "terminated by signal SIGKILL",
+    // or a non-zero exit) used to end the batch with a bare "Error: …" in the
+    // user's chat and no redelivery — the message was simply lost. The
+    // transcript is persisted at `init`, so re-running the same batch once on
+    // the resumed session almost always finishes the work. Anything else
+    // (stale session, quota, unknown) keeps the single-attempt path.
+    let crashRetries = 0;
+    while (true) {
+      const attemptPrompt =
+        crashRetries === 0 ? prompt : `${prompt}\n\n${buildCrashResumeNote(lastCrashMessage ?? 'unknown error')}`;
+      const query = config.provider.query({
+        prompt: attemptPrompt,
         continuation,
-      );
-      if (result.continuation && result.continuation !== continuation) {
-        continuation = result.continuation;
-        setContinuation(config.providerName, continuation);
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      log(`Query error: ${errMsg}`);
-
-      // Stale/corrupt continuation recovery: ask the provider whether
-      // this error means the stored continuation is unusable, and clear
-      // it so the next attempt starts fresh.
-      if (continuation && config.provider.isSessionInvalid(err)) {
-        log(`Stale session detected (${continuation}) — clearing for next retry`);
-        continuation = undefined;
-        clearContinuation(config.providerName);
-      }
-
-      // Write error response so the user knows something went wrong
-      writeMessageOut({
-        id: generateId(),
-        kind: 'chat',
-        platform_id: routing.platformId,
-        channel_type: routing.channelType,
-        thread_id: routing.threadId,
-        content: JSON.stringify({ text: `Error: ${errMsg}` }),
+        cwd: config.cwd,
+        systemContext: config.systemContext,
       });
 
-      // The batch is still acked completed below (no redelivery). Without
-      // this line the only log trace of the errored turn is "Query error"
-      // followed by a "Completed" line that reads like success.
-      log(`Errored batch will be acked completed — ${processingIds.length} message(s), no redelivery`);
-    } finally {
-      clearCurrentInReplyTo();
+      // Publish the batch's in_reply_to so MCP tools (send_message, send_file)
+      // can stamp it on outbound rows — needed for a2a return-path routing.
+      setCurrentInReplyTo(routing.inReplyTo);
+      try {
+        const result = await processQuery(
+          query,
+          routing,
+          processingIds,
+          config.providerName,
+          config.provider.onExchangeComplete?.bind(config.provider),
+          attemptPrompt,
+          continuation,
+        );
+        if (result.continuation && result.continuation !== continuation) {
+          continuation = result.continuation;
+          setContinuation(config.providerName, continuation);
+        }
+        break;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        log(`Query error: ${errMsg}`);
+
+        // Adopt the session id the crashed stream announced at `init` (it is
+        // already persisted by processQuery) so a retry resumes it rather
+        // than starting blank.
+        if (err instanceof QueryStreamError && err.continuation && err.continuation !== continuation) {
+          continuation = err.continuation;
+        }
+
+        // Stale/corrupt continuation recovery: ask the provider whether
+        // this error means the stored continuation is unusable, and clear
+        // it so the next attempt starts fresh.
+        if (continuation && config.provider.isSessionInvalid(err)) {
+          log(`Stale session detected (${continuation}) — clearing for next retry`);
+          continuation = undefined;
+          clearContinuation(config.providerName);
+        }
+
+        // Retry only when the batch itself never got an answer: a crash
+        // after the batch's result means the pending follow-up (already
+        // acked) is what was lost, and re-sending the original batch would
+        // make the agent answer it twice. `continuation` was persisted at
+        // `init`, so the retry resumes the same session (unless the provider
+        // just declared it stale, in which case it starts clean).
+        const batchAnswered = err instanceof QueryStreamError && err.batchAnswered;
+        if (crashRetries < MAX_CRASH_RETRIES && !batchAnswered && isCrashedSubprocessError(errMsg)) {
+          crashRetries++;
+          lastCrashMessage = errMsg;
+          log(
+            `SDK subprocess crashed (${errMsg}) — retrying batch ${crashRetries}/${MAX_CRASH_RETRIES} ` +
+              `on ${continuation ? `resumed session ${continuation}` : 'a fresh session'}`,
+          );
+          clearCurrentInReplyTo();
+          await sleep(CRASH_RETRY_DELAY_MS);
+          continue;
+        }
+
+        // Write error response so the user knows something went wrong
+        writeMessageOut({
+          id: generateId(),
+          kind: 'chat',
+          platform_id: routing.platformId,
+          channel_type: routing.channelType,
+          thread_id: routing.threadId,
+          content: JSON.stringify({ text: `Error: ${errMsg}` }),
+        });
+
+        // The batch is still acked completed below (no redelivery). Without
+        // this line the only log trace of the errored turn is "Query error"
+        // followed by a "Completed" line that reads like success.
+        log(`Errored batch will be acked completed — ${processingIds.length} message(s), no redelivery`);
+        break;
+      } finally {
+        clearCurrentInReplyTo();
+      }
     }
+    lastCrashMessage = undefined;
 
     // Ensure completed even if processQuery ended without a result event
     // (e.g. stream closed unexpectedly).
@@ -339,6 +392,25 @@ interface QueryResult {
   continuation?: string;
 }
 
+/**
+ * Thrown by processQuery when the provider's event stream fails. Preserves
+ * the provider's message verbatim (isSessionInvalid matches on it) and
+ * records whether the initial batch had already received a result — the
+ * crash-retry in runPollLoop only re-runs an unanswered batch.
+ */
+export class QueryStreamError extends Error {
+  constructor(
+    message: string,
+    readonly batchAnswered: boolean,
+    /** Continuation observed at `init` in the crashed stream, if any. */
+    readonly continuation: string | undefined,
+    readonly cause: unknown,
+  ) {
+    super(message);
+    this.name = 'QueryStreamError';
+  }
+}
+
 export async function processQuery(
   query: AgentQuery,
   routing: RoutingContext,
@@ -354,6 +426,12 @@ export async function processQuery(
   // Once-per-turn guard for the task-run "<message> block was not delivered"
   // nudge — mirrors unwrappedNudged for chat turns.
   let taskBlockNudged = false;
+  // Per-prompt count of harness-failure auto-continues (turn cap, malformed
+  // tool call). Bounded by MAX_HARNESS_RECOVERIES; reset on every user push.
+  let harnessRecoveries = 0;
+  // Set once the initial batch has a result; a later stream crash then only
+  // affects follow-ups (see QueryStreamError).
+  let batchAnswered = false;
   // Prompt queue for the exchange hook — each result event consumes the
   // oldest unanswered prompt, except a wrapping-retry result, which answers
   // the same prompt again. Unused (and unmaintained) when the provider
@@ -438,6 +516,7 @@ export async function processQuery(
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
         taskBlockNudged = false;
+        harnessRecoveries = 0;
         query.push(prompt);
         archivePrompts.push(prompt);
         markCompleted(keptIds);
@@ -501,6 +580,23 @@ export async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
+        batchAnswered = true;
+        // Harness-level interruption (turn cap hit, malformed tool call) — the
+        // task is NOT done and the session is intact. Push a continue-nudge
+        // into the still-open query instead of dumping the raw error into the
+        // user's chat and abandoning the work. Bounded per prompt so a truly
+        // stuck agent still surfaces the error on the last attempt.
+        const harnessKind = event.isError === true ? classifyHarnessError(event.text) : null;
+        if (harnessKind && harnessRecoveries < MAX_HARNESS_RECOVERIES) {
+          harnessRecoveries++;
+          log(
+            `Harness interruption (${harnessKind}: ${event.text?.slice(0, 120)}) — ` +
+              `auto-continuing ${harnessRecoveries}/${MAX_HARNESS_RECOVERIES}`,
+          );
+          query.push(buildHarnessRecoveryNudge(harnessKind, harnessRecoveries, MAX_HARNESS_RECOVERIES));
+          // The continuation answers the SAME user prompt — keep it queued.
+          continue;
+        }
         if (event.text) {
           const { sent, hasUnwrapped, taskBlocks } = dispatchResultText(event.text, routing);
           const willRetryTaskBlocks = shouldNudgeTaskBlocks(routing.taskRun, taskBlocks, taskBlockNudged);
@@ -565,7 +661,7 @@ export async function processQuery(
       continuation: queryContinuation ?? initialContinuation,
       status: 'error',
     });
-    throw err;
+    throw new QueryStreamError(errMsg, batchAnswered, queryContinuation, err);
   } finally {
     done = true;
     clearInterval(pollHandle);
