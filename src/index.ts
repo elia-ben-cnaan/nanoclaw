@@ -95,7 +95,12 @@ async function main(): Promise<void> {
   ensureContainerRuntimeRunning();
   cleanupOrphans();
 
-  // 3. Channel adapters
+  // 3. Start the `ncl` CLI socket server (data/ncl.sock) before external
+  // adapters. A bad third-party token can make adapter setup retry for a
+  // while; the host should still become manageable during that window.
+  await startCliServer();
+
+  // 4. Channel adapters
   await initChannelAdapters((adapter: ChannelAdapter): ChannelSetup => {
     return {
       onInbound(platformId, threadId, message) {
@@ -153,23 +158,20 @@ async function main(): Promise<void> {
     };
   });
 
-  // 4. Delivery adapter bridge — dispatches to channel adapters by EXACT
+  // 5. Delivery adapter bridge — dispatches to channel adapters by EXACT
   // registry key (instance ?? channelType): a named instance with an
   // offline adapter is never rerouted through a sibling bot. See
   // createChannelDeliveryAdapter in channels/channel-registry.ts.
   setDeliveryAdapter(createChannelDeliveryAdapter());
 
-  // 5. Start delivery polls
+  // 6. Start delivery polls
   startActiveDeliveryPoll();
   startSweepDeliveryPoll();
   log.info('Delivery polls started');
 
-  // 6. Start host sweep
+  // 7. Start host sweep
   startHostSweep();
   log.info('Host sweep started');
-
-  // 7. Start the `ncl` CLI socket server (data/ncl.sock).
-  await startCliServer();
 
   log.info('NanoClaw running');
 }
