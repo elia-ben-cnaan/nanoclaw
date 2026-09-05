@@ -22,6 +22,14 @@ import {
   stripInternalTags,
   type RoutingContext,
 } from './formatter.js';
+import {
+  MAX_CRASH_RETRIES,
+  MAX_HARNESS_RECOVERIES,
+  buildCrashResumeNote,
+  buildHarnessRecoveryNudge,
+  classifyHarnessError,
+  isCrashedSubprocessError,
+} from './harness-recovery.js';
 import { isUploadTraceCommand, uploadTrace } from './upload-trace.js';
 import { buildConversationRecap } from './conversation-recap.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, ProviderExchange } from './providers/types.js';
@@ -80,6 +88,9 @@ export function turnStallAllowanceMs(
  * page cache (host-sweep then respawns with a fresh mount).
  */
 const CORRUPTION_STREAK_EXIT = 10;
+
+/** Breather before re-spawning the SDK after a subprocess crash. */
+const CRASH_RETRY_DELAY_MS = 3000;
 
 /**
  * True for SQLite errors that indicate a corrupt READ view — almost always a
@@ -278,6 +289,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
   let pollCount = 0;
   let isFirstPoll = true;
+  let lastCrashMessage: string | undefined;
   while (true) {
     if (config.signal?.aborted) return;
     // Skip system messages — they're responses for MCP tools (e.g., ask_user_question)
@@ -434,69 +446,84 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
             effectivePrompt = `${recap}\n\n${prompt}`;
           }
         }
-        // Process the query while concurrently polling for new messages
-        const query = config.provider.query({
-          prompt: effectivePrompt,
-          continuation,
-          cwd: config.cwd,
-          systemContext: config.systemContext,
-        });
-        // Stop signal must tear down the ACTIVE query too — the loop-top check
-        // alone leaves an open stream (and its poll interval) running after
-        // abort, which in tests bleeds into the next test's DB.
-        const onAbort = (): void => query.abort();
-        config.signal?.addEventListener('abort', onAbort, { once: true });
-        try {
-          const result = await processQuery(
-            query,
-            routing,
-            processingIds,
-            config.providerName,
-            config.provider.onExchangeComplete?.bind(config.provider),
-            effectivePrompt,
+        let crashRetries = 0;
+        while (true) {
+          const attemptPrompt =
+            crashRetries === 0
+              ? effectivePrompt
+              : `${effectivePrompt}\n\n${buildCrashResumeNote(lastCrashMessage ?? 'unknown error')}`;
+          // Process the query while concurrently polling for new messages
+          const query = config.provider.query({
+            prompt: attemptPrompt,
             continuation,
-            fbState,
-          );
-          if (result.continuation && result.continuation !== continuation) {
-            continuation = result.continuation;
-            setContinuation(config.providerName, continuation);
-          }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          log(`Query error: ${errMsg}`);
-
-          // Quota exhaustion on the primary → retry the unanswered prompt on the
-          // fallback provider. QuotaExhaustedError carries the exact prompt
-          // segment that went unanswered; a plain thrown error that reads like
-          // quota (SDK subprocess died on a usage-limit response) retries the
-          // batch's initial prompt.
-          const quotaPrompt =
-            err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? effectivePrompt : null;
-
-          if (quotaPrompt !== null && config.fallback) {
-            // Open (or extend) the cooldown so subsequent messages skip the
-            // primary entirely until it likely recovers, and inject the recap
-            // exactly once per outage (on its first turn only).
-            const { announce } = registerPrimaryQuota(fbState, Date.now());
-            saveFallbackState(fbState);
-            let fallbackPrompt = quotaPrompt;
-            if (announce) {
-              // Silent switch — the user should not be told which engine is
-              // answering unless they ask. Only the recap moves across; no
-              // user-facing notice.
-              log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m (silent)`);
-              // First fallback turn of this outage: the fallback's thread has
-              // never seen the primary-side conversation ("two brains" gap).
-              // Prepend a recap of the recent exchanges so it picks up
-              // mid-conversation instead of answering cold. Only on the first
-              // turn — the fallback's own thread carries continuity from here.
-              const recap = buildConversationRecap();
-              if (recap) fallbackPrompt = `${recap}\n\n${quotaPrompt}`;
-            } else {
-              log(`Primary still quota-exhausted — extending fallback cooldown (switch already announced)`);
+            cwd: config.cwd,
+            systemContext: config.systemContext,
+          });
+          // Stop signal must tear down the ACTIVE query too — the loop-top check
+          // alone leaves an open stream (and its poll interval) running after
+          // abort, which in tests bleeds into the next test's DB.
+          const onAbort = (): void => query.abort();
+          config.signal?.addEventListener('abort', onAbort, { once: true });
+          try {
+            const result = await processQuery(
+              query,
+              routing,
+              processingIds,
+              config.providerName,
+              config.provider.onExchangeComplete?.bind(config.provider),
+              attemptPrompt,
+              continuation,
+              fbState,
+            );
+            if (result.continuation && result.continuation !== continuation) {
+              continuation = result.continuation;
+              setContinuation(config.providerName, continuation);
             }
-            await serveViaFallback(config.fallback, fallbackPrompt, routing, config.cwd, config.systemContext);
-          } else {
+            break;
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            log(`Query error: ${errMsg}`);
+
+            // Adopt the session id the crashed stream announced at `init`, so
+            // a retry resumes it rather than starting blank.
+            if (err instanceof QueryStreamError && err.continuation && err.continuation !== continuation) {
+              continuation = err.continuation;
+            }
+
+            // Quota exhaustion on the primary → retry the unanswered prompt on the
+            // fallback provider. QuotaExhaustedError carries the exact prompt
+            // segment that went unanswered; a plain thrown error that reads like
+            // quota (SDK subprocess died on a usage-limit response) retries the
+            // batch's initial prompt.
+            const quotaPrompt =
+              err instanceof QuotaExhaustedError ? err.lastPrompt : isQuotaErrorMessage(errMsg) ? attemptPrompt : null;
+
+            if (quotaPrompt !== null && config.fallback) {
+              // Open (or extend) the cooldown so subsequent messages skip the
+              // primary entirely until it likely recovers, and inject the recap
+              // exactly once per outage (on its first turn only).
+              const { announce } = registerPrimaryQuota(fbState, Date.now());
+              saveFallbackState(fbState);
+              let fallbackPrompt = quotaPrompt;
+              if (announce) {
+                // Silent switch — the user should not be told which engine is
+                // answering unless they ask. Only the recap moves across; no
+                // user-facing notice.
+                log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m (silent)`);
+                // First fallback turn of this outage: the fallback's thread has
+                // never seen the primary-side conversation ("two brains" gap).
+                // Prepend a recap of the recent exchanges so it picks up
+                // mid-conversation instead of answering cold. Only on the first
+                // turn — the fallback's own thread carries continuity from here.
+                const recap = buildConversationRecap();
+                if (recap) fallbackPrompt = `${recap}\n\n${quotaPrompt}`;
+              } else {
+                log(`Primary still quota-exhausted — extending fallback cooldown (switch already announced)`);
+              }
+              await serveViaFallback(config.fallback, fallbackPrompt, routing, config.cwd, config.systemContext);
+              break;
+            }
+
             // Stale/corrupt continuation recovery: ask the provider whether
             // this error means the stored continuation is unusable, and clear
             // it so the next attempt starts fresh.
@@ -504,6 +531,18 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               log(`Stale session detected (${continuation}) — clearing for next retry`);
               continuation = undefined;
               clearContinuation(config.providerName);
+            }
+
+            const batchAnswered = err instanceof QueryStreamError && err.batchAnswered;
+            if (crashRetries < MAX_CRASH_RETRIES && !batchAnswered && isCrashedSubprocessError(errMsg)) {
+              crashRetries++;
+              lastCrashMessage = errMsg;
+              log(
+                `SDK subprocess crashed (${errMsg}) — retrying batch ${crashRetries}/${MAX_CRASH_RETRIES} ` +
+                  `on ${continuation ? `resumed session ${continuation}` : 'a fresh session'}`,
+              );
+              await sleep(CRASH_RETRY_DELAY_MS);
+              continue;
             }
 
             // Write error response so the user knows something went wrong
@@ -515,10 +554,12 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               thread_id: routing.threadId,
               content: JSON.stringify({ text: `Error: ${errMsg}` }),
             });
+            break;
+          } finally {
+            config.signal?.removeEventListener('abort', onAbort);
           }
-        } finally {
-          config.signal?.removeEventListener('abort', onAbort);
         }
+        lastCrashMessage = undefined;
       }
     } finally {
       clearCurrentInReplyTo();
@@ -585,6 +626,22 @@ interface QueryResult {
   continuation?: string;
 }
 
+/**
+ * Thrown by processQuery when the provider stream fails. Keeps enough state
+ * for runPollLoop to decide whether a crash retry is safe.
+ */
+export class QueryStreamError extends Error {
+  constructor(
+    message: string,
+    readonly batchAnswered: boolean,
+    readonly continuation: string | undefined,
+    readonly cause: unknown,
+  ) {
+    super(message);
+    this.name = 'QueryStreamError';
+  }
+}
+
 export async function processQuery(
   query: AgentQuery,
   routing: RoutingContext,
@@ -602,6 +659,11 @@ export async function processQuery(
   // nudge the agent once when it answered only other agents, never the waiting
   // human. Reset alongside unwrappedNudged at the top of each new turn.
   let initiatorNudged = false;
+  // Harness failures such as max-turns and malformed tool calls are
+  // auto-continued in the same stream, with a bound per prompt.
+  let harnessRecoveries = 0;
+  // Once true, a later stream crash should not replay the original batch.
+  let batchAnswered = false;
   // Prompt queue for the exchange hook — each result event consumes the
   // oldest unanswered prompt, except a wrapping-retry result, which answers
   // the same prompt again. Unused (and unmaintained) when the provider
@@ -747,6 +809,7 @@ export async function processQuery(
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
         initiatorNudged = false;
+        harnessRecoveries = 0;
         outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
         lastPrompt = prompt;
         query.push(prompt);
@@ -833,6 +896,7 @@ export async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
+        batchAnswered = true;
         // We were serving via the fallback; this successful primary turn means
         // quota recovered — clear the outage state silently (no user-facing
         // notice; the recap above already carried continuity across).
@@ -848,6 +912,17 @@ export async function processQuery(
           count: getOutboundCount(),
           maxSeq: getMaxOutboundSeq(),
         };
+        const harnessKind = event.isError === true ? classifyHarnessError(event.text) : null;
+        if (harnessKind && harnessRecoveries < MAX_HARNESS_RECOVERIES) {
+          harnessRecoveries++;
+          log(
+            `Harness interruption (${harnessKind}: ${event.text?.slice(0, 120)}) — ` +
+              `auto-continuing ${harnessRecoveries}/${MAX_HARNESS_RECOVERIES}`,
+          );
+          outboundSnapshots.push({ count: getOutboundCount(), maxSeq: getMaxOutboundSeq() });
+          query.push(buildHarnessRecoveryNudge(harnessKind, harnessRecoveries, MAX_HARNESS_RECOVERIES));
+          continue;
+        }
         if (event.text) {
           const { sent, hasUnwrapped, sentToInitiator } = dispatchResultText(
             event.text,
@@ -942,7 +1017,7 @@ export async function processQuery(
       continuation: queryContinuation ?? initialContinuation,
       status: 'error',
     });
-    throw err;
+    throw new QueryStreamError(errMsg, batchAnswered, queryContinuation, err);
   } finally {
     done = true;
     clearInterval(pollHandle);
