@@ -24,17 +24,47 @@ type CliLoopEntry = {
 
 const cliLoopEntries = new Map<string, CliLoopEntry>();
 
+const ARG_INSENSITIVE_LOOP_COMMANDS = new Set(['groups-config-get']);
+const VOLATILE_ARG_KEYS = new Set([
+  'id',
+  'requestId',
+  'request_id',
+  'nonce',
+  'timestamp',
+  'ts',
+  'createdAt',
+  'created_at',
+]);
+
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   const n = Number.parseInt(raw ?? '', 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function canonicalArgs(args: Record<string, unknown>): string {
-  return JSON.stringify(args, Object.keys(args).sort());
+function normalizeLoopArgs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => normalizeLoopArgs(item));
+  if (!value || typeof value !== 'object') return value;
+
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    if (VOLATILE_ARG_KEYS.has(key)) continue;
+    out[key] = normalizeLoopArgs((value as Record<string, unknown>)[key]);
+  }
+  return out;
 }
 
-function detectCliLoop(sessionId: string, command: string, args: Record<string, unknown>, now = Date.now()): number {
-  const key = `${sessionId}:${command}:${canonicalArgs(args)}`;
+export function cliLoopKey(sessionId: string, command: string, args: Record<string, unknown>): string {
+  if (ARG_INSENSITIVE_LOOP_COMMANDS.has(command)) return `${sessionId}:${command}:*`;
+  return `${sessionId}:${command}:${JSON.stringify(normalizeLoopArgs(args))}`;
+}
+
+export function detectCliLoop(
+  sessionId: string,
+  command: string,
+  args: Record<string, unknown>,
+  now = Date.now(),
+): number {
+  const key = cliLoopKey(sessionId, command, args);
   const entry = cliLoopEntries.get(key);
   if (!entry || now - entry.firstSeen > LOOP_WINDOW_MS) {
     cliLoopEntries.set(key, { firstSeen: now, count: 1 });
