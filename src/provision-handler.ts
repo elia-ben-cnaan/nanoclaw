@@ -390,8 +390,12 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     // parentheses / brand tags — the message should read like the user
     // actually wrote it (Elia, 2026-07-30).
     const hasName = userName !== 'User';
-    const whatsappText =
-      lang === 'en'
+    const isJobSignup = body.src === 'agent4job' || body.src === 'jobs';
+    const whatsappText = isJobSignup
+      ? lang === 'en'
+        ? 'Hello Johnny\nI came through the job search service\nI would like to begin'
+        : 'שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל'
+      : lang === 'en'
         ? `Hey Johnny,\n${hasName ? `I'm ${userName}, ` : ''}happy to start working together! 🙂\n\nActivation code: ${activation.code}`
         : `אהלן ג'וני,\n${hasName ? `אני ${userName}, ` : ''}אשמח להתחיל לעבוד יחד! 🙂\n\nקוד הפעלה: ${activation.code}`;
     const whatsappDeepLink = whatsappPhoneNumber

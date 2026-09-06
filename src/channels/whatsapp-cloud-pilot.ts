@@ -69,6 +69,7 @@ function resolvePilotSlug(platformId: string): string | null {
  * casually mid-conversation can't false-attribute a signup.
  */
 const SRC_PHRASES: Array<[RegExp, string]> = [
+  [/הגעתי דרך שירות חיפוש העבודה|got here through the job search service/i, 'agent4job'],
   [/הגעתי דרך אביגיל|got here through Avigail/i, 'avigail-linkedin-1'],
   [/הגעתי דרך קהילת Linkers|got here through the Linkers community/i, 'linkers-1'],
   [/הגעתי דרך הפוסט של אליה|got here through Elia'?s LinkedIn post/i, 'elia-linkedin-1'],

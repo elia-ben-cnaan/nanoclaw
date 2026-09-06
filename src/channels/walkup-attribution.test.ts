@@ -36,6 +36,10 @@ describe('parseWalkupAttribution', () => {
     expect(r.name).toBe('רינת');
   });
 
+  it('Hebrew job-service phrase routes Agent4Job without a visible code or Latin tag', () => {
+    expect(parseWalkupAttribution('שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל').src).toBe('agent4job');
+  });
+
   it('Hebrew parenthetical in a real sentence is NOT mistaken for a tag', () => {
     const r = parseWalkupAttribution('היי, קוראים לי רון (מהמשרד בחיפה), אשמח לפתוח סוכן');
     expect(r.src).toBeNull();
