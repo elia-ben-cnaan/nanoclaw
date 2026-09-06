@@ -258,7 +258,7 @@ export function wireJoniChat(
 function buildActivationHooks(token: string): ActivationHooks {
   return {
     async activate(consumed: PilotActivation, ctx: ActivationContext): Promise<string> {
-      const prov = provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
+      const prov = await provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
       // Send the fixed greeting BEFORE wiring the chat to the agent. Wiring is
       // what lets the agent receive and answer messages; doing it last means a
       // message that arrives immediately after activation (the app handoff can

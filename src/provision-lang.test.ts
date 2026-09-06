@@ -57,9 +57,9 @@ function activation(lang: 'he' | 'en', gender: 'm' | 'f' = 'm'): PilotActivation
 }
 
 describe('provisionPilotAtPress — opening language follows signup lang', () => {
-  it('en signup → seed instructs English communication, not Hebrew', () => {
+  it('en signup → seed instructs English communication, not Hebrew', async () => {
     capturedInstructions = '';
-    const res = provisionPilotAtPress({ activation: activation('en') });
+    const res = await provisionPilotAtPress({ activation: activation('en') });
     expect(res.lang).toBe('en');
     // The identity block must tell the agent to open + speak English.
     expect(capturedInstructions).toContain('Open the conversation in English');
@@ -73,49 +73,49 @@ describe('provisionPilotAtPress — opening language follows signup lang', () =>
     expect(capturedInstructions).toContain('write every message, starting with the');
   });
 
-  it('he signup → seed stays Hebrew (default unchanged)', () => {
+  it('he signup → seed stays Hebrew (default unchanged)', async () => {
     capturedInstructions = '';
-    const res = provisionPilotAtPress({ activation: activation('he') });
+    const res = await provisionPilotAtPress({ activation: activation('he') });
     expect(res.lang).toBe('he');
     expect(capturedInstructions).toContain('דבר/י אליו/אליה בעברית');
     // The English-only override note must not appear for Hebrew signups.
     expect(capturedInstructions).not.toContain('Language override for everything below');
   });
 
-  it('missing/invalid lang → defaults to Hebrew', () => {
+  it('missing/invalid lang → defaults to Hebrew', async () => {
     capturedInstructions = '';
     const act = activation('he');
     // Simulate a bad value slipping through the type.
     (act as unknown as { lang: string }).lang = 'xx';
-    const res = provisionPilotAtPress({ activation: act });
+    const res = await provisionPilotAtPress({ activation: act });
     expect(res.lang).toBe('he');
     expect(capturedInstructions).toContain('דבר/י אליו/אליה בעברית');
   });
 
-  it('no name anywhere → neutral-address instruction, no invented name', () => {
+  it('no name anywhere → neutral-address instruction, no invented name', async () => {
     capturedInstructions = '';
     const act = activation('he');
     act.metadata = JSON.stringify({ gender: 'm' });
-    const res = provisionPilotAtPress({ activation: act, fallbackName: null });
+    const res = await provisionPilotAtPress({ activation: act, fallbackName: null });
     expect(res.userName).toBe('User');
     expect(capturedInstructions).toContain('שם המשתמש לא ידוע');
     expect(capturedInstructions).not.toContain('שם המשתמש הוא User');
   });
 
-  it('webhook fallback name used when form carried none', () => {
+  it('webhook fallback name used when form carried none', async () => {
     capturedInstructions = '';
     const act = activation('he');
     act.metadata = JSON.stringify({ gender: 'm' });
-    const res = provisionPilotAtPress({ activation: act, fallbackName: 'רוני' });
+    const res = await provisionPilotAtPress({ activation: act, fallbackName: 'רוני' });
     expect(res.userName).toBe('רוני');
     expect(capturedInstructions).toContain('שם המשתמש הוא רוני');
   });
 });
 
 describe('provisionPilotAtPress — sender isolation', () => {
-  it('two senders → two distinct agent groups (never shared)', () => {
-    const a = provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח א' });
-    const b = provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח ב' });
+  it('two senders → two distinct agent groups (never shared)', async () => {
+    const a = await provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח א' });
+    const b = await provisionPilotAtPress({ activation: activation('he'), fallbackName: 'שולח ב' });
     expect(a.agentGroupId).not.toBe(b.agentGroupId);
     expect(a.slug).not.toBe(b.slug);
   });

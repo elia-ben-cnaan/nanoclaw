@@ -129,6 +129,61 @@ const PROVISION_TOKEN: string | undefined = (() => {
 // hosted_agent_template.md (ג'ני). Existing Jenny agents keep their own files.
 const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'pilot_agent_script_v2.md');
 
+// ── Agent4Job (Path A) — job-search pilot wiring ────────────────────────────
+const CENTRAL_BASE = process.env.CENTRAL_BASE ?? 'http://159.195.200.224:8080';
+const FEED_TOKEN = process.env.FEED_TOKEN ?? ''; // server-side admin token; NEVER given to the agent
+const MINT_TIMEOUT_MS = 4000;
+const JOB_TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'joni_jobsearch_script.md');
+
+/** Job-search pilot? Gate on the src flag already parsed off activation metadata. */
+function isJobPilot(meta: ActivationMetadata): boolean {
+  return meta.src === 'agent4job' || meta.src === 'jobs';
+}
+
+/**
+ * Mint the user's own scoped, revocable board token from the central engine.
+ * SOFT-FAIL: returns null on any error/timeout — caller MUST still provision.
+ * provisionPilotAtPress is idempotent, so a later re-provision re-mints.
+ */
+async function mintBoardToken(userId: string, ttlDays = 90): Promise<{ token: string; boardUrl: string } | null> {
+  if (!FEED_TOKEN || !userId) {
+    log.warn('Provision: cannot mint board token', { hasToken: !!FEED_TOKEN, userId });
+    return null;
+  }
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), MINT_TIMEOUT_MS);
+  try {
+    const r = await fetch(`${CENTRAL_BASE}/onboard-issue`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${FEED_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ttlDays }),
+      signal: ctl.signal,
+    });
+    if (!r.ok) {
+      log.warn('Provision: onboard-issue failed', { status: r.status, userId });
+      return null;
+    }
+    const j = (await r.json()) as { token: string; boardUrl: string };
+    return { token: j.token, boardUrl: j.boardUrl };
+  } catch (err) {
+    log.warn('Provision: onboard-issue error', { userId, err: (err as Error)?.message });
+    return null; // never throw — provisioning must complete
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Job-search brain — mirrors buildInstructions(), reads the sibling job template. */
+function buildJobInstructions(a: { userName: string; userId: string; boardToken: string; boardUrl: string }): string {
+  const template = fs.readFileSync(JOB_TEMPLATE_PATH, 'utf8');
+  return template
+    .replaceAll('{{USER_NAME}}', a.userName)
+    .replaceAll('{{USER_ID}}', a.userId)
+    .replaceAll('{{BOARD_TOKEN}}', a.boardToken)
+    .replaceAll('{{BOARD_URL}}', a.boardUrl)
+    .replaceAll('{{CENTRAL_BASE}}', CENTRAL_BASE);
+}
+
 /**
  * Fixed name every pilot agent introduces itself with (per the pilot spec:
  * a single, consistent identity — no rename invitation in the greeting).
@@ -391,13 +446,13 @@ export interface PressProvisionResult {
  * the daily cost cap still enforces spend (see dailyCostAction in
  * router.ts), but neither is framed to the user as a countdown.
  */
-export function provisionPilotAtPress(input: {
+export async function provisionPilotAtPress(input: {
   activation: PilotActivation;
   /** Telegram profile name — fallback when the form carried no name. */
   fallbackName?: string | null;
   /** Channel name baked into the agent instructions ({{CHANNEL}}). Defaults to Telegram. */
   channel?: string;
-}): PressProvisionResult {
+}): Promise<PressProvisionResult> {
   const meta = parseActivationMetadata(input.activation);
   // realName drives the identity block (null → explicit "address neutrally"
   // instruction); userName keeps the legacy 'User' placeholder for the
@@ -424,10 +479,29 @@ export function provisionPilotAtPress(input: {
     created_at: now,
   });
 
-  const instructions =
-    buildUserIdentityBlock(realName, gender, lang) +
-    '\n\n' +
-    buildInstructions(userName, input.channel ?? 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
+  let instructions: string;
+  if (isJobPilot(meta)) {
+    const boardUserId = (meta.phone ?? '').replace(/\D/g, ''); // board keys on phone digits
+    const minted = await mintBoardToken(boardUserId, 90); // null on failure — no throw
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) +
+      '\n\n' +
+      buildJobInstructions({
+        userName,
+        userId: boardUserId,
+        boardToken: minted?.token ?? '', // empty until a later re-provision mints
+        boardUrl: minted?.boardUrl ?? '',
+      });
+    if (!minted) {
+      log.warn('Provision: job pilot without board token — will re-mint next provision', { boardUserId, slug });
+    }
+  } else {
+    // UNCHANGED generic ג'וני path — byte-identical to today.
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) +
+      '\n\n' +
+      buildInstructions(userName, input.channel ?? 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
+  }
   initGroupFilesystem(
     { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
     { instructions },

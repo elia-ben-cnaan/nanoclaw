@@ -243,7 +243,7 @@ function wirePilotChat(platformId: string, agentGroupId: string, userId: string,
 function buildActivationHooks(token: string) {
   return {
     async activate(consumed: PilotActivation, ctx: ActivationContext): Promise<string> {
-      const prov = provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
+      const prov = await provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
       wirePilotChat(ctx.platformId, prov.agentGroupId, ctx.userId, prov.userName);
       await sendPairingConfirmation(token, ctx.platformId, prov.userName, prov.lang);
       return prov.agentGroupId;

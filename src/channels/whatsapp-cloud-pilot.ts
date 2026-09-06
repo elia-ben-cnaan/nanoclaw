@@ -423,7 +423,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     );
                     return; // no agent for a bad code
                   }
-                  const prov = provisionPilotAtPress({
+                  const prov = await provisionPilotAtPress({
                     activation: consumed,
                     fallbackName: senderName || null,
                     channel: 'WhatsApp',
@@ -495,7 +495,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     agentGroupId: `pending-${Date.now()}`,
                   });
                   if (!consumed) throw new Error('walk-up activation consume failed');
-                  const prov = provisionPilotAtPress({
+                  const prov = await provisionPilotAtPress({
                     activation: consumed,
                     fallbackName: attr.name || senderName || null,
                     channel: 'WhatsApp',

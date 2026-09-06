@@ -1095,7 +1095,7 @@ registerChannelAdapter('whatsapp', {
                       );
                       continue; // no agent for a bad code — same as Telegram
                     }
-                    const prov = provisionPilotAtPress({
+                    const prov = await provisionPilotAtPress({
                       activation: consumed,
                       fallbackName: senderName || null,
                       channel: 'WhatsApp',
@@ -1131,7 +1131,7 @@ registerChannelAdapter('whatsapp', {
                     // on a synthetic consumed activation and let the message
                     // route through to the fresh agent, which opens per script.
                     const nowIso = new Date().toISOString();
-                    const prov = provisionPilotAtPress({
+                    const prov = await provisionPilotAtPress({
                       activation: {
                         code: '',
                         // No form → detect the language from the first message

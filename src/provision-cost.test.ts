@@ -54,15 +54,15 @@ function activation(): PilotActivation {
 }
 
 describe('provisionPilotAtPress — pilot cost tier is pinned cheap', () => {
-  it('pins the configured pilot model (fleet standard since 2026-08-05: sonnet-4-5, haiku Hebrew glitches)', () => {
+  it('pins the configured pilot model (fleet standard since 2026-08-05: sonnet-4-5, haiku Hebrew glitches)', async () => {
     capturedConfig = {};
-    provisionPilotAtPress({ activation: activation() });
+    await provisionPilotAtPress({ activation: activation() });
     expect(capturedConfig.model).toBe('claude-sonnet-4-5');
   });
 
-  it('pins reasoning effort low (not high / unset)', () => {
+  it('pins reasoning effort low (not high / unset)', async () => {
     capturedConfig = {};
-    provisionPilotAtPress({ activation: activation() });
+    await provisionPilotAtPress({ activation: activation() });
     expect(capturedConfig.effort).toBe('low');
   });
 });
