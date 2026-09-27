@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>NanoShellano · הסוכן האישי שלך</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="description" content="פותחים סוכן AI אישי בטלגרם בקליק אחד, בלי רקע טכני.">
+<meta property="og:locale" content="he_IL">
+<meta property="og:type" content="website">
+<meta property="og:title" content="NanoShellano · הסוכן האישי שלך">
+<meta property="og:description" content="פותחים סוכן AI אישי בטלגרם בקליק אחד, בלי רקע טכני.">
+<meta property="og:url" content="https://nanohubdemo.vercel.app/nano.html">
+<meta property="og:site_name" content="NanoShellano">
+<meta property="og:image" content="https://nanohubdemo.vercel.app/shellano_og_share.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="NanoShellano, your next hire is an AI agent">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NanoShellano · הסוכן האישי שלך">
+<meta name="twitter:image" content="https://nanohubdemo.vercel.app/shellano_og_share.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000; --panel:#0E0E0E; --panel2:#161616; --line:#242424;
+    --ink:#FFF; --mut:#B0B0B0; --dim:#6F6F6F;
+    --teal:#56EDD6; --teal-deep:#0F756D; --on-teal:#04211D;
+    --red:#FF4D4D; --orange:#E85D3A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:#050505; font-family:Heebo,system-ui,sans-serif; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:0}
+
+  .device{position:relative; width:100%; max-width:412px; height:100vh; max-height:880px;
+    background:var(--bg); overflow:hidden; display:flex; flex-direction:column;
+    border:1px solid var(--line); border-radius:34px; box-shadow:0 30px 80px rgba(0,0,0,.7)}
+  @media (max-width:480px){ .device{max-width:none; height:100vh; max-height:none; border:0; border-radius:0} }
+
+  .topbar{flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:16px 16px 10px; position:relative; z-index:5}
+  .back{width:44px; height:44px; border-radius:13px; border:1px solid var(--line); background:var(--panel);
+    color:var(--ink); font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; transition:opacity .2s}
+  .back[disabled]{opacity:.28; pointer-events:none}
+  .prog{flex:1; display:flex; gap:5px}
+  .seg{flex:1; height:4px; border-radius:99px; background:#1c1c1c; overflow:hidden}
+  .seg i{display:block; height:100%; width:0; background:var(--teal); border-radius:99px; transition:width .4s ease}
+  .seg.done i,.seg.cur i{width:100%}
+  .stepn{flex:0 0 auto; font-size:11px; color:var(--dim); font-weight:800; min-width:26px; text-align:center}
+  .lang{flex:0 0 auto; font-size:11px; font-weight:800; color:var(--teal); background:var(--panel);
+    border:1px solid var(--line); border-radius:99px; padding:7px 11px; cursor:pointer; letter-spacing:.4px}
+  .logotxt{flex:0 0 auto; height:30px; width:auto; object-fit:contain; display:block; user-select:none}
+
+  .stage{flex:1; overflow:hidden; position:relative}
+  .screen{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    display:flex; flex-direction:column; padding:14px 22px 26px}
+  .screen.in-fwd{animation:inFwd .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.in-back{animation:inBack .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.out-fwd{animation:outFwd .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.out-back{animation:outBack .36s cubic-bezier(.22,.61,.36,1) both}
+  @keyframes inFwd{from{transform:translateX(-100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outFwd{from{transform:translateX(0);opacity:1} to{transform:translateX(100%);opacity:.2}}
+  @keyframes inBack{from{transform:translateX(100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outBack{from{transform:translateX(0);opacity:1} to{transform:translateX(-100%);opacity:.2}}
+  html[dir=ltr] .screen.in-fwd{animation:inFwdL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.out-fwd{animation:outFwdL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.in-back{animation:inBackL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.out-back{animation:outBackL .36s cubic-bezier(.22,.61,.36,1) both}
+  @keyframes inFwdL{from{transform:translateX(100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outFwdL{from{transform:translateX(0);opacity:1} to{transform:translateX(-100%);opacity:.2}}
+  @keyframes inBackL{from{transform:translateX(-100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outBackL{from{transform:translateX(0);opacity:1} to{transform:translateX(100%);opacity:.2}}
+
+  .glow{position:absolute; top:-50px; left:50%; transform:translateX(-50%);
+    width:280px; height:280px; background:radial-gradient(circle,rgba(86,237,214,.15),transparent 70%); pointer-events:none}
+  .spacer{flex:1; min-height:8px}
+
+  .lockup{display:block; height:38px; width:auto; margin:2px auto 0}
+  .hero-mascot{width:124px; height:124px; margin:14px auto 16px;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 45%,rgba(86,237,214,.24),transparent 68%)}
+  .hero-mascot img{width:114px; height:114px; object-fit:contain}
+
+  h2{font-size:24px; font-weight:800; margin-bottom:9px; text-align:center; line-height:1.22}
+  .kick{text-align:center; font-size:12px; font-weight:800; letter-spacing:.12em; color:var(--teal); text-transform:uppercase; margin-bottom:9px}
+  .lead{color:var(--mut); font-size:14px; text-align:center; line-height:1.65; margin-bottom:18px}
+  .lead b{color:var(--ink)}
+  .prose{color:var(--mut); font-size:14.5px; text-align:start; line-height:1.85; margin-bottom:13px}
+  .prose b{color:var(--ink)}
+  .prose .em{color:var(--teal); font-weight:700}
+  .byline{color:var(--mut); font-size:12px; text-align:center; margin-top:7px; font-weight:700}
+
+  .flist{display:flex; flex-direction:column; gap:13px; margin:4px 0}
+  .fitem{display:flex; gap:12px; align-items:flex-start; text-align:start}
+  .fic{flex:0 0 36px; width:36px; height:36px; border-radius:11px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:17px}
+  .ftx{font-size:13px; line-height:1.5; color:var(--mut)}
+  .ftx b{color:var(--ink); display:block; font-size:13.5px; margin-bottom:2px}
+  .ftx a{color:var(--teal); text-decoration:underline; font-weight:700; cursor:pointer}
+
+  /* security band */
+  .secband{display:flex; gap:11px; align-items:flex-start; background:rgba(86,237,214,.07);
+    border:1px solid var(--teal-deep); border-radius:14px; padding:13px 14px; margin:2px 0 16px; text-align:start}
+  .secband .sic{flex:0 0 32px; width:32px; height:32px; border-radius:9px; background:rgba(86,237,214,.14);
+    display:flex; align-items:center; justify-content:center; font-size:17px}
+  .secband .stx{font-size:12.5px; line-height:1.55; color:var(--mut)}
+  .secband .stx b{display:block; color:var(--teal); font-size:13.5px; margin-bottom:2px}
+  .honest{font-size:12.5px; color:var(--mut); line-height:1.6; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:12px 13px; margin-top:14px; text-align:start}
+  .honest b{color:var(--ink)}
+  .linkrow{text-align:center; margin:14px 0 2px}
+  .linkrow a{color:var(--teal); font-size:12.5px; font-weight:700; text-decoration:underline; cursor:pointer}
+
+  /* flow timeline */
+  .flow{position:relative; margin:6px 0 4px}
+  .frow{display:flex; gap:14px; align-items:flex-start; position:relative; padding-bottom:18px}
+  .frow:last-child{padding-bottom:0}
+  .frow:not(:last-child)::before{content:''; position:absolute; top:32px; bottom:6px;
+    inset-inline-start:15px; width:2px; background:var(--line)}
+  .fnum{flex:0 0 32px; width:32px; height:32px; border-radius:50%; background:var(--panel2);
+    border:1px solid var(--teal-deep); color:var(--teal); font-weight:800; font-size:14px;
+    display:flex; align-items:center; justify-content:center; position:relative; z-index:2}
+  .fbody{text-align:start; padding-top:4px}
+  .fbody b{display:block; font-size:14.5px; color:var(--ink); margin-bottom:2px}
+  .fbody span{font-size:12.5px; color:var(--mut); line-height:1.5}
+  .fbody i{font-style:normal; color:var(--teal); font-weight:700}
+
+  /* capabilities */
+  .caps{display:flex; flex-direction:column; gap:10px; margin:4px 0 14px}
+  .cap{display:flex; gap:12px; align-items:flex-start; background:var(--panel); border:1px solid var(--line);
+    border-radius:13px; padding:11px 13px; text-align:start}
+  .cap .ci{flex:0 0 34px; width:34px; height:34px; border-radius:10px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:17px}
+  .cap .ct b{display:block; font-size:13.5px; margin-bottom:1px}
+  .cap .ct span{font-size:12px; color:var(--mut); line-height:1.45}
+
+  /* mini chat demo */
+  .demo{background:#0c1418; border:1px solid #1a2832; border-radius:16px; padding:13px 12px; margin:2px 0 6px;
+    background-image:radial-gradient(rgba(255,255,255,.025) 1px,transparent 1px); background-size:18px 18px}
+  .demo-top{display:flex; align-items:center; gap:9px; padding-bottom:11px; border-bottom:1px solid #1a2832; margin-bottom:12px}
+  .demo-av{width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,#56EDD6,#0F756D);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:#04211D; font-size:14px}
+  .demo-nm{font-size:13px; font-weight:700}
+  .demo-on{font-size:10.5px; color:#56EDD6}
+  .bub{max-width:90%; background:#17242c; border-radius:14px 14px 14px 4px; padding:9px 12px;
+    font-size:13px; line-height:1.55; color:#eaf2f4; margin-bottom:8px; animation:pop .34s ease both}
+  @keyframes pop{from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:none}}
+  .bub:last-child{margin-bottom:0}
+  .bub.me{background:#244536; border-radius:14px 14px 4px 14px; margin-inline-start:auto; color:#dff5ea}
+  .bub b{color:#fff}
+  .bub .ok{color:#56EDD6; font-weight:800}
+
+  /* install strip */
+  .istrip{display:flex; gap:8px; margin:6px 0 18px}
+  .istep{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:13px 7px; text-align:center}
+  .istep .in{width:27px; height:27px; border-radius:50%; background:var(--teal); color:var(--on-teal);
+    font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; margin:0 auto 8px}
+  .istep b{display:block; font-size:11.5px; line-height:1.35; color:var(--ink)}
+
+  /* form */
+  label{display:block; font-size:13px; color:var(--mut); font-weight:700; margin:14px 2px 6px}
+  .inp{width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:14px; color:var(--ink); font-size:15.5px; font-family:inherit}
+  .inp:focus{outline:none; border-color:var(--teal-deep)}
+  .seg-g{display:flex; gap:8px; margin-top:6px}
+  .seg-g button{flex:1; padding:12px; border-radius:11px; border:1px solid var(--line);
+    background:var(--panel); color:var(--mut); font-size:14.5px; font-weight:700; font-family:inherit; cursor:pointer}
+  .seg-g button.on{background:var(--teal); color:var(--on-teal); border-color:var(--teal)}
+  .check{display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:13px; color:var(--mut); line-height:1.5; text-align:start; cursor:pointer}
+  .box{flex:0 0 24px; width:24px; height:24px; border-radius:7px; border:1px solid var(--line); background:var(--panel);
+    color:var(--on-teal); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; margin-top:1px; transition:.2s}
+  .check.on .box{background:var(--teal); border-color:var(--teal)}
+  .check .box span{opacity:0; transition:.2s}
+  .check.on .box span{opacity:1}
+  .check b{color:var(--teal)}
+  .tlink{color:var(--teal); text-decoration:underline; text-underline-offset:2px; cursor:pointer; font-weight:600}
+
+  .ho-ico{width:78px; height:78px; border-radius:22px;
+    background:radial-gradient(circle at 50% 40%,rgba(86,237,214,.3),transparent 70%),linear-gradient(135deg,#0F756D,#093f3a);
+    display:flex; align-items:center; justify-content:center; font-size:40px}
+  .tg-peek{display:flex; gap:10px; align-items:center; background:#0c1418; border:1px solid #1a2832; border-radius:14px; padding:11px 12px; max-width:300px}
+  .peek-av{flex:0 0 32px; width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#56EDD6,#0F756D);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:#04211D; font-size:15px}
+  .peek-bub{font-size:13px; color:#cfe0e3; line-height:1.4; text-align:start}
+
+  .foot{flex:0 0 auto; padding:12px 22px calc(18px + env(safe-area-inset-bottom)); background:linear-gradient(transparent,#000 22%)}
+  .cta{width:100%; padding:16px; border:0; border-radius:14px; background:var(--teal); color:var(--on-teal);
+    font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; transition:.15s; min-height:54px}
+  .cta:active{transform:scale(.985)}
+  .cta[disabled]{opacity:.32; pointer-events:none; background:var(--panel2); color:var(--dim); border:1px solid var(--line)}
+  .note{color:var(--dim); font-size:11.5px; text-align:center; margin-top:12px; line-height:1.55}
+
+  /* sheet overlay */
+  .sheet{position:absolute; inset:0; z-index:55; background:rgba(0,0,0,.82); backdrop-filter:blur(4px);
+    display:none; flex-direction:column; justify-content:flex-end}
+  .sheet.on{display:flex; animation:fade .25s ease both}
+  @keyframes fade{from{opacity:0} to{opacity:1}}
+  .sheet-card{background:var(--panel); border:1px solid var(--line); border-radius:22px 22px 0 0;
+    padding:22px 22px calc(22px + env(safe-area-inset-bottom)); max-height:82%; overflow-y:auto; animation:up .3s ease both}
+  @keyframes up{from{transform:translateY(40px); opacity:.5} to{transform:translateY(0); opacity:1}}
+  .sheet-card h3{font-size:18px; font-weight:800; margin-bottom:12px}
+  .sheet-card p{font-size:13.5px; color:var(--mut); line-height:1.8; margin-bottom:10px; text-align:start}
+  .sheet-card p b{color:var(--ink)}
+  .cta.ghost{background:transparent; color:var(--teal); border:1px solid var(--teal-deep); margin-top:6px}
+
+  /* magic / handoff overlay */
+  .switch{position:absolute; inset:0; z-index:50; background:rgba(0,0,0,.93); backdrop-filter:blur(5px);
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:30px}
+  .switch.on{display:flex; animation:fade .25s ease both}
+  .switch .ho-ico{animation:bob 1.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)}}
+  .switch h2{margin:0}
+  .switch p{color:var(--mut); font-size:14px; line-height:1.6}
+  .switch b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="topbar">
+      <img class="logotxt" src="c2a_logo_transparent.png" alt="Click2Agent">
+
+      <button class="back" id="back" onclick="go(-1)" aria-label="back">→</button>
+      <div class="prog" id="prog"></div>
+      <div class="stepn" id="stepn"></div>
+      <div class="lang" id="lang" onclick="toggleLang()">EN</div>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="foot" id="foot"></div>
+    <div class="sheet" id="sheet"></div>
+    <div class="switch" id="switch"></div>
+  </div>
+
+<script>
+const N = 6;
+const BOT_FALLBACK = 'https://telegram.me/joni_agent_bot';
+let i = 0, L = 'he', agree = false, animating = false, submitting = false;
+let deepLink = '';
+const SRC = new URLSearchParams(location.search).get('src') || '';
+const reg = { name:'', phone:'', email:'' };
+
+const T = {
+  he:{
+    /* 1 NEED */
+    s1_kick:'NanoShellano',
+    s1_title:'עולם העבודה משתנה.<br>כבר עכשיו.',
+    s1_p:[
+      'בכל חודש שעובר, סוכני AI נכנסים לעוד מחלקה, לעוד תפקיד, לעוד שולחן עבודה. זה כבר לא עתיד, זה ההווה.',
+      'מי שיודע לעבוד עם סוכן ימצא את עצמו <b>צעד אחד לפני כולם</b>. ומי שלא, ימצא את עצמו עושה ביד דברים שסוכן עושה בשניות.',
+      'הצעד הכי חשוב שתעשה השנה הוא לפתוח סוכן אחד משלך, ולהתחיל לעבוד איתו. <span class="em">בלי רקע טכני, בלי קוד.</span>'
+    ],
+    s1_cta:'אני רוצה להיכנס לעולם הזה →',
+    s1_note:'פיילוט בגישה מוזמנת · גרסה ראשונה',
+    s1_by:'מאת אליה בן כנען',
+
+    /* 2 FREE */
+    s2_kick:'למה בחינם',
+    s2_title:'ולמה אני נותן<br>את זה בחינם',
+    s2_p:[
+      'לפני שנה לא ידעתי לכתוב שורת קוד אחת. היום יש לי סוכנים שעושים בשבילי חצי מהעבודה, וזה שינה לי לגמרי את הדרך שבה אני עובד.',
+      'אז במקום לשמור את זה לעצמי, בניתי דרך פשוטה שתעביר גם אותך לצד השני. <b>בלי לשלם שקל.</b>',
+      'זה פיילוט שאני עושה כדי להכניס כמה שיותר אנשים לעולם הסוכנים. בלי כרטיס אשראי, בלי התחייבות, בלי קאצ\'.'
+    ],
+    s2_cta:'יפה, ומה עם הפרטיות? →',
+    s2_note:'בלי עלות נסתרת. הפיילוט פתוח ובחינם.',
+
+    /* 3 SECURE */
+    s3_kick:'מאובטח',
+    s3_title:'מאובטח, ורק שלך',
+    s3_lead:'לפני שמכניסים סוכן לחיים שלך, מגיע לך לדעת בדיוק מה קורה עם המידע.',
+    s3_sic:'🔒',
+    s3_sec_t:'חשבון מבודד, רק שלך',
+    s3_sec:'הסוכן חי בחשבון נפרד ומבודד שמיוחד רק לך. כל חיבור נסגר מוצפן, והמידע שלך לא מתערבב עם אף אחד.',
+    s3_f:[
+      ['🔑','אתה מאשר כל חיבור בעצמך','שום שירות לא מתחבר בלי שאתה לוחץ "אשר", בחשבון שלך. מחברים רק מה שבא לך.'],
+      ['🚪','מנתקים ומוחקים בכל רגע','בלחיצה אחת מנתקים שירות, ובלחיצה אחת מוחקים את הסוכן ואת כל הנתונים איתו.'],
+      ['🛡️','לא מוכרים, לא משתפים','המידע שלך לא נמכר ולא עובר לאף אחד. הוא נשאר אצלך.']
+    ],
+    s3_honest:'<b>בכנות:</b> זו לא הבטחה ש"אין לנו גישה". זו שליטה אמיתית, אתה מחליט, אתה מאשר, ואתה מבטל מתי שתרצה.',
+    s3_nano_link:'מה זה NanoClaw בעצם?',
+    s3_cta:'הבנתי, איך זה הולך להיות? →',
+    s3_note:'אפשר לשוחח עם הסוכן בכל שפה, בעברית או באנגלית.',
+
+    /* 4 FLOW */
+    s4_kick:'הדרך',
+    s4_title:'איך זה הולך להיות',
+    s4_lead:'חמישה צעדים מהרגע שתלחץ "מתחילים" ועד שהסוכן עובד בשבילך.',
+    s4_flow:[
+      ['פותחים לך משתמש','שם, טלפון, מייל. לוקח דקה.'],
+      ['מוקם לך סוכן אישי','המערכת מקימה לך סוכן על שרת מנוהל, תמיד פעיל, רק שלך.'],
+      ['מקבלים קוד לטלגרם','קישור אישי שמחבר את הסוכן ישירות לטלגרם שלך.'],
+      ['נכנסים לשיחה','הסוכן מקבל את פניך בשמך, ומתחילים לדבר בשפה רגילה.'],
+      ['מחברים כלים, כשרוצים','מייל, יומן, וואטסאפ. מחברים בקצב שלך, בלחיצה.']
+    ],
+    s4_cta:'ומה הוא בעצם עושה? →',
+    s4_note:'הכל קורה תוך כמה דקות. אתה רק עוקב אחרי המסכים.',
+
+    /* 5 — ככה נעבוד יחד */
+    s5_how_t:'ככה נעבוד יחד',
+    s5_agent:'ג\'וני',
+    s5_typing:'זמין עכשיו',
+    s5_cases:[
+      {t:'משימות רוחביות', s:'בקשה אחת הופכת לשרשרת פעולות על פני כמה מערכות, וחוזרת אליך גמורה.',
+       c:[['me','עדכן את הלקוח ב-CRM, תכין הצעת מחיר ותשלח לו במייל'],
+          ['bot','על איזה סכום ההצעה?'],
+          ['me','45 אלף, כמו שסיכמנו בפגישה'],
+          ['bot','עדכנתי ב-CRM, הכנתי הצעה, וכתבתי טיוטת מייל ללקוח.'],
+          ['bot','המייל ממתין לאישורך. תיכנס ותאשר שליחה.']]},
+      {t:'יצירת תוצרים', s:'לא רק עונה, מייצר את התוצרים עצמם. דוחות, מצגות, מסמכים וניתוחים.',
+       c:[['me','אני צריך מצגת 10 שקפים על תוצאות Q2, לישיבה ב-3'],
+          ['bot','במיתוג שלנו או של הלקוח?'],
+          ['me','שלנו, עם הלוגואים של הלקוחות החדשים'],
+          ['bot','בונה: פתיחה, 7 שקפי גרפים וסיכום עם המלצות.'],
+          ['bot','מוכנה, מצורפת.','מצגת_Q2.pptx']]},
+      {t:'קולגה לאונבורדינג', s:'חדש בתפקיד? הוא הקולגה שמלווה אותך שלב שלב.',
+       c:[['me','חדש בתפקיד. איך פותחים בקשת רכש?'],
+          ['bot','עליי. פותח לך בקשה ב-CRM ומעדכן את הפרטים לפי הנהלים. על איזה סכום?'],
+          ['me','הזמנת ציוד משרדי, תקציב 6000 שקל'],
+          ['bot','מילאתי ושלחתי לאישור המנהל. תמתין לאישור במייל.']]},
+      {t:'מתחדש בכלי AI', s:'כלי AI חדש כל שבוע, ואי אפשר להדביק. אז הוא מדביק במקומך.',
+       c:[['me','אני צריך סרטון הדרכה לנהלים החדשים במשרד'],
+          ['bot','יצא כלי חדש שמרכיב סרטונים מצילומים של המשרד והאנשים. יש לך תמונות?'],
+          ['me','מצרף תמונות של הצוות והמשרד','תמונות_הצוות.zip'],
+          ['bot','בוצע. העליתי את הסרטון לדרייב ושלחתי לאישור המנהלת.']]}
+    ],
+    s5_cta:'אז מה אנחנו מבטיחים? →',
+    s5_note:'בחר תרחיש כדי לראות איך זה נראה בשיחה אמיתית.',
+
+    /* 6 INSTALL + REGISTER */
+    s6_kick:'התקנה',
+    s6_title:'ההתקנה, ומשם הקסם',
+    s6_lead:'שלוש דקות. פותחים לך משתמש, מקבלים קוד לטלגרם, <b>ומשם הקסם מתחיל.</b>',
+    s6_steps:[['1','ממלאים פרטים'],['2','מקבלים קוד לטלגרם'],['3','הקסם מתחיל']],
+    s6_name:'שם מלא', s6_name_ph:'איך קוראים לך',
+    s6_phone:'טלפון', s6_phone_ph:'050-0000000',
+    s6_email:'מייל', s6_email_ph:'you@example.com',
+    s6_check:'קראתי ומאשר את <a class="tlink" onclick="event.stopPropagation();openSheet(\'priv\')">תנאי השימוש והפרטיות</a>. האישור הזה פותח את הסוכן.',
+    s6_cta:'פתח לי סוכן →', s6_cta_load:'פותח לך סוכן…',
+    s6_note:'הפרטים נשמרים כדי שהסוכן יקבל את פניך נכון. בלי ספאם.',
+
+    magic_t:'הסוכן שלך מוכן ✨',
+    magic_p:'פתחנו לך טלגרם. הסוכן <b>מחכה לך שם</b>, רק תגיד שלום.',
+    magic_peek:'אהלן! 👋 אני הננו שלך, מוכן להתחיל. על מה נצלול ראשון?',
+
+    sheet_nano_t:'מה זה NanoClaw?',
+    sheet_nano:[
+      '<b>NanoClaw</b> היא תשתית הסוכנים שעליה הכל רץ. סוכן אישי שחי על שרת מנוהל, תמיד פעיל, ומדבר איתך דרך טלגרם בשפה רגילה.',
+      'הסוכן הוא שלך, לא של חברה. הוא לומד מה אתה צריך, מבצע משימות, ויכול להתחבר למערכות שלך כשתרצה, תמיד בשליטה שלך.',
+      'הפיילוט הזה הוא הדרך הכי פשוטה לפתוח סוכן כזה, בלי רקע טכני ובלי הגדרות.'
+    ],
+    sheet_priv_t:'תנאי שימוש ופרטיות',
+    sheet_priv:[
+      '<b>פיילוט.</b> השירות הוא פיילוט ניסיוני שניתן בחינם, לתקופה של כחודש בשלב זה. אנחנו רשאים לשנות, להאריך, להשהות או להפסיק אותו בכל עת, ללא הודעה מוקדמת וללא התחייבות להמשך זמינות.',
+      '<b>מה אנחנו אוספים.</b> פרטים שתמסור בהרשמה (שם, טלפון, מייל), תוכן השיחות שלך עם הסוכן, ומידע משירותים שתבחר לחבר, רק אחרי שאתה מאשר כל חיבור בעצמך.',
+      '<b>למה.</b> המידע משמש כדי להקים ולהפעיל את הסוכן האישי שלך, לקבל את פניך נכון, ולתפעל את השירות. לא למטרה אחרת.',
+      '<b>איפה זה נשמר.</b> הסוכן חי בחשבון נפרד ומבודד שמיוחד רק לך. החיבורים מוצפנים, והמידע שלך לא מתערבב עם משתמשים אחרים.',
+      '<b>שיתוף.</b> אנחנו לא מוכרים ולא משתפים את המידע שלך. כדי שהשירות יעבוד הוא רץ על תשתיות צד שלישי (שרת מנוהל, טלגרם, וספקי מודל AI) שמעבדים נתונים רק לצורך הפעלת השירות.',
+      '<b>שליטה ומחיקה.</b> אתה בשליטה מלאה. כדי למחוק הכל, פשוט כותב לסוכן את פקודת המחיקה (למשל "מחק והפסק") והוא מוחק את כל היסטוריית השיחה שלך ומפסיק לפעול. אחר כך אפשר למחוק את איש הקשר בטלגרם, והסוכן לא יגיב יותר. תמיד אפשר גם לפנות אלינו לבקשת מחיקה.',
+      '<b>שמירת מידע.</b> המידע נשמר כל עוד הסוכן שלך פעיל, או עד שתמחק אותו. אם הפיילוט יופסק, נמחק את הנתונים בהתאם.',
+      '<b>בלי אחריות.</b> זה שירות ניסיוני שמסופק כמו שהוא (as is). אין הבטחה לזמינות רציפה, ואין להסתמך עליו לשימושים קריטיים או למידע רגיש.',
+      '<b>גיל.</b> השימוש מיועד לבני 18 ומעלה.',
+      '<b>שינויים.</b> נוכל לעדכן את התנאים מעת לעת. המשך השימוש מהווה הסכמה לגרסה המעודכנת.',
+      '<b>יצירת קשר.</b> לכל שאלה: 052-8738698 · elia@bencnaan.net'
+    ],
+    sheet_close:'הבנתי'
+  },
+
+en:{
+  s1_kick:'NanoShellano',
+  s1_title:'The world of work<br>is changing. Right now.',
+  s1_p:[
+    'Every month, AI agents move into another department, another role, another desk. This stopped being a prediction. It is already happening.',
+    'People who learn to work with an agent will be <b>a step ahead of everyone else</b>. People who don\'t will keep doing by hand what an agent finishes in seconds.',
+    'The most important move you can make this year is to open an agent of your own and start working with it. <span class="em">No technical background, no code.</span>'
+  ],
+  s1_cta:'I want in →',
+  s1_note:'Invite-only pilot · First release',
+  s1_by:'Built by Elia Ben Cnaan',
+
+  s2_kick:'Why free',
+  s2_title:'And why I give<br>it away for free',
+  s2_p:[
+    'A year ago I couldn\'t write a single line of code. Today, agents do half my work for me, and they\'ve changed the way I work from the ground up.',
+    'So rather than keep that to myself, I built a simple way to bring you across to the other side too. <b>Without spending a cent.</b>',
+    'This is a pilot I\'m running to bring as many people as I can into the world of agents. No credit card, no commitment, no catch.'
+  ],
+  s2_cta:'Sounds good. What about privacy? →',
+  s2_note:'No hidden costs. The pilot is open and free.',
+
+  s3_kick:'Security',
+  s3_title:'Secure, and yours alone',
+  s3_lead:'Before you let an agent into your life, you deserve to know exactly what happens with your data.',
+  s3_sic:'🔒',
+  s3_sec_t:'An isolated account, just for you',
+  s3_sec:'Your agent lives in a separate, isolated account dedicated to you alone. Every connection is encrypted, and your data never mixes with anyone else\'s.',
+  s3_f:[
+    ['🔑','You approve every connection','Nothing connects until you tap "approve", inside your own account. You connect only what you choose to.'],
+    ['🚪','Disconnect and delete anytime','One tap disconnects a service. One tap deletes the agent, along with everything it knows.'],
+    ['🛡️','Never sold, never shared','Your data isn\'t sold and doesn\'t get passed to anyone. It stays yours.']
+  ],
+  s3_honest:'<b>To be honest:</b> this isn\'t a "we have no access" promise. It\'s real control. You decide, you approve, and you can revoke it all whenever you want.',
+  s3_nano_link:'So what is NanoClaw, exactly?',
+  s3_cta:'Got it. How does it work? →',
+  s3_note:'You can chat with the agent in any language, Hebrew or English.',
+
+  s4_kick:'The path',
+  s4_title:'Here\'s how it goes',
+  s4_lead:'Five steps between tapping "start" and having an agent that works for you.',
+  s4_flow:[
+    ['Open your account','Name, phone, email. Takes a minute.'],
+    ['Your personal agent is created','It runs on a managed server, always on, and belongs only to you.'],
+    ['Get your Telegram code','A personal link that drops the agent straight into your Telegram.'],
+    ['Step into the chat','The agent greets you by name, and you just talk, in plain language.'],
+    ['Connect tools when you\'re ready','Email, calendar, WhatsApp. Each one is a single tap, at your own pace.']
+  ],
+  s4_cta:'So what can it actually do? →',
+  s4_note:'The whole thing takes a few minutes. Just follow the screens.',
+
+  s5_how_t:'Here\'s how we\'ll work',
+  s5_agent:'Joni',
+  s5_typing:'online',
+  s5_cases:[
+    {t:'Tasks across your systems', s:'One request becomes a chain of actions across several systems, and comes back to you finished.',
+     c:[['me','Update the client in the CRM, prep a quote and email it over'],
+        ['bot','What amount should the quote be for?'],
+        ['me','45K, like we agreed in the meeting'],
+        ['bot','CRM updated, quote ready, and I\'ve drafted the email to the client.'],
+        ['bot','The email is waiting for your sign-off. Open it and approve to send.']]},
+    {t:'Creates real deliverables', s:'It produces the actual work: reports, decks, documents, analyses.',
+     c:[['me','I need a 10-slide deck on the Q2 results, for a 3pm meeting'],
+        ['bot','Our branding or the client\'s?'],
+        ['me','Ours, with the new clients\' logos'],
+        ['bot','On it: an intro, 7 chart slides, and a summary with recommendations.'],
+        ['bot','Done, attached.','Q2_deck.pptx']]},
+    {t:'Your onboarding buddy', s:'New on the job? It\'s the colleague who walks you through everything, step by step.',
+     c:[['me','Just started the role. How do I open a purchase request?'],
+        ['bot','On it. I\'ll open a request in the CRM and fill in the details according to policy. What amount?'],
+        ['me','Office equipment, budget is 6,000'],
+        ['bot','Filled in and sent to your manager for approval. Keep an eye out for the confirmation email.']]},
+    {t:'Keeps up with AI tools', s:'A new AI tool drops every week. Nobody can keep up, so it keeps up for you.',
+     c:[['me','I need a training video for the new office procedures'],
+        ['bot','A new tool just came out that builds videos from photos of the office and the team. Got any pictures?'],
+        ['me','Attaching photos of the team and the office','team_photos.zip'],
+        ['bot','Done. The video is up on Drive and sent to your manager for approval.']]}
+  ],
+  s5_cta:'So what\'s the promise? →',
+  s5_note:'Pick a scenario to see how it plays out in a real conversation.',
+
+  s6_kick:'Install',
+  s6_title:'A short setup, then the magic',
+  s6_lead:'Three minutes. We open your account, a code lands in your Telegram, <b>and from there the magic begins.</b>',
+  s6_steps:[['1','Fill in your details'],['2','Get your Telegram code'],['3','The magic begins']],
+  s6_name:'Full name', s6_name_ph:'Your name',
+  s6_phone:'Phone', s6_phone_ph:'050-0000000',
+  s6_email:'Email', s6_email_ph:'you@example.com',
+  s6_check:'I\'ve read and accept the <a class="tlink" onclick="event.stopPropagation();openSheet(\'priv\')">terms of use and privacy policy</a>. This confirmation is what opens your agent.',
+  s6_cta:'Open my agent →', s6_cta_load:'Opening your agent…',
+  s6_note:'We save your details so the agent can greet you properly. No spam.',
+
+  magic_t:'Your agent is ready ✨',
+  magic_p:'We\'ve opened Telegram for you. Your agent is <b>already waiting</b>, just say hi.',
+  magic_peek:'Hey! 👋 I\'m your Nano, ready to go. What should we dive into first?',
+
+  sheet_nano_t:'What is NanoClaw?',
+  sheet_nano:[
+    '<b>NanoClaw</b> is the infrastructure everything here runs on: a personal agent that lives on a managed server, stays on around the clock, and talks with you over Telegram in plain language.',
+    'The agent belongs to you, not to some company. It learns what you need, gets things done, and can connect to your systems when you choose, always under your control.',
+    'This pilot is the simplest way to get an agent of your own, with no technical background and nothing to configure.'
+  ],
+  sheet_priv_t:'Terms of use & privacy',
+  sheet_priv:[
+    '<b>Pilot.</b> This service is an experimental pilot, provided free of charge, for a period of roughly one month at this stage. We may change, extend, pause or discontinue it at any time, without prior notice and with no commitment to continued availability.',
+    '<b>What we collect.</b> The details you provide at signup (name, phone, email), the content of your conversations with the agent, and data from services you choose to connect, only after you approve each connection yourself.',
+    '<b>Why.</b> We use it to set up and run your personal agent, greet you by name, and operate the service. Nothing beyond that.',
+    '<b>Where it is stored.</b> Your agent runs in a separate, isolated account dedicated to you alone. Connections are encrypted, and your data never mixes with other users\'.',
+    '<b>Sharing.</b> We do not sell or share your data. To function, the service relies on third-party infrastructure (a managed server, Telegram, and AI model providers) that processes data only to operate the service.',
+    '<b>Control and deletion.</b> You are in full control. To delete everything, send the agent a delete command (for example "delete and exit") and it wipes your entire chat history and stops working. You can then delete the contact in Telegram, and the agent will not respond again. You can also contact us at any time to request deletion.',
+    '<b>Retention.</b> Data is kept while your agent is active, or until you delete it. If the pilot ends, we delete the data accordingly.',
+    '<b>No warranty.</b> This is an experimental service, provided as is. Continuous availability is not guaranteed, and it should not be relied on for critical uses or sensitive data.',
+    '<b>Age.</b> The service is intended for users aged 18 and over.',
+    '<b>Changes.</b> We may update these terms from time to time. Continued use means you accept the updated version.',
+    '<b>Contact.</b> For any question: 052-8738698 · elia@bencnaan.net'
+  ],
+  sheet_close:'Got it'
+}
+};
+
+function esc(s){ return String(s).replace(/"/g,'&quot;'); }
+function bubbles(arr){
+  return arr.map(b=>`<div class="bub${b[0]==='me'?' me':''}">${b[1]}</div>`).join('');
+}
+
+function screenHTML(t){
+  switch(i){
+    case 0: return `
+      <div class="glow"></div>
+      <div class="hero-mascot"><img src="nanoshellano-mascot.png" alt="NanoShellano"></div>
+      <h2>${t.s1_title}</h2>
+      ${t.s1_p.map(p=>`<p class="prose">${p}</p>`).join('')}
+      <div class="spacer"></div>`;
+    case 1: return `
+      <div class="glow"></div>
+      <div class="kick">${t.s2_kick}</div>
+      <h2>${t.s2_title}</h2>
+      ${t.s2_p.map(p=>`<p class="prose">${p}</p>`).join('')}
+      <div class="spacer"></div>`;
+    case 2: return `
+      <div class="glow"></div>
+      <div class="kick">${t.s3_kick}</div>
+      <h2>${t.s3_title}</h2>
+      <p class="lead">${t.s3_lead}</p>
+      <div class="secband"><div class="sic">${t.s3_sic}</div><div class="stx"><b>${t.s3_sec_t}</b>${t.s3_sec}</div></div>
+      <div class="flist">
+        ${t.s3_f.map(f=>`<div class="fitem"><div class="fic">${f[0]}</div><div class="ftx"><b>${f[1]}</b>${f[2]}</div></div>`).join('')}
+      </div>
+      <div class="honest">${t.s3_honest}</div>
+      <div class="linkrow"><a onclick="openSheet('nano')">${t.s3_nano_link}</a></div>
+      <div class="spacer"></div>`;
+    case 3: return `
+      <div class="glow"></div>
+      <div class="kick">${t.s4_kick}</div>
+      <h2>${t.s4_title}</h2>
+      <p class="lead">${t.s4_lead}</p>
+      <div class="flow">
+        ${t.s4_flow.map((f,n)=>`<div class="frow"><div class="fnum">${n+1}</div><div class="fbody"><b>${f[0]}</b><span>${f[1]}</span></div></div>`).join('')}
+      </div>
+      <div class="spacer"></div>`;
+    case 4: return `
+      <div class="glow"></div>
+      <div class="kick">${t.s5_kick}</div>
+      <h2>${t.s5_title}</h2>
+      <p class="lead">${t.s5_lead}</p>
+      <div class="caps">
+        ${t.s5_caps.map(c=>`<div class="cap"><div class="ci">${c[0]}</div><div class="ct"><b>${c[1]}</b><span>${c[2]}</span></div></div>`).join('')}
+      </div>
+      <div class="demo">
+        <div class="demo-top"><div class="demo-av">N</div><div><div class="demo-nm">${t.s5_demo_nm}</div><div class="demo-on">online</div></div></div>
+        ${bubbles(t.s5_demo)}
+      </div>
+      <div class="spacer"></div>`;
+    case 5: return `
+      <div class="glow"></div>
+      <div class="kick">${t.s6_kick}</div>
+      <h2>${t.s6_title}</h2>
+      <p class="lead">${t.s6_lead}</p>
+      <div class="istrip">
+        ${t.s6_steps.map(s=>`<div class="istep"><div class="in">${s[0]}</div><b>${s[1]}</b></div>`).join('')}
+      </div>
+      <label>${t.s6_name}</label>
+      <input class="inp" placeholder="${esc(t.s6_name_ph)}" value="${esc(reg.name)}" oninput="reg.name=this.value;refreshCta()">
+      <label>${t.s6_phone}</label>
+      <input class="inp" type="tel" placeholder="${esc(t.s6_phone_ph)}" value="${esc(reg.phone)}" oninput="reg.phone=this.value;refreshCta()">
+      <label>${t.s6_email}</label>
+      <input class="inp" type="email" placeholder="${esc(t.s6_email_ph)}" value="${esc(reg.email)}" oninput="reg.email=this.value;refreshCta()">
+      <div class="check ${agree?'on':''}" onclick="toggleAgree()"><div class="box"><span>✓</span></div><div>${t.s6_check}</div></div>
+      <div class="spacer"></div>`;
+  }
+}
+
+// Forward arrow is the opposite of back: Hebrew advances leftward (←), English advances rightward (→).
+function cta(label){ return label.replace(/\s*[→←]\s*$/,'') + ' ' + (L==='he'?'←':'→'); }
+function footHTML(t){
+  switch(i){
+    case 0: return `<button class="cta" onclick="go(1)">${cta(t.s1_cta)}</button><p class="note">${t.s1_note}</p><p class="byline">${t.s1_by}</p>`;
+    case 1: return `<button class="cta" onclick="go(1)">${cta(t.s2_cta)}</button><p class="note">${t.s2_note}</p>`;
+    case 2: return `<button class="cta" onclick="go(1)">${cta(t.s3_cta)}</button><p class="note">${t.s3_note}</p>`;
+    case 3: return `<button class="cta" onclick="go(1)">${cta(t.s4_cta)}</button><p class="note">${t.s4_note}</p>`;
+    case 4: return `<button class="cta" onclick="go(1)">${cta(t.s5_cta)}</button><p class="note">${t.s5_note}</p>`;
+    case 5: return `<button class="cta" id="regCta" ${validReg()&&!submitting?'':'disabled'} onclick="submitReg()">${submitting?t.s6_cta_load:cta(t.s6_cta)}</button><p class="note">${t.s6_note}</p>`;
+  }
+}
+
+function validReg(){
+  return reg.name.trim().length>=2 &&
+    /^[\d+][\d\-\s()]{6,}$/.test(reg.phone.trim()) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email.trim()) &&
+    agree;
+}
+function refreshCta(){
+  const c=document.getElementById('regCta');
+  if(c) c.disabled = !validReg() || submitting;
+}
+
+function paintChrome(){
+  const t=T[L];
+  document.documentElement.lang=L;
+  document.documentElement.dir = L==='he'?'rtl':'ltr';
+  document.getElementById('back').textContent = L==='he'?'→':'←';
+  document.getElementById('lang').textContent = L==='he'?'EN':'עב';
+  let p='';
+  for(let k=0;k<N;k++) p+=`<div class="seg ${k<i?'done':''} ${k===i?'cur':''}"><i></i></div>`;
+  document.getElementById('prog').innerHTML=p;
+  document.getElementById('stepn').textContent=`${i+1}/${N}`;
+  document.getElementById('back').disabled = i===0 || submitting;
+  document.getElementById('foot').innerHTML=footHTML(t);
+}
+
+function init(){
+  const stage=document.getElementById('stage');
+  const div=document.createElement('div');
+  div.className='screen';
+  div.innerHTML=screenHTML(T[L]);
+  stage.appendChild(div);
+  paintChrome();
+}
+function repaint(){
+  const stage=document.getElementById('stage');
+  stage.innerHTML='';
+  const div=document.createElement('div');
+  div.className='screen';
+  div.innerHTML=screenHTML(T[L]);
+  stage.appendChild(div);
+  paintChrome();
+}
+function transition(dir){
+  if(animating) return;
+  animating=true;
+  const stage=document.getElementById('stage');
+  const old=stage.querySelector('.screen');
+  const nw=document.createElement('div');
+  nw.className='screen '+(dir>0?'in-fwd':'in-back');
+  nw.innerHTML=screenHTML(T[L]);
+  if(old){ old.classList.remove('in-fwd','in-back'); old.classList.add(dir>0?'out-fwd':'out-back'); }
+  stage.appendChild(nw);
+  paintChrome();
+  setTimeout(()=>{ if(old&&old.parentNode) old.parentNode.removeChild(old); animating=false; },380);
+}
+function go(d){
+  const ni=i+d;
+  if(ni<0||ni>=N||animating||submitting) return;
+  i=ni; transition(d);
+}
+
+async function submitReg(){
+  if(!validReg()||submitting||animating) return;
+  submitting=true; paintChrome();
+  const payload={ name:reg.name.trim(), phone:reg.phone.trim(), email:reg.email.trim(), lang:L, src:SRC };
+  try{
+    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await r.json().catch(()=>null);
+    deepLink=(data&&data.deepLink)?data.deepLink:BOT_FALLBACK;
+  }catch(e){ deepLink=BOT_FALLBACK; }
+  submitting=false; paintChrome();
+  handoff();
+}
+function handoff(){
+  const t=T[L], sw=document.getElementById('switch');
+  sw.innerHTML=`<div class="ho-ico">✨</div><h2>${t.magic_t}</h2><p>${t.magic_p}</p>`+
+    `<div class="tg-peek"><div class="peek-av">N</div><div class="peek-bub">${t.magic_peek}</div></div>`+
+    `<button class="cta ghost" style="max-width:300px" onclick="closeHandoff()">${t.sheet_close}</button>`;
+  sw.classList.add('on');
+  window.open(deepLink||BOT_FALLBACK,'_blank','noopener');
+}
+function closeHandoff(){ document.getElementById('switch').classList.remove('on'); }
+
+function openSheet(which){
+  which = which||'nano';
+  const t=T[L], s=document.getElementById('sheet');
+  const title=t['sheet_'+which+'_t']||t.sheet_nano_t;
+  const body=t['sheet_'+which]||t.sheet_nano;
+  s.innerHTML=`<div class="sheet-card"><h3>${title}</h3>${body.map(p=>`<p>${p}</p>`).join('')}<button class="cta ghost" onclick="closeSheet()">${t.sheet_close}</button></div>`;
+  s.classList.add('on');
+}
+function closeSheet(){ document.getElementById('sheet').classList.remove('on'); }
+
+function toggleAgree(){ agree=!agree; repaint(); }
+function setLang(l){ L=l; repaint(); }
+function toggleLang(){ L=(L==='he'?'en':'he'); repaint(); }
+
+init();
+</script>
+</body>
+</html>

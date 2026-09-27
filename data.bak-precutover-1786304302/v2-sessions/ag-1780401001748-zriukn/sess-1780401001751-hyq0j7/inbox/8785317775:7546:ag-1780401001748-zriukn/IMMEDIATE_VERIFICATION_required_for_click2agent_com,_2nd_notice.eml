@@ -1,0 +1,399 @@
+Delivered-To: elia@bencnaan.net
+Received: by 2002:a05:7010:258b:b0:535:40f2:5c11 with SMTP id c11csp312244mdo;
+        Tue, 14 Jul 2026 00:02:17 -0700 (PDT)
+X-Received: by 2002:a05:6a21:6b18:b0:3bf:ab76:63d with SMTP id adf61e73a8af0-3c110631fbcmr13232659637.11.1784012536808;
+        Tue, 14 Jul 2026 00:02:16 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1784012536; cv=none;
+        d=google.com; s=arc-20260327;
+        b=Po4mn9XGAhtnO9t7u8h8GkEakWtKKTUHLFianHFbFNFK7KtTrXbE2ZZ9o8HErCFAjW
+         4IaehnevQao/7Sr5yDV/5Uxszn1Ad9KBES9q5MlVJn1XDrv8ofA/4+AbIX99bHDJQVnp
+         EEe5pT4r/WxbzOCULIowTmugtKLZiQuAk/fVrRoljvLiyDaYfUBhZT3FMuvsm5NXitgp
+         1OP5h4cb1VOJXsXgi3KkdS8jGwMolUgZ3gn+clnv41y5BXOUlzvyaao5giA4X82Iaf+c
+         XgkFEHl1HWrnJFS1Fe3Y8cPu0/m3rG1J2T0Se2geBUI4nHrC/2bG/bIIlhpBUlwOESsE
+         vWgA==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=content-transfer-encoding:to:mime-version:reply-to:message-id
+         :subject:date:from;
+        bh=cCAbsPy6zF4+1rv7RlFquFZWPWLQkKrOReg8BHzm+9I=;
+        fh=RVUhOZKpRGH2hIhHXJld26StcvJQgOOmW+zdrxX0v9E=;
+        b=K8x3TlxKlQ/nNVDZDvScA6EsaHrMR9H7kCPSXmJeSNAO+YU9u/ZNe5U+bOPnMZFY5u
+         O3W1rpaqgcUIuNa4qYm8gZktdPc2Ncy8xqJFwg5sNYykE7nR7L8Eb1fydy+mTCLqm4oT
+         K1K3jdp1v3ftcVG0AGvXMf14khGu3KaAm7Ai553QN7XwW1ONpT0jkSHkcCw+xD4DH178
+         QEUE5nWer5bX05G440vJaFqzbMVef7TL0yrkvIakBkrPPrUNmRGJarDbD6JWjcFTfpSl
+         XZOKOX4P/jTmLrRx47uGQ8tYbZuNP1vTr4qjeHTz7V7nIZbB73nAB1KzNmru1uRg9v39
+         WcBQ==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       spf=pass (google.com: domain of donotreply@name-services.com designates 23.83.220.41 as permitted sender) smtp.mailfrom=donotreply@name-services.com;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=name-services.com
+Return-Path: <donotreply@name-services.com>
+Received: from cow.yew.relay.mailchannels.net (cow.yew.relay.mailchannels.net. [23.83.220.41])
+        by mx.google.com with ESMTPS id 41be03b00d2f7-ca816e40c33si23245005a12.293.2026.07.14.00.02.14
+        for <elia@bencnaan.net>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Tue, 14 Jul 2026 00:02:16 -0700 (PDT)
+Received-SPF: pass (google.com: domain of donotreply@name-services.com designates 23.83.220.41 as permitted sender) client-ip=23.83.220.41;
+Authentication-Results: mx.google.com;
+       spf=pass (google.com: domain of donotreply@name-services.com designates 23.83.220.41 as permitted sender) smtp.mailfrom=donotreply@name-services.com;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=name-services.com
+X-Sender-Id: demandmedia|x-authuser|9f58e8c3-4926-45b8-9bf5-40b8d2a92281
+X-MC-Relay: Good
+Received: from relay.mailchannels.net (localhost [127.0.0.1])
+	by relay.mailchannels.net (Postfix) with ESMTP id 9200D40248E
+	for <elia@bencnaan.net>; Tue, 14 Jul 2026 07:02:13 +0000 (UTC)
+Received: from cen0vwwebsrvr02 (trex-green-7.trex.outbound.svc.cluster.local [100.103.92.160])
+	(Authenticated sender: demandmedia)
+	by relay.mailchannels.net (Postfix) with ESMTPA id 4B9014028DD
+	for <elia@bencnaan.net>; Tue, 14 Jul 2026 07:02:13 +0000 (UTC)
+X-Sender-Id: demandmedia|x-authuser|9f58e8c3-4926-45b8-9bf5-40b8d2a92281
+X-MailChannels-Auth-Id: demandmedia
+X-MC-Relay: Good
+X-MailChannels-SenderId:
+ demandmedia|x-authuser|9f58e8c3-4926-45b8-9bf5-40b8d2a92281
+X-MailChannels-Auth-Id: demandmedia
+X-Fearful-Print: 76c6a0c01933d928_1784012533594_612236574
+X-MC-Loop-Signature: 1784012533593:623853442
+X-MC-Ingress-Time: 1784012533593
+Received: from cen0vwwebsrvr02 ([UNAVAILABLE]. [64.98.133.66])
+	(using TLSv1.2 with cipher ECDHE-RSA-AES256-GCM-SHA384)
+	by 100.103.92.160 (trex/8.0.2);
+	Tue, 14 Jul 2026 07:02:13 +0000
+From: "box.co.il" <donotreply@name-services.com>
+Date: Tue, 14 Jul 2026 01:02:12 -0600
+Subject: IMMEDIATE VERIFICATION required for click2agent.com, 2nd notice
+Message-Id: <9L31QHR3STU4.SCBQL6HAR17V2@cen0vwwebsrvr02>
+Reply-To: "box.co.il" <donotreply@name-services.com>
+MIME-Version: 1.0
+X-AuthUser: 9f58e8c3-4926-45b8-9bf5-40b8d2a92281
+X-Campaign-Id: RAADomainNotice
+To: "elia@bencnaan.net" <elia@bencnaan.net>
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body bgcolor=3D"#FFFFFF">  <meta name=3D"viewport" content=3D"width=3D=
+device-width" />  <table width=3D"100%" bgcolor=3D"#FFFFFF" border=3D"0" ce=
+llspacing=3D"0" cellpadding=3D"0">      <tr>       <td valign=3D"top">     =
+      <table class=3D"table" width=3D"740" bgcolor=3D"#FFFFFF" border=3D"0"=
+ cellpadding=3D"0" cellspacing=3D"0" align=3D"center" style=3D"font-family:=
+Trebuchet MS, Trebuchet MS, sans-serif;font-size:14px;color:#333333">      =
+   <!-- START: header -->                 <TR>      <td bgcolor=3D"#ffffff"=
+></td>      <td align=3D"right" bgcolor=3D"#ffffff"></td>      </TR>      <=
+!-- END: header -->                  <tr>                      <td colspan=3D=
+"2">                          <table class=3D"table" bgcolor=3D"#FFFFFF" wi=
+dth=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" align=3D"cent=
+er" style=3D"font-family:Trebuchet MS, Trebuchet MS, sans-serif;font-size:1=
+4px;color:#333333">                              <tr>                      =
+            <td>          <p></p>                       <tr>   <td colspan=3D=
+"2">    <table class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D=
+"0" cellpadding=3D"0" cellspacing=3D"0" align=3D"center" style=3D"font-fami=
+ly: Trebuchet MS, Trebuchet MS, sans-serif; font-size: 16px; color: #333333=
+; border-bottom: 1px solid #CCCCCC; padding-bottom: 20px; padding-top: 20px=
+">     <tr>      <td><a href=3D"#french">Fran=C3=A7ais</a>&nbsp;&nbsp;<a hr=
+ef=3D"#italian">Italiano</a>&nbsp;&nbsp;<a href=3D"#portuguese">Portugu=C3=AA=
+s</a>&nbsp;&nbsp;<a href=3D"#spanish">Espa=C3=B1ol</a>&nbsp;&nbsp;<a href=3D=
+"#deutsch">Deutsch</a>&nbsp;&nbsp;<a href=3D"#polish">Polskie</a>&nbsp;&nbs=
+p;<a href=3D"#serbian">Srpski</a></td>     </tr>    </table>    <table clas=
+s=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"0" cellpadding=3D"=
+0" cellspacing=3D"0" align=3D"center" style=3D"font-family: Trebuchet MS, T=
+rebuchet MS, sans-serif; font-size: 16px; color: #333333; border-bottom: 1p=
+x solid #CCCCCC; padding-bottom: 20px; padding-top: 20px">     <tr>      <t=
+d>       <P><a name=3D"english"></a><P>                                    =
+               <P>The following Registrant contact information for one or m=
+ore of your domains has not yet been verified:</P>       <P><table class=3D=
+"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"1" cellpadding=3D"5" c=
+ellspacing=3D"0" align=3D"center" style=3D"font-family:Trebuchet MS, Trebuc=
+het MS, sans-serif;font-size:14px;color:#333333">
+	<tr><td>Name</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Address 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Address 2</td><td></td></tr>
+	<tr><td>City</td><td>ramat gan</td></tr>
+	<tr><td>State Province</td><td></td></tr>
+	<tr><td>Postal Code</td><td>5252514</td></tr>
+	<tr><td>Country</td><td>IL</td></tr>
+	<tr><td>Email Address</td><td>elia@bencnaan.net</td></tr></table></P>     =
+                                                    <P>Please click the lin=
+k below to verify the Registrant email address.  You have <b>-1</b> days re=
+maining to verify the Registrant contact information to avoid the domain(s)=
+ from being suspended.</P>        <P>By verifying your email address, you a=
+cknowledge that you have read and agree to the <a href=3D"https://www.enom.=
+com/terms/agreement.aspx">Registration Agreement</a>.</P>  <p align=3Dcente=
+r><a href=3D"http://www.enom.com/raaverification/verification.aspx?Verifica=
+tionCode=3D10A25C4C-479A-4722-99AF-E4862FD28E08"> Click here to verify your=
+ email address</a></p>       <P></P>       <P>If the above link does not wo=
+rk, please copy-and-paste the following URL into an open web browser to com=
+plete the verification process:</P>       <P>        http://www.enom.com/ra=
+averification/verification.aspx?VerificationCode=3D10A25C4C-479A-4722-99AF-=
+E4862FD28E08       </P>       <P>Once you click the link, your email addres=
+s will be instantly verified and there is nothing further for you to do on =
+the following domains:</P>       <p>        click2agent.com<br>shellano.com=
+<br>       </p>       <p></p>       <p></p>       <p>Sincerely,</p>       <=
+p>        box.co.il       </p>      </td>     </tr>    </table>    <table c=
+lass=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"0" cellpadding=3D=
+"0" cellspacing=3D"0" align=3D"center" style=3D"font-family: Trebuchet MS, =
+Trebuchet MS, sans-serif; font-size: 16px; color: #333333; border-bottom: 1=
+px solid #CCCCCC; padding-bottom: 20px; padding-top: 20px">     <tr>      <=
+td>       <P><a name=3D"french"></a><P>                                    =
+               <P>Les informations de contact d=E2=80=99un ou plusieurs de =
+vos domaines n'a pas encore =C3=A9t=C3=A9 v=C3=A9rifi=C3=A9e:</P>       <P>=
+<table class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"1" cell=
+padding=3D"5" cellspacing=3D"0" align=3D"center" style=3D"font-family:Trebu=
+chet MS, Trebuchet MS, sans-serif;font-size:14px;color:#333333">
+	<tr><td>Nom</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Adresse 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Adresse 2</td><td></td></tr>
+	<tr><td>Ville</td><td>ramat gan</td></tr>
+	<tr><td>D=C3=A9partement</td><td></td></tr>
+	<tr><td>Code postal</td><td>5252514</td></tr>
+	<tr><td>Pays</td><td>IL</td></tr>
+	<tr><td>Adresse e-mail</td><td>elia@bencnaan.net</td></tr></table></P>    =
+                                                     <P>Veuillez cliquer su=
+r le lien ci-dessous pour v=C3=A9rifier l=E2=80=99email courriel du titulai=
+re. Il vous reste <b>-1</b> jours restants pour v=C3=A9rifier les informati=
+ons de contact du titulaire afin d'=C3=A9viter la suspension du ou des doma=
+ines.</P>        <P>En v=C3=A9rifiant votre adresse e-mail, vous reconnaiss=
+ez avoir lu et accept=C3=A9 la <a href=3D"https://www.enom.com/terms/agreem=
+ent.aspx">convention d'enregistrement</a>.</P>  <p align=3Dcenter><a href=3D=
+"http://www.enom.com/raaverification/verification.aspx?VerificationCode=3D1=
+0A25C4C-479A-4722-99AF-E4862FD28E08"> Cliquez ici pour v=C3=A9rifier votre =
+adresse courriel.</a></p>       <P></P>       <P>Si le lien ci-dessus ne fo=
+nctionne pas, veuillez copier l=E2=80=99URL suivante dans la barre d=E2=80=99=
+adresse de votre navigateur: </P>       <P>        http://www.enom.com/raav=
+erification/verification.aspx?VerificationCode=3D10A25C4C-479A-4722-99AF-E4=
+862FD28E08       </P>       <P>Apr=C3=A8s avoir cliqu=C3=A9 sur le lien, vo=
+tre adresse e-mail sera imm=C3=A9diatement v=C3=A9rifi=C3=A9e et aucune act=
+ion suppl=C3=A9mentaire de votre part ne sera requise concernant les domain=
+es suivants:</P>       <p>        click2agent.com<br>shellano.com<br>      =
+ </p>       <p></p>       <p></p>       <p>Cordialement,</p>       <p>     =
+   box.co.il       </p>      </td>     </tr>    </table>    <table class=3D=
+"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"0" cellpadding=3D"0" c=
+ellspacing=3D"0" align=3D"center" style=3D"font-family: Trebuchet MS, Trebu=
+chet MS, sans-serif; font-size: 16px; color: #333333; border-bottom: 1px so=
+lid #CCCCCC; padding-bottom: 20px; padding-top: 20px">     <tr>      <td>  =
+     <P><a name=3D"italian"></a></P>       <P>Si prega di verificare la cor=
+rettezza delle informazioni riportate di seguito:        </P>       <P><tab=
+le class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"1" cellpadd=
+ing=3D"5" cellspacing=3D"0" align=3D"center" style=3D"font-family:Trebuchet=
+ MS, Trebuchet MS, sans-serif;font-size:14px;color:#333333">
+	<tr><td>Nome</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Indirizzo 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Indirizzo 2</td><td></td></tr>
+	<tr><td>Citt=C3=A0</td><td>ramat gan</td></tr>
+	<tr><td>Provincia</td><td></td></tr>
+	<tr><td>CAP</td><td>5252514</td></tr>
+	<tr><td>Paese</td><td>IL</td></tr>
+	<tr><td>Indirizzo email</td><td>elia@bencnaan.net</td></tr></table></P>   =
+                                                      <P>Clicca sul link so=
+ttostante per verificare l'indirizzo email dell'assegnatario. Cliccate il l=
+ink qui sotto per verificare l'indirizzo e-mail Registrante. Hai <b>-1</b> =
+giorni rimanenti per verificare le informazioni di contatto Registrante per=
+ evitare il dominio (s) di essere sospesa.</P>        <P>Verificando il tuo=
+ indirizzo e-mail, riconosci di aver letto e accettato <a href=3D"https://w=
+ww.enom.com/terms/agreement.aspx">l'accordo di registrazione</a>.</P>  <p a=
+lign=3Dcenter><a href=3D"http://www.enom.com/raaverification/verification.a=
+spx?VerificationCode=3D10A25C4C-479A-4722-99AF-E4862FD28E08"> Clicca qui pe=
+r verificare il tuo indirizzo email</a></p>       <P></P>       <P>Se il li=
+nk sopra non dovesse funzionare, copia e incolla la seguente URL nella barr=
+a degli indirizzi del tuo browser per completare il processo di verifica:</=
+P>       <P>        http://www.enom.com/raaverification/verification.aspx?V=
+erificationCode=3D10A25C4C-479A-4722-99AF-E4862FD28E08       </P>       <P>=
+Dopo aver cliccato sul link, il tuo indirizzo email sar=C3=A0 immediatament=
+e verificato e non avrai pi=C3=B9 nulla da fare sui seguenti domini:</P>   =
+    <p>        click2agent.com<br>shellano.com<br>       </p>       <p></p>=
+       <p></p>       <p>Cordiali saluti,</p>       <p>        box.co.il    =
+   </p>      </td>     </tr>    </table>    <table class=3D"table" bgcolor=3D=
+"#FFFFFF" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" a=
+lign=3D"center" style=3D"font-family: Trebuchet MS, Trebuchet MS, sans-seri=
+f; font-size: 16px; color: #333333; border-bottom: 1px solid #CCCCCC; paddi=
+ng-bottom: 20px; padding-top: 20px">     <tr>      <td>       <P><a name=3D=
+"portuguese"></a><P>                                                   <P>A=
+ seguinte informa=C3=A7=C3=A3o de contato dos propriet=C3=A1rios dos dom=C3=
+=ADnios n=C3=A3o foi verificado:</P>       <P><table class=3D"table" bgcolo=
+r=3D"#FFFFFF" width=3D"100%" border=3D"1" cellpadding=3D"5" cellspacing=3D"=
+0" align=3D"center" style=3D"font-family:Trebuchet MS, Trebuchet MS, sans-s=
+erif;font-size:14px;color:#333333">
+	<tr><td>Nome</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Endere=C3=A7o 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Endere=C3=A7o 2</td><td></td></tr>
+	<tr><td>Cidade</td><td>ramat gan</td></tr>
+	<tr><td>Prov=C3=ADncia</td><td></td></tr>
+	<tr><td>C=C3=B3digo postal</td><td>5252514</td></tr>
+	<tr><td>Pa=C3=ADs</td><td>IL</td></tr>
+	<tr><td>Endere=C3=A7o de e-mail</td><td>elia@bencnaan.net</td></tr></table=
+></P>                                                         <P>Por favor,=
+ clique no link abaixo para verificar o endere=C3=A7o de e-mail Requerente.=
+ Voc=C3=AA tem <b>-1</b> dias restantes para verificar as informa=C3=A7=C3=A3=
+es de contato Requerente para evitar os dom=C3=ADnios de ser suspenso.</P> =
+       <P>Ao verificar seu endere=C3=A7o de e-mail, voc=C3=AA reconhece ter=
+ lido e concordado com <a href=3D"https://www.enom.com/terms/agreement.aspx=
+">o Contrato de Registro</a>.</P>  <p align=3Dcenter><a href=3D"http://www.=
+enom.com/raaverification/verification.aspx?VerificationCode=3D10A25C4C-479A=
+-4722-99AF-E4862FD28E08"> Clique aqui para verificar o seu endere=C3=A7o de=
+ e-mail</a></p>       <P></P>       <P>Se o link acima n=C3=A3o funcionar, =
+por favor, copie e cole o seguinte endere=C3=A7o no seu navegador para comp=
+letar o processo de verifica=C3=A7=C3=A3o:</P>       <P>        http://www.=
+enom.com/raaverification/verification.aspx?VerificationCode=3D10A25C4C-479A=
+-4722-99AF-E4862FD28E08       </P>       <P>Uma vez clicando no link, o seu=
+ endere=C3=A7o de e-mail ser=C3=A1 instantaneamente verificado e n=C3=A3o s=
+er=C3=A1 necess=C3=A1ria qualquer outro tipo de a=C3=A7=C3=A3o para os segu=
+intes dom=C3=ADnios:</P>       <p>        click2agent.com<br>shellano.com<b=
+r>       </p>       <p></p>       <p></p>                                  =
+             <p>Atenciosamente,</p>       <p>        box.co.il       </p>  =
+    </td>     </tr>    </table>    <table class=3D"table" bgcolor=3D"#FFFFF=
+F" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" align=3D=
+"center" style=3D"font-family: Trebuchet MS, Trebuchet MS, sans-serif; font=
+-size: 16px; color: #333333; border-bottom: 1px solid #CCCCCC; padding-bott=
+om: 20px; padding-top: 20px">     <tr>      <td>       <P><a name=3D"spanis=
+h"></a></P>       <P>                                                   <P>=
+La informaci=C3=B3n de contacto del titular de uno o m=C3=A1s de uno de sus=
+ dominios no se ha verificado:</P>       <P><table class=3D"table" bgcolor=3D=
+"#FFFFFF" width=3D"100%" border=3D"1" cellpadding=3D"5" cellspacing=3D"0" a=
+lign=3D"center" style=3D"font-family:Trebuchet MS, Trebuchet MS, sans-serif=
+;font-size:14px;color:#333333">
+	<tr><td>Nombre</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Direcci=C3=B3n 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Direcci=C3=B3n 2</td><td></td></tr>
+	<tr><td>Ciudad</td><td>ramat gan</td></tr>
+	<tr><td>Provincia</td><td></td></tr>
+	<tr><td>C=C3=B3digo Postal</td><td>5252514</td></tr>
+	<tr><td>Pa=C3=ADs</td><td>IL</td></tr>
+	<tr><td>Direcci=C3=B3n de correo electr=C3=B3nico</td><td>elia@bencnaan.ne=
+t</td></tr></table></P>                                                    =
+     <P>Por favor, haz clic en el enlace de abajo para verificar la direcci=
+=C3=B3n de correo electr=C3=B3nico del registrante. Usted tiene <b>-1</b> d=
+=C3=ADas restantes para verificar la informaci=C3=B3n de contacto de matr?c=
+ula para evitar los dominios de ser suspendido.</P>        <P>Al verificar =
+su direcci=C3=B3n de correo electr=C3=B3nico, usted reconoce que ha le=C3=AD=
+do y est=C3=A1 de acuerdo con <a href=3D"https://www.enom.com/terms/agreeme=
+nt.aspx">el Acuerdo de registro</a>.</P>  <p align=3Dcenter><a href=3D"http=
+://www.enom.com/raaverification/verification.aspx?VerificationCode=3D10A25C=
+4C-479A-4722-99AF-E4862FD28E08"> Haga clic aqu=C3=AD para verificar su dire=
+cci=C3=B3n de correo electr=C3=B3nico</a></p>       <P></P>       <P>Si el =
+enlace anterior no funciona, por favor, copie y pegue la siguiente direcci=C3=
+=B3n en su navegador para completar el proceso de verificaci=C3=B3n:</P>   =
+    <P>        http://www.enom.com/raaverification/verification.aspx?Verifi=
+cationCode=3D10A25C4C-479A-4722-99AF-E4862FD28E08       </P>       <P>Despu=
+=C3=A9s de clicar en el enlace, la direcci=C3=B3n de e-mail quedar=C3=A1 au=
+tom=C3=A1ticamente activada y no ser=C3=A1 necesario realizar ninguna otra =
+acci=C3=B3n para los dominios siguientes:</P>       <p>        click2agent.=
+com<br>shellano.com<br>       </p>       <p></p>       <p></p>       <p>Ate=
+ntamente,</p>       <p>        box.co.il       </p>      </td>     </tr>   =
+ </table>    <table class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" bord=
+er=3D"0" cellpadding=3D"0" cellspacing=3D"0" align=3D"center" style=3D"font=
+-family: Trebuchet MS, Trebuchet MS, sans-serif; font-size: 16px; color: #3=
+33333; border-bottom: 1px solid #CCCCCC; padding-bottom: 20px; padding-top:=
+ 20px">     <tr>      <td>       <P><a name=3D"deutsch"></a></P>       <P> =
+                                                  <P>Die folgende Kontaktin=
+formationen f=C3=BCr eine oder mehrere Ihrer Domains vorgenommen noch nicht=
+ =C3=BCberpr=C3=BCft:</P>       <P><table class=3D"table" bgcolor=3D"#FFFFF=
+F" width=3D"100%" border=3D"1" cellpadding=3D"5" cellspacing=3D"0" align=3D=
+"center" style=3D"font-family:Trebuchet MS, Trebuchet MS, sans-serif;font-s=
+ize:14px;color:#333333">
+	<tr><td>Name</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Adresse 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Adresse 2</td><td></td></tr>
+	<tr><td>Stadt</td><td>ramat gan</td></tr>
+	<tr><td>Provinz</td><td></td></tr>
+	<tr><td>Postleitzahl</td><td>5252514</td></tr>
+	<tr><td>Land</td><td>IL</td></tr>
+	<tr><td>E-Mail-Addresse</td><td>elia@bencnaan.net</td></tr></table></P>   =
+                                                      <P>Klicken Sie bitte =
+den Link unten, um den Registrant-Mail-Adresse zu =C3=BCberpr=C3=BCfen. Sie=
+ haben <b>-1</b> verbleibenden Tage, um die Registrierkontaktinformationen =
+=C3=BCberpr=C3=BCfen, um die Domain (s) aus suspendiert vermeiden.</P>     =
+   <P>Mit der Verifizierung Ihrer E-Mail-Adresse best=C3=A4tigen Sie, dass =
+Sie <a href=3D"https://www.enom.com/terms/agreement.aspx">die Registrierung=
+svereinbarung gelesen haben</a> und dieser zustimmen.</P>  <p align=3Dcente=
+r><a href=3D"http://www.enom.com/raaverification/verification.aspx?Verifica=
+tionCode=3D10A25C4C-479A-4722-99AF-E4862FD28E08"> Klicken Sie hier, um Ihre=
+ E-Mail -Adresse best=C3=A4tigen</a></p>       <P></P>       <P>Wenn der Li=
+nk oben nicht funktioniert, bitte diese Webaddresse benutzen:</P>       <P>=
+        http://www.enom.com/raaverification/verification.aspx?VerificationC=
+ode=3D10A25C4C-479A-4722-99AF-E4862FD28E08       </P>       <P>Sobald Sie a=
+uf den Link klicken , wird Ihre E-Mail- Adresse sofort =C3=BCberpr=C3=BCft =
+werden und es ist nichts weiter f=C3=BCr Sie auf den folgenden Bereichen zu=
+ tun:</P>       <p>        click2agent.com<br>shellano.com<br>       </p>  =
+     <p></p>       <p></p>       <p>Mit freundlichen Gr=C3=BC=C3=9Fen,</p> =
+      <p>        box.co.il       </p>      </td>     </tr>    </table>    <=
+table class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"0" cellp=
+adding=3D"0" cellspacing=3D"0" align=3D"center" style=3D"font-family: Trebu=
+chet MS, Trebuchet MS, sans-serif; font-size: 16px; color: #333333; border-=
+bottom: 1px solid #CCCCCC; padding-bottom: 20px; padding-top: 20px">     <t=
+r>      <td>       <P><a name=3D"polish"></a></P>       <P>                =
+                                   <P>Ponizsze dla danych abonenta domeny d=
+la jednej lub wiecej Twoich domen wymagaja weryfikacji:</P>       <P><table=
+ class=3D"table" bgcolor=3D"#FFFFFF" width=3D"100%" border=3D"1" cellpaddin=
+g=3D"5" cellspacing=3D"0" align=3D"center" style=3D"font-family:Trebuchet M=
+S, Trebuchet MS, sans-serif;font-size:14px;color:#333333">
+	<tr><td>Nazwa</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>Adres 1</td><td>haviva reik 14</td></tr>
+	<tr><td>Adres 2</td><td></td></tr>
+	<tr><td>Miasto</td><td>ramat gan</td></tr>
+	<tr><td>Prowincja</td><td></td></tr>
+	<tr><td>Kod pocztowy</td><td>5252514</td></tr>
+	<tr><td>Kraj</td><td>IL</td></tr>
+	<tr><td>Adres email</td><td>elia@bencnaan.net</td></tr></table></P>       =
+                                                  <P>Prosimy kliknac na pon=
+izszy link aby zweryfikowac sw=C3=B3j adres email. Masz <b>-1</b> dni czasu=
+ od momentu rejestracji domeny na zweryfikowanie adresu e-mail. Po 15 dniac=
+h, domena badz domeny zostana zawieszone do momentu weryfikacji adresu emai=
+l.</P>        <P>Sprawdzajac sw=C3=B3j adres e-mail, zgadzasz sie, ze przec=
+zytales i zgadzasz sie na <a href=3D"https://www.enom.com/terms/agreement.a=
+spx">Umowe Rejestracji</a>.</P>  <p align=3Dcenter><a href=3D"http://www.en=
+om.com/raaverification/verification.aspx?VerificationCode=3D10A25C4C-479A-4=
+722-99AF-E4862FD28E08"> Kliknij tutaj, aby zweryfikowac sw=C3=B3j adresu em=
+ail</a></p>       <P></P>       <P>Jesli powyzszy link nie dziala, prosimy =
+o skopiowanie i wklejenie ponizszego adresu do paska adresowego przegladark=
+i aby dokonczyc proces weryfikacji:</P>       <P>        http://www.enom.co=
+m/raaverification/verification.aspx?VerificationCode=3D10A25C4C-479A-4722-9=
+9AF-E4862FD28E08       </P>       <P>Jak tylko klikniesz na ten link, Tw=C3=
+=B3j adres email zostanie natychmiast zweryfikowany i nie trzeba bedzie pod=
+ejmowac zadnych dodatkowych krok do zwiazanych z ponizszymi domenami:</P>  =
+     <p>        click2agent.com<br>shellano.com<br>       </p>       <p></p=
+>       <p></p>       <p>Z powazaniem,</p>       <p>        box.co.il      =
+ </p>      </td>     </tr>    </table>    <table class=3D"table" bgcolor=3D=
+"#FFFFFF" width=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" a=
+lign=3D"center" style=3D"font-family: Trebuchet MS, Trebuchet MS, sans-seri=
+f; font-size: 16px; color: #333333; border-bottom: 1px solid #CCCCCC; paddi=
+ng-bottom: 20px; padding-top: 20px">     <tr>      <td>       <P>  <a name=3D=
+"serbian"></a></P>  <P>  Nad domenom/ima ciji ste vi vlasnik uradjena je sl=
+edeca promena podataka o vlasniku:  </P>       <P><table class=3D"table" bg=
+color=3D"#FFFFFF" width=3D"100%" border=3D"1" cellpadding=3D"5" cellspacing=
+=3D"0" align=3D"center" style=3D"font-family:Trebuchet MS, Trebuchet MS, sa=
+ns-serif;font-size:14px;color:#333333">
+	<tr><td>=D0=B8=D0=BC=D0=B5</td><td>Elia Ben Cnaan</td></tr>
+	<tr><td>=D0=B0=D0=B4=D1=80=D0=B5=D1=81=D0=B0 1</td><td>haviva reik 14</td>=
+</tr>
+	<tr><td>=D0=B0=D0=B4=D1=80=D0=B5=D1=81=D0=B0 2</td><td></td></tr>
+	<tr><td>=D0=B3=D1=80=D0=B0=D0=B4</td><td>ramat gan</td></tr>
+	<tr><td>=D0=BF=D1=80=D0=BE=D0=B2=D0=B8=D0=BD=D1=86=D0=B8=D1=98=D0=B0</td><=
+td></td></tr>
+	<tr><td>=D0=BF=D0=BE=D1=88=D1=82=D0=B0=D0=BD=D1=81=D0=BA=D0=B8 =D0=BA=D0=BE=
+=D0=B4</td><td>5252514</td></tr>
+	<tr><td>=D0=B7=D0=B5=D0=BC=D1=99=D0=B0</td><td>IL</td></tr>
+	<tr><td>=D0=B5=D0=BC=D0=B0=D0=B8=D0=BB</td><td>elia@bencnaan.net</td></tr>=
+</table></P><P>  Molimo kliknite na vezu ispod kako biste potvrdili e-adres=
+u Registranta. Imate <b>-1</b> Preostalo dana kako bi potvrdili registracij=
+e kontakt informacije kako bi se izbjeglo domenu (e) od toga da bude suspen=
+diran.  </ P>       <P>  Proveravajuci svoju e-adresu, potvrdite da ste pro=
+citali i slo=C5=BEili se s <a href=3D"https://www.enom.com/terms/agreement.=
+aspx">Ugovorom o registraciji</a>.</P>  <p align=3Dcenter><a href=3D"http:/=
+/www.enom.com/raaverification/verification.aspx?VerificationCode=3D10A25C4C=
+-479A-4722-99AF-E4862FD28E08">Kliknite ovde da biste potvrdili svoju adresu=
+ e-po=C5=A1te</a></p>       <P>  Ukoliko link iznad nije u funkciji, otvori=
+te sledeci link u va=C5=A1em browseru:  </P>       <P>        http://www.en=
+om.com/raaverification/verification.aspx?VerificationCode=3D10A25C4C-479A-4=
+722-99AF-E4862FD28E08       </P>       <P>  Nakon =C5=A1to kliknete na link=
+ iz ovog maila, va=C5=A1a mail adresa ce biti automatski verifikovana za sl=
+edece domene:  </P>       <p>        click2agent.com<br>shellano.com<br>   =
+    </p>       <p></p>       <p></p>       <p>S po=C5=A1tovanjem,</p>      =
+ <p>        box.co.il       </p>      </td>     </tr>    </table>   </td>  =
+</tr>  <!-- BODY: END -->                  </table>              </td>     =
+     </tr>                      <table class=3D"table" bgcolor=3D"#FFFFFF" =
+width=3D"100%" border=3D"0" cellpadding=3D"8" cellspacing=3D"0" align=3D"ce=
+nter" style=3D"font-family:Trebuchet MS, Trebuchet MS, sans-serif;font-size=
+:14px;color:#333333;text-align:right">            <tr>             <td alig=
+n=3D"right">                           </td>            </tr>           </t=
+able>                                  </td>                              <=
+/tr>                          </table>                      </td>          =
+        </tr>                  <!-- BODY: END -->              </table>    =
+      </td>      </tr>  </table>  </body></html>=

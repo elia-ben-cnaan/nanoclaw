@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NanoShellano · Desktop Concept v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal:#56EDD6; --teal-deep:#0F756D; --on-teal:#04211D;
+    --ink:#FFF; --mut:#B9C4C2; --dim:#66716F; --line:#1e2422;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; overflow:hidden; background:#000}
+  body{font-family:Heebo,system-ui,sans-serif; color:var(--ink)}
+
+  canvas#field{position:fixed; inset:0; width:100vw; height:100vh; display:block}
+
+  /* cinematic dressing */
+  .vignette{position:fixed; inset:0; pointer-events:none; z-index:3;
+    background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.75) 100%)}
+  .grain{position:fixed; inset:0; pointer-events:none; z-index:3; opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E")}
+
+  /* brand row */
+  .brand{position:fixed; top:28px; inset-inline-start:44px; z-index:6; display:flex; align-items:center; gap:14px}
+  .brand img{height:30px; width:auto; display:block; filter:drop-shadow(0 4px 14px rgba(0,0,0,.7))}
+  .lang{position:fixed; top:28px; inset-inline-end:44px; z-index:6; font-size:12px; font-weight:800; color:var(--teal);
+    background:rgba(10,14,13,.6); border:1px solid var(--line); border-radius:99px; padding:8px 15px;
+    letter-spacing:.4px; cursor:pointer; backdrop-filter:blur(6px)}
+
+  /* vertical chapter rail (start side) */
+  .rail{position:fixed; inset-inline-end:44px; top:50%; transform:translateY(-50%); z-index:6;
+    display:flex; flex-direction:column; gap:22px}
+  .dot{display:flex; align-items:center; gap:12px; cursor:pointer}
+  .dot i{width:8px; height:8px; border-radius:50%; background:#2a3331; transition:.35s; flex:0 0 auto}
+  .dot span{font-size:11.5px; font-weight:700; color:var(--dim); opacity:0; transform:translateX(6px); transition:.35s; white-space:nowrap}
+  .dot:hover span{opacity:.8; transform:none}
+  .dot.on i{background:var(--teal); box-shadow:0 0 14px rgba(86,237,214,.8); transform:scale(1.5)}
+  .dot.on span{opacity:1; transform:none; color:var(--teal)}
+  .railline{position:fixed; inset-inline-end:47px; top:50%; transform:translateY(-50%); width:1px; height:190px;
+    background:linear-gradient(transparent,#1d2523 20%,#1d2523 80%,transparent); z-index:5}
+
+  /* chapter text overlays */
+  .chapter{position:fixed; z-index:5; max-width:560px; inset-inline-start:8vw; top:50%; transform:translateY(-50%);
+    opacity:0; pointer-events:none; transition:opacity .5s ease, transform .5s ease; text-align:start}
+  .chapter.on{opacity:1; pointer-events:auto; transform:translateY(-50%)}
+  .chapter.leave{opacity:0; transform:translateY(calc(-50% - 26px))}
+  .chapter.enter-prep{opacity:0; transform:translateY(calc(-50% + 26px))}
+  .kick{font-size:13px; font-weight:800; letter-spacing:.22em; color:var(--teal); text-transform:uppercase; margin-bottom:18px;
+    display:flex; align-items:center; gap:12px}
+  .kick::after{content:''; height:1px; width:56px; background:var(--teal-deep)}
+  h1{font-size:64px; line-height:1.08; font-weight:900; margin-bottom:22px; letter-spacing:-.01em;
+    text-shadow:0 6px 40px rgba(0,0,0,.9)}
+  h1 .hl{color:var(--teal)}
+  .sub{color:var(--mut); font-size:17.5px; line-height:1.85; max-width:520px; margin-bottom:30px; text-shadow:0 3px 20px #000}
+  .sub b{color:var(--ink)}
+  .byline{color:var(--dim); font-size:12.5px; font-weight:700; margin-top:18px}
+
+  .cta{display:inline-flex; align-items:center; gap:12px; padding:17px 32px; border:0; border-radius:99px;
+    background:var(--teal); color:var(--on-teal); font-size:16.5px; font-weight:800; font-family:inherit; cursor:pointer;
+    box-shadow:0 0 0 0 rgba(86,237,214,.45); transition:.25s; position:relative}
+  .cta:hover{transform:translateY(-2px); box-shadow:0 14px 44px rgba(86,237,214,.3)}
+  .cta .arr{display:inline-block; transition:.25s}
+  .cta:hover .arr{transform:translateX(-5px)}
+  .ctanote{color:var(--dim); font-size:12px; margin-top:16px}
+
+  /* final chapter: glass form */
+  #ch5 .glass{margin-top:6px; width:430px; background:rgba(10,15,14,.55); border:1px solid rgba(86,237,214,.16);
+    border-radius:22px; padding:26px 26px 24px; backdrop-filter:blur(14px);
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05)}
+  #ch5 h1{font-size:38px; margin-bottom:12px}
+  #ch5 .kick{margin-bottom:10px}
+  #ch5 .glass{padding:20px 24px 20px}
+  #ch5 label{margin:9px 2px 5px}
+  #ch5 .inp{padding:11px 14px}
+  #ch5 .cta{margin-top:14px; padding:14px 32px}
+  label{display:block; font-size:12.5px; color:var(--mut); font-weight:700; margin:12px 2px 6px}
+  .inp{width:100%; background:rgba(0,0,0,.45); border:1px solid #223230; border-radius:12px;
+    padding:13px 14px; color:var(--ink); font-size:15px; font-family:inherit}
+  .inp:focus{outline:none; border-color:var(--teal-deep)}
+  .check{display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:12px; color:var(--mut); line-height:1.55}
+  .box{flex:0 0 20px; width:20px; height:20px; border-radius:6px; border:1px solid #2a3a38; background:rgba(0,0,0,.4); margin-top:1px}
+  .check a{color:var(--teal); text-decoration:underline}
+  #ch5 .cta{width:100%; justify-content:center; margin-top:18px; border-radius:14px}
+
+  /* bottom hint */
+  .hint{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:6;
+    font-size:11.5px; color:var(--dim); letter-spacing:.06em; display:flex; align-items:center; gap:10px}
+  .hint .wheel{width:18px; height:28px; border:1.5px solid #3a4442; border-radius:10px; position:relative}
+  .hint .wheel::after{content:''; position:absolute; top:5px; left:50%; margin-left:-1.5px; width:3px; height:6px;
+    border-radius:3px; background:var(--teal); animation:wheeldrop 1.6s ease-in-out infinite}
+  @keyframes wheeldrop{0%{transform:translateY(0); opacity:1} 70%{transform:translateY(9px); opacity:0} 100%{opacity:0}}
+</style>
+</head>
+<body>
+
+<canvas id="field"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<div class="brand"><img src="https://nanohubdemo.vercel.app/nanoshellano-lockup-trim.png" alt="NanoShellano"></div>
+<div class="lang">EN</div>
+
+<div class="railline"></div>
+<div class="rail" id="rail"></div>
+
+<!-- chapters -->
+<section class="chapter" id="ch0">
+  <div class="kick">NanoShellano</div>
+  <h1>עולם העבודה משתנה.<br><span class="hl">כבר עכשיו.</span></h1>
+  <p class="sub">בכל חודש שעובר, סוכני AI נכנסים לעוד מחלקה ולעוד שולחן עבודה. מי שיודע לעבוד עם סוכן יהיה <b>צעד אחד לפני כולם</b>. בלי רקע טכני, בלי קוד.</p>
+  <button class="cta" onclick="goTo(1)">אני רוצה להיכנס לעולם הזה <span class="arr">←</span></button>
+  <p class="ctanote">פיילוט בגישה מוזמנת · גרסה ראשונה</p>
+  <p class="byline">מאת אליה בן כנען</p>
+</section>
+
+<section class="chapter" id="ch1">
+  <div class="kick">למה בחינם</div>
+  <h1>ולמה אני נותן<br>את זה <span class="hl">בחינם</span></h1>
+  <p class="sub">לפני שנה לא ידעתי לכתוב שורת קוד אחת. היום סוכנים עושים בשבילי חצי מהעבודה. במקום לשמור את זה לעצמי, בניתי דרך פשוטה שתעביר גם אותך לצד השני. <b>בלי כרטיס אשראי, בלי התחייבות, בלי קאץ'.</b></p>
+  <button class="cta" onclick="goTo(2)">יפה, ומה עם הפרטיות? <span class="arr">←</span></button>
+</section>
+
+<section class="chapter" id="ch2">
+  <div class="kick">מאובטח</div>
+  <h1>מאובטח,<br><span class="hl">ורק שלך</span></h1>
+  <p class="sub">הסוכן חי בחשבון נפרד ומבודד שמיוחד רק לך. <b>אתה מאשר כל חיבור בעצמך</b>, מנתק ומוחק בכל רגע, והמידע שלך לא נמכר ולא משותף. זו לא הבטחה, זו שליטה אמיתית בידיים שלך.</p>
+  <button class="cta" onclick="goTo(3)">הבנתי, איך זה הולך להיות? <span class="arr">←</span></button>
+</section>
+
+<section class="chapter" id="ch3">
+  <div class="kick">הדרך</div>
+  <h1>חמישה צעדים,<br><span class="hl">כמה דקות</span></h1>
+  <p class="sub">פותחים לך משתמש, מוקם סוכן אישי על שרת מנוהל, קוד אישי נוחת בטלגרם, נכנסים לשיחה, <b>ומחברים כלים בקצב שלך</b>. מייל, יומן, וואטסאפ. הכל בלחיצה, הכל בשליטתך.</p>
+  <button class="cta" onclick="goTo(4)">ומה הוא בעצם עושה? <span class="arr">←</span></button>
+</section>
+
+<section class="chapter" id="ch4">
+  <div class="kick">ככה נעבוד יחד</div>
+  <h1>בקשה אחת,<br><span class="hl">שרשרת פעולות</span></h1>
+  <p class="sub">"עדכן את הלקוח ב-CRM, תכין הצעת מחיר ותשלח לו במייל". הסוכן מעדכן, מכין, מנסח, <b>וחוזר אליך עם תוצר גמור</b> שמחכה רק לאישור שלך. מצגות, דוחות, מיילים, אונבורדינג.</p>
+  <button class="cta" onclick="goTo(5)">אז איך מתחילים? <span class="arr">←</span></button>
+</section>
+
+<section class="chapter" id="ch5">
+  <div class="kick">התקנה</div>
+  <h1>ההתקנה,<br><span class="hl">ומשם הקסם</span></h1>
+  <div class="glass">
+    <label>שם מלא</label>
+    <input class="inp" placeholder="איך קוראים לך">
+    <label>טלפון</label>
+    <input class="inp" placeholder="050-0000000">
+    <label>מייל</label>
+    <input class="inp" placeholder="you@example.com">
+    <div class="check"><div class="box"></div><div>קראתי ומאשר את <a>תנאי השימוש והפרטיות</a>. האישור הזה פותח את הסוכן.</div></div>
+    <button class="cta">פתח לי סוכן <span class="arr">←</span></button>
+  </div>
+</section>
+
+<div class="hint"><div class="wheel"></div> גלגלת, חצים או לחיצה על הנקודות</div>
+
+<script>
+'use strict';
+/* ---------- config ---------- */
+const CHAPTERS = ['פתיחה','בחינם','אבטחה','הדרך','יכולות','הרשמה'];
+const P_COUNT = 2300;
+const SHAPE_X = 0.28;   // shape center as fraction of width (visual side; text sits on the start side in RTL)
+const SHAPE_Y = 0.52;
+const SHAPE_MAX = 0.58; // of min(vw,vh)
+
+let W=0, H=0, dpr=1, cur=0, busy=false;
+const cv = document.getElementById('field');
+const cx = cv.getContext('2d');
+
+/* glow sprite */
+const sprite = document.createElement('canvas');
+sprite.width = sprite.height = 64;
+{
+  const s = sprite.getContext('2d');
+  const g = s.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(.25,'rgba(140,255,236,.9)');
+  g.addColorStop(.6,'rgba(86,237,214,.28)');
+  g.addColorStop(1,'rgba(86,237,214,0)');
+  s.fillStyle=g; s.fillRect(0,0,64,64);
+}
+
+/* ---------- particles ---------- */
+const P = [];
+function initParticles(){
+  for(let k=0;k<P_COUNT;k++){
+    P.push({
+      x: Math.random()*W, y: Math.random()*H,
+      vx:0, vy:0,
+      tx: Math.random()*W, ty: Math.random()*H,
+      sz: .7+Math.random()*2.3,
+      am: Math.random()*Math.PI*2,          // wander phase
+      sp: .4+Math.random()*1.1,             // wander speed
+      free: true                            // ambient (no shape slot)
+    });
+  }
+}
+
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  cx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', ()=>{ resize(); setShape(cur); });
+
+/* ---------- shape sampling ---------- */
+const off = document.createElement('canvas');
+off.width = 900; off.height = 760;
+const oc = off.getContext('2d', {willReadFrequently:true});
+
+function samplePoints(draw, colorFilter){
+  oc.clearRect(0,0,off.width,off.height);
+  oc.fillStyle = oc.strokeStyle = '#fff';
+  draw(oc);
+  const img = oc.getImageData(0,0,off.width,off.height).data;
+  const pts=[]; const step=4;
+  for(let y=0;y<off.height;y+=step)
+    for(let x=0;x<off.width;x+=step){
+      const i=(y*off.width+x)*4;
+      if(img[i+3]>120 && (!colorFilter || colorFilter(img[i],img[i+1],img[i+2]))) pts.push([x,y]);
+    }
+  return pts;
+}
+/* mascot: keep the character, drop its flat teal oval backdrop */
+const notOvalTeal = (r,g,b)=> !(Math.abs(r-119)<48 && Math.abs(g-229)<48 && Math.abs(b-216)<48);
+
+/* shape painters (drawn at ~900x760, auto-fit later) */
+const mascotImg = new Image();
+mascotImg.crossOrigin = 'anonymous';
+let mascotReady = false;
+mascotImg.onload = ()=>{ mascotReady=true; if(cur===0) setShape(0); };
+mascotImg.onerror = ()=>{ mascotReady=false; };
+mascotImg.src = 'https://nanohubdemo.vercel.app/nanoshellano-mascot.png';
+
+function drawRocketFallback(c){
+  c.save(); c.translate(450,380);
+  c.beginPath();                             // body
+  c.moveTo(0,-280); c.quadraticCurveTo(130,-130,130,60);
+  c.lineTo(130,140); c.lineTo(-130,140); c.lineTo(-130,60);
+  c.quadraticCurveTo(-130,-130,0,-280); c.fill();
+  c.globalCompositeOperation='destination-out';
+  c.beginPath(); c.arc(0,-60,62,0,7); c.fill(); // window hole
+  c.globalCompositeOperation='source-over';
+  c.beginPath(); c.moveTo(-130,20); c.lineTo(-230,190); c.lineTo(-130,140); c.fill();  // fins
+  c.beginPath(); c.moveTo(130,20); c.lineTo(230,190); c.lineTo(130,140); c.fill();
+  c.beginPath(); c.moveTo(-60,150); c.quadraticCurveTo(0,320,60,150); c.fill();        // flame
+  c.restore();
+}
+const SHAPES = [
+  // 0: the mascot itself
+  (c)=>{ if(mascotReady){ c.drawImage(mascotImg,120,50,660,660); } else drawRocketFallback(c); },
+  // 1: the word
+  (c)=>{ c.font='900 240px Heebo,sans-serif'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('בחינם',450,380); },
+  // 2: shield with keyhole
+  (c)=>{
+    c.save(); c.translate(450,380); c.lineWidth=30; c.lineJoin='round';
+    c.beginPath();
+    c.moveTo(0,-270); c.quadraticCurveTo(170,-200,240,-210);
+    c.quadraticCurveTo(250,60,0,270);
+    c.quadraticCurveTo(-250,60,-240,-210);
+    c.quadraticCurveTo(-170,-200,0,-270);
+    c.closePath(); c.stroke();
+    c.beginPath(); c.arc(0,-50,52,0,7); c.fill();
+    c.beginPath(); c.moveTo(-26,-30); c.lineTo(-18,96); c.lineTo(18,96); c.lineTo(26,-30); c.fill();
+    c.restore();
+  },
+  // 3: five nodes on a rising path
+  (c)=>{
+    c.save(); c.translate(450,380); c.lineWidth=16;
+    const pts=[[-330,220],[-165,90],[0,160],[165,-40],[330,-200]];
+    c.beginPath(); c.moveTo(pts[0][0],pts[0][1]);
+    for(let k=1;k<pts.length;k++){
+      const a=pts[k-1], b=pts[k];
+      c.quadraticCurveTo((a[0]+b[0])/2, a[1], (a[0]+b[0])/2, (a[1]+b[1])/2);
+      c.quadraticCurveTo((a[0]+b[0])/2, b[1], b[0], b[1]);
+    }
+    c.stroke();
+    pts.forEach((p,k)=>{ c.beginPath(); c.arc(p[0],p[1], k===4?58:42, 0,7); c.fill(); });
+    c.restore();
+  },
+  // 4: chat bubble with three dots
+  (c)=>{
+    c.save(); c.translate(450,360); c.lineWidth=30; c.lineJoin='round';
+    const r=70,w=560,h=380,x=-w/2,y=-h/2;
+    c.beginPath();
+    c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+    c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    c.lineTo(x+160,y+h); c.lineTo(x+70,y+h+110); c.lineTo(x+95,y+h);
+    c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+    c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y);
+    c.closePath(); c.stroke();
+    [-120,0,120].forEach(dx=>{ c.beginPath(); c.arc(dx,0,40,0,7); c.fill(); });
+    c.restore();
+  },
+  // 5: paper plane
+  (c)=>{
+    c.save(); c.translate(450,380);
+    c.beginPath(); c.moveTo(330,-210); c.lineTo(-330,40); c.lineTo(-140,120); c.lineTo(330,-210); c.fill();
+    c.beginPath(); c.moveTo(330,-210); c.lineTo(-100,150); c.lineTo(-60,290); c.lineTo(30,140); c.lineTo(330,-210); c.fill();
+    c.globalCompositeOperation='destination-out';
+    c.beginPath(); c.moveTo(330,-210); c.lineTo(-120,130); c.lineTo(-104,138); c.closePath(); c.fill();
+    c.restore();
+  }
+];
+
+function setShape(idx){
+  const pts = samplePoints(SHAPES[idx], idx===0 && mascotReady ? notOvalTeal : null);
+  if(!pts.length) return;
+  // fit into target box
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  pts.forEach(p=>{ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; });
+  const bw=maxX-minX||1, bh=maxY-minY||1;
+  const box = Math.min(W,H)*SHAPE_MAX;
+  const sc = Math.min(box/bw, box/bh);
+  const cxp = W*SHAPE_X, cyp = H*SHAPE_Y;
+  // shuffle particle order for organic morphs
+  const order = P.map((_,k)=>k);
+  for(let k=order.length-1;k>0;k--){ const j=(k*2654435761)%(k+1); const t=order[k]; order[k]=order[j]; order[j]=t; }
+  const nShape = Math.min(P_COUNT, pts.length);
+  const stride = pts.length/nShape;
+  for(let k=0;k<P_COUNT;k++){
+    const p = P[order[k]];
+    if(k<nShape){
+      const q = pts[Math.floor(k*stride)];
+      p.tx = cxp + (q[0]-(minX+bw/2))*sc;
+      p.ty = cyp + (q[1]-(minY+bh/2))*sc;
+      p.free = false;
+    }else{
+      p.tx = Math.random()*W; p.ty = Math.random()*H;
+      p.free = true;
+    }
+  }
+}
+
+/* ---------- animation loop ---------- */
+const mouse = {x:-9999, y:-9999};
+window.addEventListener('mousemove', e=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
+let t=0;
+function tick(){
+  t+=0.016;
+  cx.clearRect(0,0,W,H);
+  cx.globalCompositeOperation='lighter';
+  for(let k=0;k<P_COUNT;k++){
+    const p=P[k];
+    const wob = p.free ? 14 : 3.2;
+    const gx = p.tx + Math.cos(t*p.sp+p.am)*wob;
+    const gy = p.ty + Math.sin(t*p.sp*1.3+p.am)*wob;
+    p.vx += (gx-p.x)*0.014; p.vy += (gy-p.y)*0.014;
+    // mouse repulsion
+    const dx=p.x-mouse.x, dy=p.y-mouse.y, d2=dx*dx+dy*dy;
+    if(d2<12100){ const d=Math.sqrt(d2)||1, f=(110-d)/110*1.6; p.vx+=dx/d*f; p.vy+=dy/d*f; }
+    p.vx*=0.90; p.vy*=0.90;
+    p.x+=p.vx; p.y+=p.vy;
+    const a = p.free ? 0.16 : 0.85;
+    const s = p.sz*(p.free?4:6);
+    cx.globalAlpha = a;
+    cx.drawImage(sprite, p.x-s/2, p.y-s/2, s, s);
+  }
+  cx.globalAlpha=1; cx.globalCompositeOperation='source-over';
+  requestAnimationFrame(tick);
+}
+
+/* ---------- chapter navigation ---------- */
+const rail = document.getElementById('rail');
+CHAPTERS.forEach((nm,k)=>{
+  const d=document.createElement('div');
+  d.className='dot'+(k===0?' on':'');
+  d.innerHTML='<i></i><span>'+nm+'</span>';
+  d.onclick=()=>goTo(k);
+  rail.appendChild(d);
+});
+function paintRail(){ [...rail.children].forEach((d,k)=>d.classList.toggle('on',k===cur)); }
+
+function goTo(n){
+  if(n===cur || n<0 || n>=CHAPTERS.length || busy) return;
+  busy=true;
+  const oldEl=document.getElementById('ch'+cur), newEl=document.getElementById('ch'+n);
+  oldEl.classList.add('leave'); oldEl.classList.remove('on');
+  cur=n; paintRail(); setShape(cur);
+  newEl.classList.add('enter-prep');
+  setTimeout(()=>{
+    oldEl.classList.remove('leave');
+    newEl.classList.remove('enter-prep'); newEl.classList.add('on');
+    setTimeout(()=>{ busy=false; }, 420);
+  }, 300);
+}
+
+let wheelLock=0;
+window.addEventListener('wheel', e=>{
+  const now=Date.now();
+  if(now-wheelLock<900 || Math.abs(e.deltaY)<12) return;
+  wheelLock=now;
+  goTo(cur+(e.deltaY>0?1:-1));
+},{passive:true});
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowDown'||e.key==='ArrowLeft'||e.key==='PageDown'||e.key===' ') goTo(cur+1);
+  if(e.key==='ArrowUp'||e.key==='ArrowRight'||e.key==='PageUp') goTo(cur-1);
+});
+
+/* ---------- boot ---------- */
+resize();
+initParticles();
+setShape(0);
+document.getElementById('ch0').classList.add('on');
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>setShape(cur));
+tick();
+</script>
+</body>
+</html>

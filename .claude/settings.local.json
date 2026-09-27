@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/exedev/nanoclaw-v2 log --oneline -i --grep=\"not delivered\\\\|duplicate\\\\|wrap\" -20)",
+      "Bash(git -C /home/exedev/nanoclaw-v2 log -p -L464,469:container/agent-runner/src/poll-loop.ts)",
+      "Bash(bun test *)",
+      "Read(//home/exedev/.bun/bin/**)",
+      "Bash(find / -maxdepth 4 -iname \"bun\" -type f)",
+      "Bash(find / -maxdepth 6 -iname \"bun\")",
+      "Read(//home/exedev/**)",
+      "Bash(npm ls *)",
+      "Bash(docker run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(ncl groups *)",
+      "Bash(pnpm exec *)"
+    ]
+  }
+}

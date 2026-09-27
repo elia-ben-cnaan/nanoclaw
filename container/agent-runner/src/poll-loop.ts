@@ -9,6 +9,8 @@ import {
   setContinuation,
   loadFallbackState,
   saveFallbackState,
+  hasClaudeUsageAlert,
+  markClaudeUsageAlert,
 } from './db/session-state.js';
 import { recordUsage } from './db/usage.js';
 import { QuotaExhaustedError, isQuotaErrorMessage } from './quota.js';
@@ -33,6 +35,7 @@ import {
 import { isUploadTraceCommand, uploadTrace } from './upload-trace.js';
 import { buildConversationRecap } from './conversation-recap.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, ProviderExchange } from './providers/types.js';
+import { enrichVoiceTranscripts } from './voice-transcription.js';
 
 const POLL_INTERVAL_MS = 1000;
 const ACTIVE_POLL_INTERVAL_MS = 500;
@@ -123,6 +126,8 @@ export interface PollLoopConfig {
    * resurrect a stale id from a different backend.
    */
   providerName: string;
+  /** Agent identity; used to scope user-facing quota alerts. */
+  agentGroupId?: string;
   cwd: string;
   systemContext?: {
     instructions?: string;
@@ -173,6 +178,41 @@ const BOTH_PROVIDERS_FAILED_NOTICE = '❌ לא הצלחתי לענות כרגע.
 // this window, but the fallback serves meanwhile so it's not user-facing
 // downtime.
 const PRIMARY_COOLDOWN_MS = 10 * 60 * 1000;
+const CLAUDE_USAGE_ALERT_THRESHOLD = 90;
+const CLAUDE_USAGE_ALERT_AGENT_GROUP_IDS = new Set([
+  'ag-1780401001748-zriukn', // Daniela
+  'ag-1778670984219-665dop', // Shellanoo
+]);
+type RateLimitEvent = Extract<ProviderEvent, { type: 'rate_limit' }>;
+
+export function claudeUsagePercent(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) return -1;
+  return value <= 1 ? value * 100 : value;
+}
+
+export function shouldSendClaudeUsageAlert(
+  event: RateLimitEvent,
+  routing: RoutingContext,
+  providerName: string,
+  agentGroupId: string | undefined,
+): boolean {
+  return providerName.toLowerCase() === 'claude' && !!agentGroupId &&
+    CLAUDE_USAGE_ALERT_AGENT_GROUP_IDS.has(agentGroupId) &&
+    claudeUsagePercent(event.utilization) >= CLAUDE_USAGE_ALERT_THRESHOLD &&
+    !!routing.platformId && !!routing.channelType && routing.channelType !== 'agent';
+}
+
+export function maybeSendClaudeUsageAlert(event: RateLimitEvent, routing: RoutingContext, providerName: string, agentGroupId: string | undefined): void {
+  if (!shouldSendClaudeUsageAlert(event, routing, providerName, agentGroupId)) return;
+  const windowKey = `${agentGroupId}:${event.rateLimitType ?? 'unknown'}:${event.resetsAt ?? 'unknown'}`;
+  if (hasClaudeUsageAlert(windowKey)) return;
+  const utilization = Math.round(claudeUsagePercent(event.utilization));
+  writeMessageOut({ id: generateId(), kind: 'chat', platform_id: routing.platformId, channel_type: routing.channelType, thread_id: routing.threadId,
+    content: JSON.stringify({ text: `⚠️ עדכון: מכסת Claude הנוכחית הגיעה ל-${utilization}%. אם היא תיגמר, אעבור אוטומטית ל-Codex כדי לשמור על רצף השיחה.` }),
+  });
+  markClaudeUsageAlert(windowKey);
+  log(`Sent one-time Claude usage alert at ${utilization}%`);
+}
 
 /**
  * Per-loop quota-fallback state. Instantiated once per runPollLoop call (NOT
@@ -399,7 +439,8 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
 
     // Format messages: passthrough commands get raw text (only if the
     // provider natively handles slash commands), others get XML.
-    const prompt = formatMessagesWithCommands(keep, config.provider.supportsNativeSlashCommands);
+    const enrichedMessages = await enrichVoiceTranscripts(keep);
+    const prompt = formatMessagesWithCommands(enrichedMessages, config.provider.supportsNativeSlashCommands);
 
     log(`Processing ${keep.length} message(s), kinds: ${[...new Set(keep.map((m) => m.kind))].join(',')}`);
 
@@ -427,7 +468,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
         // avoids re-announcing the switch. Recovery is handled below: once the
         // cooldown lapses the next batch takes the primary path again.
         log(`Primary in quota cooldown — serving via fallback '${config.fallback.providerName}'`);
-        await serveViaFallback(config.fallback, prompt, routing, config.cwd, config.systemContext);
+        await serveViaFallback(config.fallback, prompt, routing, config.cwd, config.systemContext, { agentGroupId: config.agentGroupId, outageStartedAt: fbState.outageStartedAt });
       } else {
         // Recovery probe after an outage: the primary's thread never saw the
         // turns the fallback served (separate continuations — "two brains").
@@ -474,6 +515,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               attemptPrompt,
               continuation,
               fbState,
+              config.agentGroupId,
             );
             if (result.continuation && result.continuation !== continuation) {
               continuation = result.continuation;
@@ -506,9 +548,8 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               saveFallbackState(fbState);
               let fallbackPrompt = quotaPrompt;
               if (announce) {
-                // Silent switch — the user should not be told which engine is
-                // answering unless they ask. Only the recap moves across; no
-                // user-facing notice.
+                // Operator agents receive a scoped notice only AFTER a successful
+                // Codex turn. Other groups retain the silent-switch behavior.
                 log(`Primary quota exhausted — switching to fallback '${config.fallback.providerName}' for up to ${PRIMARY_COOLDOWN_MS / 60000}m (silent)`);
                 // First fallback turn of this outage: the fallback's thread has
                 // never seen the primary-side conversation ("two brains" gap).
@@ -520,7 +561,7 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
               } else {
                 log(`Primary still quota-exhausted — extending fallback cooldown (switch already announced)`);
               }
-              await serveViaFallback(config.fallback, fallbackPrompt, routing, config.cwd, config.systemContext);
+              await serveViaFallback(config.fallback, fallbackPrompt, routing, config.cwd, config.systemContext, { agentGroupId: config.agentGroupId, outageStartedAt: fbState.outageStartedAt });
               break;
             }
 
@@ -651,6 +692,7 @@ export async function processQuery(
   initialPrompt: string,
   initialContinuation: string | undefined,
   fbState?: FallbackState,
+  agentGroupId?: string,
 ): Promise<QueryResult> {
   let queryContinuation: string | undefined;
   let done = false;
@@ -805,7 +847,8 @@ export async function processQuery(
         if (done) return;
 
         const keptIds = keep.map((m) => m.id);
-        const prompt = formatMessages(keep);
+        const enrichedMessages = await enrichVoiceTranscripts(keep);
+        const prompt = formatMessages(enrichedMessages);
         log(`Pushing ${keep.length} follow-up message(s) into active query`);
         unwrappedNudged = false;
         initiatorNudged = false;
@@ -879,6 +922,7 @@ export async function processQuery(
         // engine/quota plumbing (only on request, which the agent answers
         // from its own runtime context, independent of this event).
         log(`Rate limit telemetry: status=${event.status}, utilization=${event.utilization ?? '?'}%`);
+        maybeSendClaudeUsageAlert(event, routing, providerName, agentGroupId);
       } else if (event.type === 'result') {
         // Record per-turn token usage for the operator dashboard. Best-effort:
         // a metering write must never break the agent's turn.
@@ -1058,15 +1102,31 @@ function writeNotice(routing: RoutingContext, text: string): void {
  * runFallbackTurn (which throws on failure) so the cooldown fast-path and the
  * quota-catch path share identical failure handling.
  */
-async function serveViaFallback(
+export function maybeNotifyCodexFallback(
+  routing: RoutingContext,
+  providerName: string,
+  state: { agentGroupId?: string; outageStartedAt: number },
+): void {
+  if (providerName !== 'codex' || !state.agentGroupId || !CLAUDE_USAGE_ALERT_AGENT_GROUP_IDS.has(state.agentGroupId)
+      || !routing.platformId || !routing.channelType || routing.channelType === 'agent') return;
+  const key = `codex-fallback:${state.agentGroupId}:${state.outageStartedAt}`;
+  if (hasClaudeUsageAlert(key)) return;
+  writeNotice(routing, 'ℹ️ מכסת Claude הסתיימה. עברתי ל־Codex ואני ממשיך את השיחה.');
+  markClaudeUsageAlert(key);
+  log('Sent one-time Codex fallback confirmation after successful turn');
+}
+
+export async function serveViaFallback(
   fallback: { provider: AgentProvider; providerName: string },
   prompt: string,
   routing: RoutingContext,
   cwd: string,
   systemContext?: { instructions?: string },
+  operatorNotice?: { agentGroupId?: string; outageStartedAt: number },
 ): Promise<void> {
   try {
     await runFallbackTurn(fallback, prompt, routing, cwd, systemContext);
+    if (operatorNotice) maybeNotifyCodexFallback(routing, fallback.providerName, operatorNotice);
   } catch (fbErr) {
     const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
     log(`Fallback turn failed: ${fbMsg}`);

@@ -1,0 +1,11 @@
+[mcp_servers.nanoclaw]
+type = "stdio"
+command = "bun"
+args = ["run", "/app/src/mcp-tools/index.ts"]
+
+[mcp_servers.openai]
+type = "stdio"
+command = "pnpm"
+args = ["dlx", "@fre4x/openai"]
+[mcp_servers.openai.env]
+OPENAI_API_KEY = "onecli-gateway-injected"

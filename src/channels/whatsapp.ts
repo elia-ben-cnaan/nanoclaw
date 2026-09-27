@@ -449,6 +449,98 @@ const ASSISTANT_NAME = waEnv.ASSISTANT_NAME || 'Andy';
 const WHATSAPP_SHARED = resolveSharedMode(waEnv.ASSISTANT_HAS_OWN_NUMBER);
 const WHATSAPP_DEFAULTS: ChannelDefaults = computeWhatsappDefaults(WHATSAPP_SHARED);
 
+interface NativeCtaCard {
+  title: string;
+  body: string;
+  buttonText: string;
+  url: string;
+}
+
+/** Pick one functional visual cue for a card's action. */
+function actionEmojiForUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const kind = parsed.searchParams.get('t')?.toLowerCase();
+    if (kind === 'email') return '📧';
+    if (kind === 'outlook') return '📨';
+    if (kind === 'wa' || kind === 'whatsapp') return '🟢';
+    if (kind === 'cal' || kind === 'calendar') return '📅';
+    if (kind === 'teams' || kind === 'sms') return '💬';
+    if (kind === 'meet' || kind === 'video') return '🎥';
+    if (kind === 'phone' || kind === 'call') return '📞';
+    if (kind === 'drive' || kind === 'navigate') return '🚗';
+    if (kind === 'maps' || kind === 'trip' || kind === 'plan' || kind === 'schedule') return '⏰';
+    if (parsed.hostname === 'wa.me' || parsed.hostname.endsWith('.whatsapp.com')) return '🟢';
+    if (parsed.hostname.includes('calendar.google')) return '📅';
+    if (parsed.hostname === 'meet.google.com' || parsed.hostname.endsWith('.zoom.us')) return '🎥';
+    if (parsed.hostname === 'waze.com' || parsed.hostname.endsWith('.waze.com')) {
+      return parsed.searchParams.get('navigate') === 'yes' ? '🚗' : '⏰';
+    }
+    if (parsed.hostname.includes('maps.google')) return parsed.pathname.includes('/dir/') ? '🚗' : '⏰';
+  } catch {
+    // Invalid URLs are rejected by the caller. Keep a quiet, useful fallback.
+  }
+  return '🔗';
+}
+
+function decorateActionLabel(value: string, emoji: string): string {
+  return value.startsWith(emoji) ? value : `${emoji} ${value}`;
+}
+
+/** Keep cards scannable on a phone: two short lines, never a mini-message. */
+function compactCardBody(value: string): string {
+  const compact = value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+  return compact.length > 180 ? `${compact.slice(0, 179).trimEnd()}…` : compact;
+}
+
+/**
+ * Convert the agent's send_card payload into WhatsApp's single URL-button
+ * shape. Native WhatsApp supports one CTA button here; other card shapes keep
+ * the existing text fallback rather than silently dropping content.
+ */
+function buildNativeCtaFromCard(content: unknown): NativeCtaCard | null {
+  if (!content || typeof content !== 'object') return null;
+  const envelope = content as Record<string, unknown>;
+  if (envelope.type !== 'card' || !envelope.card || typeof envelope.card !== 'object') return null;
+
+  const card = envelope.card as Record<string, unknown>;
+  if (!Array.isArray(card.actions) || card.actions.length !== 1) return null;
+  const action = card.actions[0] as Record<string, unknown>;
+  const url = typeof action.url === 'string' ? action.url.trim() : '';
+  const label = typeof action.label === 'string' ? action.label.trim() : '';
+  if (!/^https:\/\//i.test(url)) return null;
+
+  const title = typeof card.title === 'string' ? card.title.trim() : '';
+  const description = typeof card.description === 'string' ? card.description.trim() : '';
+  const children = Array.isArray(card.children)
+    ? card.children
+        .map((child) => {
+          if (typeof child === 'string') return child.trim();
+          if (child && typeof child === 'object' && typeof (child as Record<string, unknown>).text === 'string') {
+            return ((child as Record<string, unknown>).text as string).trim();
+          }
+          return '';
+        })
+        .filter(Boolean)
+    : [];
+  const fallbackText = typeof envelope.fallbackText === 'string' ? envelope.fallbackText.trim() : '';
+  const body = compactCardBody([description, ...children].filter(Boolean).join('\n') || title || fallbackText);
+  if (!body) return null;
+  const emoji = actionEmojiForUrl(url);
+
+  return {
+    title: decorateActionLabel(title || 'פעולה', emoji).slice(0, 60),
+    body,
+    buttonText: decorateActionLabel(label || 'פתח', emoji).slice(0, 20),
+    url,
+  };
+}
+
 registerChannelAdapter('whatsapp', {
   factory: () => {
     const env = readEnvFile(['WHATSAPP_PHONE_NUMBER', 'WHATSAPP_ENABLED']);
@@ -714,6 +806,41 @@ registerChannelAdapter('whatsapp', {
         log.warn('Failed to send, message queued', { jid, err, queueSize: outgoingQueue.length });
         return undefined;
       }
+    }
+
+    /**
+     * Send a compact WhatsApp action card as a regular message with a native
+     * link preview. Unlike native-flow and template envelopes, this renders
+     * on linked desktop devices as well as on the phone.
+     */
+    async function sendNativeCtaCard(jid: string, card: NativeCtaCard): Promise<string | undefined> {
+      if (!connected) return undefined;
+      // The preview owns the title and the action. Keep the message body to
+      // the two decision details so the card does not repeat itself.
+      const { text, mentions } = formatWhatsApp(card.body);
+      const sent = await sock.sendMessage(jid, {
+        text,
+        contextInfo: {
+          mentionedJid: mentions.length > 0 ? mentions : undefined,
+          externalAdReply: {
+            title: card.title,
+            body: card.buttonText,
+            sourceUrl: card.url,
+            mediaType: 1,
+            renderLargerThumbnail: false,
+            showAdAttribution: false,
+          },
+        },
+      });
+      if (!sent?.key?.id || !sent.message) {
+        throw new Error('Baileys did not generate a message id for the action card');
+      }
+      sentMessageCache.set(sent.key.id, sent.message);
+      if (sentMessageCache.size > SENT_MESSAGE_CACHE_MAX) {
+        const oldest = sentMessageCache.keys().next().value!;
+        sentMessageCache.delete(oldest);
+      }
+      return sent.key.id;
     }
 
     // --- Socket creation ---
@@ -1236,6 +1363,30 @@ registerChannelAdapter('whatsapp', {
             });
           } catch (err) {
             log.debug('Failed to send reaction', { platformId, err });
+          }
+          return;
+        }
+
+        // Render an action card that remains visible on every linked device.
+        if (content.type === 'card') {
+          const card = buildNativeCtaFromCard(content);
+          if (card) {
+            try {
+              const msgId = await sendNativeCtaCard(platformId, card);
+              if (msgId) return msgId;
+              log.warn('Template WhatsApp card was not sent; using text fallback', { platformId });
+            } catch (err) {
+              log.warn('Template WhatsApp card failed; using text fallback', { platformId, err });
+            }
+            const actionText = `**${card.title}**\n\n${card.body}\n\n${card.buttonText}\n${card.url}`;
+            const { text: formatted, mentions } = formatWhatsApp(actionText);
+            return sendRawMessage(platformId, formatted, mentions.length > 0 ? mentions : undefined);
+          }
+
+          const fallbackText = typeof content.fallbackText === 'string' ? content.fallbackText : '';
+          if (fallbackText) {
+            const { text: formatted, mentions } = formatWhatsApp(fallbackText);
+            return sendRawMessage(platformId, formatted, mentions.length > 0 ? mentions : undefined);
           }
           return;
         }

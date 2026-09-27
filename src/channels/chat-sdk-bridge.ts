@@ -25,6 +25,18 @@ import { getAskQuestionRender } from '../db/sessions.js';
 import { normalizeOptions, type NormalizedOption } from './ask-question.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage } from './adapter.js';
 
+/** Keep action cards scannable on a phone, even when an agent over-explains. */
+function compactCardText(value: string): string {
+  const compact = value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+
+  return compact.length > 180 ? `${compact.slice(0, 179).trimEnd()}…` : compact;
+}
+
 /** Adapter with optional gateway support (e.g., Discord). */
 interface GatewayAdapter extends Adapter {
   startGatewayListener?(
@@ -457,24 +469,37 @@ export function createChatSdkBridge(config: ChatSdkBridgeConfig): ChannelAdapter
       if (content.type === 'card' && content.card && typeof content.card === 'object') {
         const cardSpec = content.card as Record<string, unknown>;
         const title = (cardSpec.title as string) || '';
-        const fallbackText = (content.fallbackText as string) || (cardSpec.description as string) || title || '';
-
-        const cardChildren: CardChild[] = [];
+        const bodyParts: string[] = [];
         if (typeof cardSpec.description === 'string' && cardSpec.description) {
-          cardChildren.push(CardText(cardSpec.description));
+          bodyParts.push(cardSpec.description);
         }
         if (Array.isArray(cardSpec.children)) {
           for (const child of cardSpec.children) {
             if (typeof child === 'string' && child) {
-              cardChildren.push(CardText(child));
+              bodyParts.push(child);
             } else if (
               child &&
               typeof child === 'object' &&
               typeof (child as Record<string, unknown>).text === 'string'
             ) {
-              cardChildren.push(CardText((child as Record<string, string>).text));
+              bodyParts.push((child as Record<string, string>).text);
             }
           }
+        }
+        const body = compactCardText(bodyParts.join('\n'));
+        const fallbackBody = compactCardText((content.fallbackText as string) || body);
+        // Some Chat SDK transports flatten a card to fallback text. Keep the
+        // card title visible and bold in that case instead of losing the visual
+        // hierarchy the user sees on native WhatsApp and Telegram cards.
+        const fallbackText = title
+          ? fallbackBody && fallbackBody !== title
+            ? `**${title}**\n\n${fallbackBody}`
+            : `**${title}**`
+          : fallbackBody;
+
+        const cardChildren: CardChild[] = [];
+        if (body) {
+          cardChildren.push(CardText(body));
         }
         if (Array.isArray(cardSpec.actions)) {
           const linkButtons = (cardSpec.actions as Array<Record<string, unknown>>)

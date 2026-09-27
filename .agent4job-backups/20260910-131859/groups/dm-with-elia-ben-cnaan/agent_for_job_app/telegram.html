@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Agent4Job — פתיחת סוכן בטלגרם</title>
+<meta name="description" content="סוכן אישי שמוצא לך את העבודה הבאה — עכשיו בטלגרם. לוחצים, נפתחת שיחה עם הסוכן, והוא מוביל משם." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Agent4Job — פתיחת סוכן בטלגרם" />
+<meta property="og:description" content="הסוכן שמוצא לך את העבודה הבאה — עכשיו בטלגרם." />
+<meta property="og:locale" content="he_IL" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#1C1C1E; --s1:#2C2C2E; --s2:#3A3A3C; --line:#48484A;
+    --ink:#FFFFFF; --muted:#A1A1A6;
+    --teal:#56EDD6; --teal-deep:#012a26; --orange:#FF9F0A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--paper);color:var(--ink);font-family:'Heebo','Inter',sans-serif;-webkit-font-smoothing:antialiased}
+  body{min-height:100dvh;display:flex;flex-direction:column;overflow-x:hidden}
+  .wrap{width:100%;max-width:540px;margin:0 auto;padding:34px 22px 34px;flex:1;display:flex;flex-direction:column}
+  .logo{display:flex;flex-direction:column;align-items:center;margin-bottom:2px}
+  .logo img{width:min(78%,300px);height:auto;display:block}
+  .hero{display:flex;flex-direction:column;text-align:center;padding:30px 0 6px}
+  .kicker{color:var(--teal);font-weight:700;font-size:14px;letter-spacing:.3px;margin-bottom:14px}
+  h1{font-size:33px;line-height:1.2;font-weight:800;letter-spacing:-.4px;margin-bottom:15px}
+  h1 span{color:var(--teal)}
+  .sub{color:var(--muted);font-size:16.5px;line-height:1.6;max-width:430px;margin:0 auto}
+  .steps{display:flex;flex-direction:column;gap:11px;margin:28px 0 6px;text-align:right}
+  .step{display:flex;align-items:flex-start;gap:13px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px 16px}
+  .num{flex:none;width:30px;height:30px;border-radius:9px;background:var(--s2);color:var(--teal);font-weight:800;
+    display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;font-size:15px}
+  .step .t{font-weight:600;font-size:15.5px;margin-bottom:2px}
+  .step .d{color:var(--muted);font-size:13.5px;line-height:1.45}
+  .cta-wrap{margin-top:26px}
+  .consent{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;
+    color:var(--muted);font-size:13.5px;line-height:1.5;cursor:pointer;text-align:right}
+  .consent input{flex:none;width:20px;height:20px;margin-top:1px;accent-color:var(--teal);cursor:pointer}
+  .consent a{color:var(--teal);text-decoration:underline;text-underline-offset:2px}
+  .cta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+    background:var(--teal);color:var(--teal-deep);font-weight:800;font-size:18px;text-decoration:none;
+    padding:18px;border-radius:16px;transition:transform .12s ease, box-shadow .2s ease;
+    box-shadow:0 8px 30px rgba(86,237,214,.24)}
+  .cta:active{transform:scale(.985)}
+  .cta svg{width:23px;height:23px}
+  .cta.locked{opacity:.42;box-shadow:none;pointer-events:none;filter:grayscale(.3)}
+  .fine{text-align:center;color:var(--muted);font-size:12.5px;margin-top:12px;line-height:1.5}
+  footer{text-align:center;color:#6a6a6a;font-size:12px;padding-top:24px}
+  @media(max-width:380px){h1{font-size:29px}.sub{font-size:15.5px}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">
+      <img src="logo_final_transparent.png" alt="Agent4Job" />
+    </div>
+
+    <section class="hero">
+      <div class="kicker">סוכן אישי שמלווה אותך — בטלגרם</div>
+      <h1>הסוכן ש<span>מוצא לך את העבודה הבאה</span>.</h1>
+      <p class="sub">סוכן אישי שחי איתך בטלגרם, מגובה במערכת משרות מתקדמת שמוצאת ומדרגת עבורך עבודות — ומלווה אותך לאורך כל הדרך.</p>
+
+      <div class="steps">
+        <div class="step"><div class="num">1</div><div><div class="t">הסוכן פותח ומוביל</div><div class="d">שיחה קצרה שמכירה אותך. מה אתה מחפש ובמה אתה חזק. הוא שואל, אתה עונה.</div></div></div>
+        <div class="step"><div class="num">2</div><div><div class="t">שולח קורות חיים</div><div class="d">מעלה קו״ח בטלגרם, והסוכן לומד אותך לעומק כדי לדייק את ההתאמה.</div></div></div>
+        <div class="step"><div class="num">3</div><div><div class="t">משרות שמתאימות לך</div><div class="d">מוצא ומדרג רק התאמות אמיתיות, מנהל לך את התהליך, ומתכייל תוך כדי לפי המשוב שלך.</div></div></div>
+      </div>
+    </section>
+
+    <div class="cta-wrap">
+      <label class="consent" for="consent">
+        <input type="checkbox" id="consent" />
+        <span>קראתי ואני מאשר את <a href="policy.html" target="_blank" rel="noopener">מדיניות הפרטיות ותנאי השימוש</a></span>
+      </label>
+      <a class="cta locked" id="cta" href="#" aria-disabled="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71l-4.13-3.05-1.98 1.93c-.23.23-.42.42-.86.42z"/></svg>
+        פתח סוכן בטלגרם
+      </a>
+      <div class="fine">חינם להתחלה · הסוכן ידריך אותך משם.</div>
+    </div>
+
+    <footer>Agent4Job</footer>
+  </div>
+
+<script>
+  // Telegram deep-link. Bot + start payload (source tag) are the only knobs.
+  var TG_BOT = "agentforjobsbot";
+  var START  = "agent4job";
+  var link = "https://t.me/" + TG_BOT + "?start=" + encodeURIComponent(START);
+
+  var cta = document.getElementById('cta');
+  var cb  = document.getElementById('consent');
+  function sync(){
+    if(cb.checked){ cta.href = link; cta.classList.remove('locked'); cta.setAttribute('aria-disabled','false'); }
+    else { cta.removeAttribute('href'); cta.classList.add('locked'); cta.setAttribute('aria-disabled','true'); }
+  }
+  cb.addEventListener('change', sync);
+  sync();
+</script>
+</body>
+</html>

@@ -11,7 +11,9 @@
  * pairing) never start a typing loop — only messages that actually route
  * to an agent do. Fire-and-forget: indicator failures never affect flow.
  */
+import { log } from '../log.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage } from './adapter.js';
+import { spokenText, synthesizeSpeech, voiceRepliesEnabled } from './voice-replies.js';
 
 const REFRESH_MS = 4_500;
 const MAX_MS = 180_000;
@@ -63,6 +65,16 @@ export function wrapWithTelegramTyping(adapter: ChannelAdapter, botToken: string
     timers.set(platformId, timer);
   };
 
+  const sendAudio = async (platformId: string, audio: Buffer): Promise<void> => {
+    const chatId = platformId.split(':').slice(1).join(':');
+    if (!chatId) return;
+    const form = new FormData();
+    form.set('chat_id', chatId);
+    form.set('audio', new Blob([audio], { type: 'audio/mpeg' }), 'agent-reply.mp3');
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendAudio`, { method: 'POST', body: form });
+    if (!response.ok) throw new Error(`Telegram audio send failed (${response.status})`);
+  };
+
   return {
     ...adapter,
 
@@ -76,6 +88,22 @@ export function wrapWithTelegramTyping(adapter: ChannelAdapter, botToken: string
 
     async deliver(platformId, threadId, message) {
       stop(platformId);
+      if (voiceRepliesEnabled()) {
+        const text = spokenText(message);
+        if (text) {
+          const audio = await synthesizeSpeech(text);
+          if (audio) {
+            try {
+              await sendAudio(platformId, audio);
+              // An explicitly requested recording replaces the text reply.
+              // If synthesis or delivery fails, normal text still goes out.
+              return undefined;
+            } catch (err) {
+              log.warn('Telegram voice reply failed; falling back to text', { err });
+            }
+          }
+        }
+      }
       return adapter.deliver(platformId, threadId, message);
     },
   };

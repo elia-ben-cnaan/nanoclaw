@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NanoShellano · מוקאפ דסקטופ (סטטי)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000; --panel:#0E0E0E; --panel2:#161616; --line:#242424;
+    --ink:#FFF; --mut:#B0B0B0; --dim:#6F6F6F;
+    --teal:#56EDD6; --teal-deep:#0F756D; --on-teal:#04211D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:#050505; font-family:Heebo,system-ui,sans-serif; color:var(--ink)}
+
+  /* ===== mockup scaffolding (not part of the design) ===== */
+  .mock-label{max-width:1280px; margin:46px auto 10px; padding:0 24px; font-size:13px; color:var(--dim); font-weight:800; letter-spacing:.08em}
+  .mock-label b{color:var(--teal)}
+
+  /* ===== the desktop frame ===== */
+  .frame{position:relative; max-width:1280px; height:800px; margin:0 auto; background:var(--bg);
+    border:1px solid var(--line); border-radius:18px; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  /* rich ambient background: dot grid + teal wash, kept outside the content column */
+  .frame::before{content:''; position:absolute; inset:0; pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.03) 1px,transparent 1px); background-size:26px 26px}
+  .frame::after{content:''; position:absolute; top:-220px; left:-160px; width:640px; height:640px; pointer-events:none;
+    background:radial-gradient(circle,rgba(86,237,214,.10),transparent 68%)}
+
+  /* top chrome: lockup · progress rail · lang */
+  .bar{position:relative; z-index:4; flex:0 0 auto; display:flex; align-items:center; gap:22px; padding:22px 44px 16px}
+  .bar img{height:30px; width:auto; display:block}
+  .rail{flex:1; display:flex; align-items:center; gap:8px; max-width:520px; margin:0 auto}
+  .rail .seg{flex:1; height:4px; border-radius:99px; background:#1c1c1c; position:relative}
+  .rail .seg.done::after,.rail .seg.cur::after{content:''; position:absolute; inset:0; border-radius:99px; background:var(--teal)}
+  .rail .seg.cur::after{box-shadow:0 0 10px rgba(86,237,214,.55)}
+  .steptag{font-size:12px; color:var(--dim); font-weight:800; min-width:34px; text-align:center}
+  .lang{font-size:12px; font-weight:800; color:var(--teal); background:var(--panel); border:1px solid var(--line);
+    border-radius:99px; padding:8px 14px; letter-spacing:.4px}
+
+  /* main split: narrative column (start side) + visual stage (end side) */
+  .split{position:relative; z-index:3; flex:1; display:flex; min-height:0}
+  .copycol{flex:0 0 46%; max-width:590px; padding:26px 44px 40px 30px; display:flex; flex-direction:column; justify-content:center}
+  .stagecol{flex:1; position:relative; display:flex; align-items:center; justify-content:center; padding:20px 40px}
+
+  .kick{font-size:12px; font-weight:800; letter-spacing:.14em; color:var(--teal); text-transform:uppercase; margin-bottom:14px}
+  h1{font-size:46px; line-height:1.14; font-weight:900; margin-bottom:20px}
+  .lead{color:var(--mut); font-size:16px; line-height:1.8; margin-bottom:18px}
+  .prose{color:var(--mut); font-size:15.5px; line-height:1.95; margin-bottom:14px; max-width:520px}
+  .prose b{color:var(--ink)}
+  .prose .em{color:var(--teal); font-weight:700}
+
+  .cta{display:inline-flex; align-items:center; gap:10px; padding:16px 30px; border:0; border-radius:14px;
+    background:var(--teal); color:var(--on-teal); font-size:16.5px; font-weight:800; font-family:inherit; cursor:pointer;
+    box-shadow:0 10px 34px rgba(86,237,214,.22); width:fit-content; margin-top:14px}
+  .cta.ghost{background:transparent; color:var(--teal); border:1px solid var(--teal-deep); box-shadow:none}
+  .note{color:var(--dim); font-size:12px; margin-top:14px; line-height:1.6}
+  .byline{color:var(--mut); font-size:12.5px; font-weight:700; margin-top:6px}
+
+  /* edge navigation arrows */
+  .navarrow{position:absolute; top:50%; transform:translateY(-50%); z-index:6; width:52px; height:52px; border-radius:50%;
+    background:rgba(14,14,14,.85); border:1px solid var(--line); color:var(--ink); font-size:22px;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px)}
+  .navarrow.next{inset-inline-start:18px; color:var(--on-teal); background:var(--teal); border-color:var(--teal)}
+  .navarrow.prev{inset-inline-end:18px; opacity:.55}
+  .keyhint{position:absolute; bottom:16px; inset-inline-start:50%; transform:translateX(50%); z-index:6;
+    font-size:11px; color:var(--dim); letter-spacing:.04em}
+  html[dir=rtl] .keyhint{transform:translateX(50%)}
+
+  /* ===== screen 1 visual: mascot stage ===== */
+  .heroStage{position:relative; width:440px; height:480px; display:flex; align-items:center; justify-content:center}
+  .heroStage::before{content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at 50% 46%,rgba(86,237,214,.22),transparent 62%)}
+  .heroStage img{position:relative; width:320px; height:320px; object-fit:contain; filter:drop-shadow(0 26px 50px rgba(0,0,0,.55))}
+  .orbit{position:absolute; border:1px dashed rgba(86,237,214,.18); border-radius:50%}
+  .o1{width:380px; height:380px} .o2{width:470px; height:470px; border-color:rgba(86,237,214,.09)}
+  .chipfloat{position:absolute; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:9px 13px; font-size:12.5px; color:var(--mut); box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .chipfloat b{color:var(--teal)}
+  .cf1{top:36px; inset-inline-end:8px} .cf2{bottom:92px; inset-inline-start:-6px} .cf3{bottom:20px; inset-inline-end:44px}
+
+  /* ===== screen 3 visual: security cards ===== */
+  .seccards{display:flex; flex-direction:column; gap:14px; width:430px}
+  .seccard{display:flex; gap:14px; align-items:flex-start; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:18px 18px; text-align:start}
+  .seccard .ic{flex:0 0 44px; width:44px; height:44px; border-radius:13px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:21px}
+  .seccard .tx b{display:block; font-size:15px; margin-bottom:3px}
+  .seccard .tx span{font-size:13px; color:var(--mut); line-height:1.6}
+  .seccard.hero{background:rgba(86,237,214,.07); border-color:var(--teal-deep)}
+  .seccard.hero .ic{background:rgba(86,237,214,.14); border-color:var(--teal-deep)}
+  .seccard.hero .tx b{color:var(--teal)}
+  .honest{font-size:13px; color:var(--mut); line-height:1.7; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:14px 16px; margin-top:16px; max-width:520px}
+  .honest b{color:var(--ink)}
+  .linkrow{margin-top:14px}
+  .linkrow a{color:var(--teal); font-size:13px; font-weight:700; text-decoration:underline}
+
+  /* ===== screen 6 visual: form card ===== */
+  .formcard{width:440px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:28px 28px 26px;
+    box-shadow:0 24px 60px rgba(0,0,0,.55)}
+  .formcard h3{font-size:17px; font-weight:800; margin-bottom:4px}
+  .formcard .sub{font-size:12.5px; color:var(--dim); margin-bottom:14px}
+  label{display:block; font-size:13px; color:var(--mut); font-weight:700; margin:13px 2px 6px}
+  .inp{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:12px;
+    padding:14px; color:var(--ink); font-size:15px; font-family:inherit}
+  .check{display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:12.5px; color:var(--mut); line-height:1.55; text-align:start}
+  .box{flex:0 0 22px; width:22px; height:22px; border-radius:7px; border:1px solid var(--line); background:var(--panel2); margin-top:1px}
+  .check a{color:var(--teal); text-decoration:underline; font-weight:600}
+  .formcard .cta{width:100%; justify-content:center; margin-top:18px}
+  .istrip{display:flex; gap:10px; margin:20px 0 4px; max-width:520px}
+  .istep{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 10px; text-align:center}
+  .istep .in{width:30px; height:30px; border-radius:50%; background:var(--teal); color:var(--on-teal);
+    font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; margin:0 auto 9px}
+  .istep b{display:block; font-size:12.5px; line-height:1.4}
+  .trust{display:flex; gap:18px; margin-top:18px; font-size:12px; color:var(--dim)}
+  .trust span{display:flex; align-items:center; gap:6px}
+</style>
+</head>
+<body>
+
+<!-- ============ מסך 1 · NEED ============ -->
+<div class="mock-label"><b>מסך 1 / NEED</b> · פריסת דסקטופ 1280×800</div>
+<div class="frame">
+  <div class="bar">
+    <img src="https://nanohubdemo.vercel.app/nanoshellano-lockup-trim.png" alt="NanoShellano">
+    <div class="rail">
+      <div class="seg cur"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+    </div>
+    <div class="steptag">1/6</div>
+    <div class="lang">EN</div>
+  </div>
+  <div class="split">
+    <div class="copycol">
+      <div class="kick">NanoShellano</div>
+      <h1>עולם העבודה משתנה.<br>כבר עכשיו.</h1>
+      <p class="prose">בכל חודש שעובר, סוכני AI נכנסים לעוד מחלקה, לעוד תפקיד, לעוד שולחן עבודה. זה כבר לא עתיד, זה ההווה.</p>
+      <p class="prose">מי שיודע לעבוד עם סוכן ימצא את עצמו <b>צעד אחד לפני כולם</b>. ומי שלא, ימצא את עצמו עושה ביד דברים שסוכן עושה בשניות.</p>
+      <p class="prose">הצעד הכי חשוב שתעשה השנה הוא לפתוח סוכן אחד משלך, ולהתחיל לעבוד איתו. <span class="em">בלי רקע טכני, בלי קוד.</span></p>
+      <button class="cta">אני רוצה להיכנס לעולם הזה ←</button>
+      <p class="note">פיילוט בגישה מוזמנת · גרסה ראשונה</p>
+      <p class="byline">מאת אליה בן כנען</p>
+    </div>
+    <div class="stagecol">
+      <div class="heroStage">
+        <div class="orbit o1"></div><div class="orbit o2"></div>
+        <img src="https://nanohubdemo.vercel.app/nanoshellano-mascot.png" alt="">
+        <div class="chipfloat cf1"><b>✓</b> מייל ללקוח נשלח</div>
+        <div class="chipfloat cf2"><b>✓</b> מצגת Q2 מוכנה</div>
+        <div class="chipfloat cf3"><b>✓</b> ה-CRM עודכן</div>
+      </div>
+    </div>
+  </div>
+  <div class="navarrow next">←</div>
+  <div class="keyhint">אפשר גם עם החצים במקלדת</div>
+</div>
+
+<!-- ============ מסך 3 · SECURE ============ -->
+<div class="mock-label"><b>מסך 3 / SECURE</b> · פריסת דסקטופ 1280×800</div>
+<div class="frame">
+  <div class="bar">
+    <img src="https://nanohubdemo.vercel.app/nanoshellano-lockup-trim.png" alt="NanoShellano">
+    <div class="rail">
+      <div class="seg done"></div><div class="seg done"></div><div class="seg cur"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+    </div>
+    <div class="steptag">3/6</div>
+    <div class="lang">EN</div>
+  </div>
+  <div class="split">
+    <div class="copycol">
+      <div class="kick">מאובטח</div>
+      <h1>מאובטח, ורק שלך</h1>
+      <p class="lead">לפני שמכניסים סוכן לחיים שלך, מגיע לך לדעת בדיוק מה קורה עם המידע.</p>
+      <div class="honest"><b>בכנות:</b> זו לא הבטחה ש"אין לנו גישה". זו שליטה אמיתית, אתה מחליט, אתה מאשר, ואתה מבטל מתי שתרצה.</div>
+      <div class="linkrow"><a>מה זה NanoClaw בעצם?</a></div>
+      <button class="cta">הבנתי, איך זה הולך להיות? ←</button>
+      <p class="note">אפשר לשוחח עם הסוכן בכל שפה, בעברית או באנגלית.</p>
+    </div>
+    <div class="stagecol">
+      <div class="seccards">
+        <div class="seccard hero"><div class="ic">🔒</div><div class="tx"><b>חשבון מבודד, רק שלך</b><span>הסוכן חי בחשבון נפרד ומבודד שמיוחד רק לך. כל חיבור נסגר מוצפן, והמידע שלך לא מתערבב עם אף אחד.</span></div></div>
+        <div class="seccard"><div class="ic">🔑</div><div class="tx"><b>אתה מאשר כל חיבור בעצמך</b><span>שום שירות לא מתחבר בלי שאתה לוחץ "אשר", בחשבון שלך. מחברים רק מה שבא לך.</span></div></div>
+        <div class="seccard"><div class="ic">🚪</div><div class="tx"><b>מנתקים ומוחקים בכל רגע</b><span>בלחיצה אחת מנתקים שירות, ובלחיצה אחת מוחקים את הסוכן ואת כל הנתונים איתו.</span></div></div>
+        <div class="seccard"><div class="ic">🛡️</div><div class="tx"><b>לא מוכרים, לא משתפים</b><span>המידע שלך לא נמכר ולא עובר לאף אחד. הוא נשאר אצלך.</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="navarrow next">←</div>
+  <div class="navarrow prev">→</div>
+  <div class="keyhint">אפשר גם עם החצים במקלדת</div>
+</div>
+
+<!-- ============ מסך 6 · INSTALL + REGISTER ============ -->
+<div class="mock-label"><b>מסך 6 / INSTALL + REGISTER</b> · פריסת דסקטופ 1280×800</div>
+<div class="frame">
+  <div class="bar">
+    <img src="https://nanohubdemo.vercel.app/nanoshellano-lockup-trim.png" alt="NanoShellano">
+    <div class="rail">
+      <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg cur"></div>
+    </div>
+    <div class="steptag">6/6</div>
+    <div class="lang">EN</div>
+  </div>
+  <div class="split">
+    <div class="copycol">
+      <div class="kick">התקנה</div>
+      <h1>ההתקנה, ומשם הקסם</h1>
+      <p class="lead">שלוש דקות. פותחים לך משתמש, מקבלים קוד לטלגרם, <b style="color:#fff">ומשם הקסם מתחיל.</b></p>
+      <div class="istrip">
+        <div class="istep"><div class="in">1</div><b>ממלאים פרטים</b></div>
+        <div class="istep"><div class="in">2</div><b>מקבלים קוד לטלגרם</b></div>
+        <div class="istep"><div class="in">3</div><b>הקסם מתחיל</b></div>
+      </div>
+      <div class="trust">
+        <span>🔒 חשבון מבודד</span><span>🚪 מחיקה בכל רגע</span><span>🛡️ בלי ספאם</span>
+      </div>
+    </div>
+    <div class="stagecol">
+      <div class="formcard">
+        <h3>פתיחת הסוכן שלך</h3>
+        <div class="sub">דקה אחת, שלושה שדות</div>
+        <label>שם מלא</label>
+        <input class="inp" placeholder="איך קוראים לך">
+        <label>טלפון</label>
+        <input class="inp" placeholder="050-0000000">
+        <label>מייל</label>
+        <input class="inp" placeholder="you@example.com">
+        <div class="check"><div class="box"></div><div>קראתי ומאשר את <a>תנאי השימוש והפרטיות</a>. האישור הזה פותח את הסוכן.</div></div>
+        <button class="cta">פתח לי סוכן ←</button>
+        <p class="note" style="text-align:center">הפרטים נשמרים כדי שהסוכן יקבל את פניך נכון. בלי ספאם.</p>
+      </div>
+    </div>
+  </div>
+  <div class="navarrow prev">→</div>
+  <div class="keyhint">אפשר גם עם החצים במקלדת</div>
+</div>
+
+<div style="height:60px"></div>
+</body>
+</html>

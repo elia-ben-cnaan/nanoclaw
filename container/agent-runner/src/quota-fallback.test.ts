@@ -84,7 +84,14 @@ describe('isQuotaErrorMessage', () => {
   it('does not match unrelated errors', () => {
     expect(isQuotaErrorMessage('No conversation found with session ID abc')).toBe(false);
     expect(isQuotaErrorMessage('fetch failed: ETIMEDOUT')).toBe(false);
-    expect(isQuotaErrorMessage('Claude Code process exited with code 1')).toBe(false);
+  });
+
+  it('treats a non-zero Claude Code process exit as fallback-eligible', () => {
+    // The subprocess sometimes dies before propagating the underlying quota
+    // response. With Codex configured as overflow, this must retry the user
+    // message instead of leaving the agent stuck.
+    expect(isQuotaErrorMessage('Claude Code process exited with code 1')).toBe(true);
+    expect(isQuotaErrorMessage('Claude Code process exited with code 0')).toBe(false);
   });
 });
 

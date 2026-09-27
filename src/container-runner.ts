@@ -35,6 +35,20 @@ import { initGroupFilesystem } from './group-init.js';
 import { stopTypingRefresh } from './modules/typing/index.js';
 import { log } from './log.js';
 import { validateAdditionalMounts } from './modules/mount-security/index.js';
+
+/** API credentials must never be exposed to an agent container. Codex uses its
+ * own ChatGPT login, and local Whisper handles voice transcription. */
+function stripOpenAIApiCredentials(args: string[]): void {
+  const blocked = new Set(['OPENAI_API_KEY', 'CODEX_API_KEY']);
+  for (let i = args.length - 2; i >= 0; i--) {
+    if (args[i] !== '-e') continue;
+    const name = args[i + 1]?.split('=', 1)[0];
+    if (name && blocked.has(name)) args.splice(i, 2);
+  }
+  // Explicit empty values override credentials inherited from a base image.
+  args.push('-e', 'OPENAI_API_KEY=');
+  args.push('-e', 'CODEX_API_KEY=');
+}
 // Provider host-side config barrel — each provider that needs host-side
 // container setup self-registers on import.
 import './providers/index.js';
@@ -607,6 +621,11 @@ async function buildContainerArgs(
   if (!onecliApplied) {
     throw new Error('OneCLI gateway not applied — refusing to spawn container without credentials');
   }
+  stripOpenAIApiCredentials(args);
+  // OneCLI can replace PATH while applying its proxy configuration. Codex is
+  // installed in /pnpm in the agent image, so pin its directory explicitly
+  // after the gateway step for both primary and fallback invocations.
+  args.push('-e', 'PATH=/pnpm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin');
   log.info('OneCLI gateway applied', { containerName });
 
   // Override entrypoint: run v2 entry point directly via Bun (no tsc, no stdin).

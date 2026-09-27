@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PayMe — Strategic Partner Sales Assignment</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--navy:#2D3154;--navy-light:#3d4270;--blue:#4A6FA5;--accent:#00C9A7;--accent2:#FF6B6B;--bg:#f8f9fc;--white:#fff;--text:#2c2c2c;--muted:#6b7280;--border:#e5e7eb;--shadow:0 4px 24px rgba(0,0,0,.08)}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:960px;margin:0 auto;padding:0 24px}
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-light) 50%,#1a1d3a 100%);color:#fff;padding:80px 0 60px;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;top:-50%;right:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 50%,rgba(0,201,167,.08) 0%,transparent 50%);pointer-events:none}
+.hero img{width:120px;margin-bottom:24px;border-radius:16px}
+.hero h1{font-size:2.4rem;font-weight:800;margin-bottom:8px;letter-spacing:-0.5px}
+.hero .sub{font-size:1.15rem;color:rgba(255,255,255,.7);font-weight:400;max-width:620px;margin:0 auto}
+.hero .badge{display:inline-block;background:var(--accent);color:var(--navy);font-weight:700;padding:6px 18px;border-radius:20px;font-size:.85rem;margin-top:20px}
+section{padding:48px 0}
+section:nth-child(odd){background:var(--white)}
+section:nth-child(even){background:var(--bg)}
+.section-title{font-size:1.6rem;font-weight:800;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.section-title .num{background:var(--navy);color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.section-sub{color:var(--muted);font-size:1rem;margin-bottom:28px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:var(--shadow);transition:transform .2s}
+.card:hover{transform:translateY(-2px)}
+.card h3{font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:8px}
+.card p{color:var(--muted);font-size:.95rem}
+.card .tag{display:inline-block;font-size:.75rem;font-weight:600;padding:3px 10px;border-radius:10px;margin-left:8px}
+.card .tag.outbound{background:#fff3e0;color:#e65100}
+.card .tag.inbound{background:#e8f5e9;color:#2e7d32}
+.engines{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+.engine{border-radius:12px;padding:28px;text-align:center}
+.engine.out{background:linear-gradient(135deg,#fff3e0,#ffe0b2);border:2px solid #ffcc80}
+.engine.in{background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #a5d6a7}
+.engine h3{font-size:1.2rem;font-weight:800;margin-bottom:8px}
+.engine p{font-size:.9rem;color:var(--muted)}
+.engine .big{font-size:2.5rem;font-weight:900;margin:12px 0}
+.engine.out .big{color:#e65100}
+.engine.in .big{color:#2e7d32}
+table{width:100%;border-collapse:collapse;font-size:.88rem;margin:16px 0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+thead{background:var(--navy);color:#fff}
+th{padding:12px 14px;text-align:left;font-weight:600;font-size:.8rem;letter-spacing:.5px}
+td{padding:10px 14px;border-bottom:1px solid var(--border);text-align:left}
+tbody tr:hover{background:#f0f4ff}
+tr.inbound{background:#f0faf0}
+tr.inbound:hover{background:#e0f5e0}
+.timeline{position:relative;padding:20px 0 20px 40px}
+.timeline::before{content:'';position:absolute;left:16px;top:0;bottom:0;width:3px;background:var(--navy);border-radius:3px}
+.tl-item{position:relative;padding:0 0 24px 40px}
+.tl-item::before{content:'';position:absolute;left:8px;top:6px;width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid var(--navy);z-index:1}
+.tl-item .month{font-size:.75rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.tl-item h4{font-size:.95rem;font-weight:700;color:var(--navy);margin:4px 0}
+.tl-item p{font-size:.85rem;color:var(--muted)}
+.forecast-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+.fbox{background:var(--white);border-radius:12px;padding:20px;text-align:center;border:1px solid var(--border);box-shadow:var(--shadow)}
+.fbox .label{font-size:.8rem;color:var(--muted);font-weight:500}
+.fbox .amount{font-size:1.8rem;font-weight:900;color:var(--navy);margin:8px 0}
+.fbox .bar{height:6px;background:#eee;border-radius:3px;margin-top:8px;overflow:hidden}
+.fbox .bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--blue))}
+.fbox.target .amount{color:var(--accent)}
+.vp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vp-card{border-radius:12px;padding:24px;border-left:4px solid var(--accent)}
+.vp-card h4{font-weight:700;color:var(--navy);margin-bottom:6px}
+.vp-card .not{color:var(--accent2);font-weight:600;font-size:.85rem}
+.vp-card .but{color:var(--accent);font-weight:600;font-size:.85rem;margin-top:4px}
+.insight{background:linear-gradient(135deg,#e3f2fd,#e8eaf6);border-left:4px solid var(--blue);border-radius:8px;padding:16px 20px;margin:20px 0;font-size:.95rem}
+.insight strong{color:var(--navy)}
+.downloads{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px}
+.dl-btn{display:inline-flex;align-items:center;gap:8px;background:var(--navy);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:.9rem;transition:all .2s}
+.dl-btn:hover{background:var(--blue);transform:translateY(-2px)}
+.dl-btn .icon{font-size:1.2rem}
+.footer{background:var(--navy);color:rgba(255,255,255,.6);text-align:center;padding:30px;font-size:.85rem}
+@media(max-width:768px){.engines,.vp-grid{grid-template-columns:1fr}.forecast-grid{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:1.8rem}}
+</style>
+</head>
+<body>
+
+<div class="hero">
+<img src="data:image/png;base64,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" alt="PayMe">
+<h1>Strategic Partner Sales</h1>
+<div class="sub">Home Assignment — A plan to reach 100,000 ILS MRR within 4 months through distribution partnerships</div>
+<div class="badge">July 2026</div>
+</div>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">1</span>Executive Summary</div>
+<div class="section-sub">Three ideas that shaped the entire plan</div>
+
+<div class="card">
+<h3>PayMe isn't a payments company — it's an Embedded Finance platform</h3>
+<p>The real customer isn't the small business. It's the platform that serves small businesses. The partner embeds PayMe's services into their own product — and the small business uses them as a natural part of their workflow.</p>
+</div>
+
+<div class="card">
+<h3>Two engines, not one: Outbound + Inbound</h3>
+<p>Instead of relying only on new partnerships, I built a model that also leverages existing partners (Wolt, Wix, Isracard) to add more products. If one engine stalls, the other picks up the slack.</p>
+</div>
+
+<div class="card">
+<h3>Real value — not just "here's your commission"</h3>
+<p>Every partner gets a tailored reason to move: 10bis gets courier retention. Arbox gets a feature their users keep asking for. Plannie doubles their ARPU. Wix fixes a broken user experience. Not a generic revenue share pitch.</p>
+</div>
+</div>
+</section>
+
+<!-- 2. DUAL ENGINE -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">2</span>Two-Engine Model: Outbound + Inbound</div>
+<div class="section-sub">Two growth engines running side by side, covering for each other</div>
+
+<div class="engines">
+<div class="engine out">
+<h3>🚀 Outbound</h3>
+<p>New partnerships</p>
+<div class="big">6</div>
+<p>10bis, Arbox, Plannie, Assuta, HMC, Yango Deli</p>
+<p style="margin-top:12px;font-size:.8rem;color:#bf360c">Sales Cycle: 4-8 weeks | High volume potential</p>
+</div>
+<div class="engine in">
+<h3>🔄 Inbound</h3>
+<p>Expanding existing partners</p>
+<div class="big">4</div>
+<p>Wolt Merchants, Wix Upsell, Isracard/Cal expansion, Zester Upsell</p>
+<p style="margin-top:12px;font-size:.8rem;color:#1b5e20">Sales Cycle: 2-4 weeks | Existing relationships</p>
+</div>
+</div>
+
+<div class="insight">
+<strong>Why this matters:</strong> If an Outbound deal takes longer than expected, Inbound revenue fills the gap. And vice versa. Risk diversification = confidence we'll hit the target.
+</div>
+</div>
+</section>
+
+<!-- 3. INBOUND -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">3</span>Inbound Strategy: Pain vs. Hunger</div>
+<div class="section-sub">Two types of opportunities — each requires a different approach</div>
+
+<div class="engines">
+<div class="engine" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:2px solid #f48fb1">
+<h3>🔥 Pain</h3>
+<p>A problem the partner is already dealing with</p>
+<div style="text-align:left;margin-top:16px;font-size:.88rem;color:#880e4f">
+<strong>Wix:</strong> Israeli merchants juggle 3 separate systems — Wix for the site, PayMe/Isracard for payments, iCount for invoicing. Broken experience.<br><br>
+<strong>Zester:</strong> Restaurants pay suppliers through PayMe but manage invoices elsewhere. Two systems instead of one.
+</div>
+</div>
+<div class="engine" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #a5d6a7">
+<h3>🍽️ Hunger</h3>
+<p>An opportunity the partner wants to grab</p>
+<div style="text-align:left;margin-top:16px;font-size:.88rem;color:#1b5e20">
+<strong>Wolt Merchants:</strong> Adding Accounting for restaurants = new revenue stream + stronger lock-in with merchant partners.<br><br>
+<strong>Isracard/Cal:</strong> Adding Accounting + Promoter = standing out from every other payment provider.
+</div>
+</div>
+</div>
+
+<h3 style="margin-top:28px;color:var(--navy)">Inbound Partner Mapping</h3>
+<table>
+<thead><tr><th>Partner</th><th>Uses Today</th><th>What's Missing</th><th>Opportunity Type</th><th>Potential Businesses</th></tr></thead>
+<tbody>
+<tr class="inbound"><td><strong>Wolt</strong></td><td>Accounting + Payments (couriers)</td><td>Accounting + Promoter for Merchants (restaurants)</td><td>Hunger — new revenue stream</td><td>~4,000 restaurants</td></tr>
+<tr class="inbound"><td><strong>Wix</strong></td><td>Payments (Isracard powered by PayMe)</td><td>Israeli Accounting + Promoter</td><td>Pain — 3 separate systems</td><td>~20,000 Israeli merchants</td></tr>
+<tr class="inbound"><td><strong>Isracard/Cal</strong></td><td>Payments (White Label)</td><td>Accounting + Promoter bundle</td><td>Hunger — differentiation</td><td>~50,000 businesses</td></tr>
+<tr class="inbound"><td><strong>Zester</strong></td><td>Payments B2B (supplier payments)</td><td>Accounting for restaurants</td><td>Pain — invoices managed separately</td><td>~500-1,000</td></tr>
+</tbody>
+</table>
+<p style="font-size:.8rem;color:var(--muted)">Sources: PayMe.io, Wix Developer Docs, Isracard.co.il</p>
+</div>
+</section>
+
+<!-- 4. OUTBOUND -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">4</span>Outbound Strategy: 5 Segments + Market Size</div>
+<div class="section-sub">From 40+ potential partners researched, 6 were selected based on sales cycle, proof of concept, and fit</div>
+
+<table>
+<thead><tr><th>Segment</th><th>Market Size (IL)</th><th>Description</th><th>PayMe Product</th><th>Source</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td><strong>Gig Economy</strong></td><td>25,000-35,000</td><td>Freelance couriers + drivers</td><td>Accounting</td><td>Calcalist, Wolt Case Study</td><td>★★★★★</td></tr>
+<tr><td><strong>Medical Centers</strong></td><td>1,500-2,000</td><td>Independent physicians in private hospitals</td><td>Accounting + Payments</td><td>Assuta, HMC websites</td><td>★★★★★</td></tr>
+<tr><td><strong>Fitness / Studios</strong></td><td>10,000-20,000</td><td>Trainers, studios, classes</td><td>Accounting + Promoter</td><td>Arbox, BoostApp websites</td><td>★★★★</td></tr>
+<tr><td><strong>Beauty / Cosmetics</strong></td><td>10,000-20,000</td><td>Cosmeticians, salons, barbers</td><td>Payments + Accounting</td><td>Ministry of Labor, Cosmetics Association</td><td>★★★★</td></tr>
+<tr><td><strong>Professional Marketplaces</strong></td><td>Tens of thousands</td><td>Handymen, electricians, plumbers</td><td>Accounting + Payments</td><td>Midrag (1M+ users)</td><td>★★★★</td></tr>
+</tbody>
+</table>
+<p style="text-align:center;font-weight:700;color:#e65100;margin-top:12px">Total Addressable Market: ~50,000-80,000 small businesses and freelancers in Israel</p>
+
+<h3 style="margin-top:28px;color:var(--navy)">Selected Outbound Partners</h3>
+<table>
+<thead><tr><th>Partner</th><th>Segment</th><th>Size</th><th>Why Selected</th><th>Product</th><th>M4 MRR (Conservative)</th></tr></thead>
+<tbody>
+<tr><td><strong>10bis</strong> <span class="tag outbound">Outbound</span></td><td>Gig</td><td>~6,000 couriers</td><td>Wolt proof of concept works. Switched to 100% freelancers in 2025. Replaces their current provider (Keycost).</td><td>Accounting</td><td>33,750 ILS</td></tr>
+<tr><td><strong>Arbox</strong> <span class="tag outbound">Outbound</span></td><td>Fitness/Beauty</td><td>~7,000 businesses</td><td>#1 management platform. Has payments built in. Missing: accounting and marketing. Huge volume.</td><td>Accounting + Promoter</td><td>17,600 ILS</td></tr>
+<tr><td><strong>Plannie</strong> <span class="tag outbound">Outbound</span></td><td>Beauty/Services</td><td>~3,000 businesses</td><td>Scheduling platform with weak payments. PayMe is a natural fit.</td><td>Payments + Accounting</td><td>12,000 ILS</td></tr>
+<tr><td><strong>Assuta</strong> <span class="tag outbound">Outbound</span></td><td>Medical</td><td>~400 physicians</td><td>Largest private hospital network. Physicians are independent. One deal = hundreds of doctors. Major credibility.</td><td>Accounting + Payments</td><td>1,250 ILS</td></tr>
+<tr><td><strong>HMC</strong> <span class="tag outbound">Outbound</span></td><td>Medical</td><td>~500 physicians</td><td>Premium private hospital. Quality signal for other segments.</td><td>Accounting + Payments</td><td>—</td></tr>
+<tr><td><strong>Yango Deli</strong> <span class="tag outbound">Outbound</span></td><td>Gig</td><td>~2,000 couriers</td><td>Same model as Wolt. Yandex subsidiary.</td><td>Accounting</td><td>7,500 ILS</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<!-- 5. VALUE PROPS -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">5</span>Value Proposition — Beyond Commission</div>
+<div class="section-sub">What does the partner actually gain, besides revenue share?</div>
+
+<div class="vp-grid">
+<div class="card vp-card">
+<h4>10bis</h4>
+<div class="not">❌ Not commission</div>
+<div class="but">✅ Courier retention — a courier who can't handle paperwork quits. PayMe reduces churn. Plus, it replaces Keycost (99 ILS/mo) with a better service — no added cost.</div>
+</div>
+<div class="card vp-card">
+<h4>Arbox</h4>
+<div class="not">❌ Not commission</div>
+<div class="but">✅ A feature their users keep asking for — "Why don't you have bookkeeping?" PayMe gives them that feature without writing a single line of code.</div>
+</div>
+<div class="card vp-card">
+<h4>Plannie</h4>
+<div class="not">❌ Not commission</div>
+<div class="but">✅ Doubling their ARPU — from 50 ILS/mo (scheduling) to 200 ILS/mo (scheduling + payments + invoicing). PayMe lets Plannie charge more.</div>
+</div>
+<div class="card vp-card">
+<h4>Wix</h4>
+<div class="not">❌ Not commission</div>
+<div class="but">✅ A complete user experience — Israeli merchants currently manage 3 separate systems. Adding Accounting means everything in one place. Lock-in + new revenue stream.</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 6. TIMELINE -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">6</span>Execution Plan — 12 Weeks</div>
+<div class="section-sub">Quick wins first, strategic deals second, scale last</div>
+
+<div class="timeline">
+<div class="tl-item"><div class="month">Weeks 1-4 — Quick Wins</div><h4>10bis + Plannie + Assuta Pilot</h4><p>Outreach, meetings, present the Wolt case study. Sign first partnership. Plannie closes fast (no payments = obvious fit). Assuta — pilot with one physician group.</p></div>
+<div class="tl-item"><div class="month">Weeks 3-8 — Strategic Deals</div><h4>Arbox + Wix Upsell + Wolt Merchants</h4><p>Arbox — negotiate Accounting + Promoter as add-on. Wix — internal meeting about Accounting for Israeli merchants. Wolt — propose Accounting for restaurants.</p></div>
+<div class="tl-item"><div class="month">Weeks 6-12 — Scale</div><h4>Full rollout + Expansion + Isracard</h4><p>10bis full rollout. Arbox beta + expansion. Assuta from pilot to more groups. Isracard/Cal signs expansion deal.</p></div>
+</div>
+
+<p style="text-align:center;margin-top:12px;font-size:.85rem;color:var(--muted)">📊 Detailed weekly activity table (7 partners × 12 weeks) available in the attached spreadsheet</p>
+</div>
+</section>
+
+<!-- 7. FORECAST -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">7</span>Revenue Forecast — Two Scenarios</div>
+<div class="section-sub">A conservative floor that still hits the target, and an upside that shows growth potential</div>
+
+<h3 style="color:var(--navy);margin-bottom:16px">Conservative Scenario (Floor)</h3>
+<div class="forecast-grid">
+<div class="fbox"><div class="label">Month 1</div><div class="amount">5,000</div><div class="bar"><div class="bar-fill" style="width:5%"></div></div></div>
+<div class="fbox"><div class="label">Month 2</div><div class="amount">13,600</div><div class="bar"><div class="bar-fill" style="width:14%"></div></div></div>
+<div class="fbox"><div class="label">Month 3</div><div class="amount">47,000</div><div class="bar"><div class="bar-fill" style="width:47%"></div></div></div>
+<div class="fbox target"><div class="label">Month 4</div><div class="amount">102,100 ✓</div><div class="bar"><div class="bar-fill" style="width:100%"></div></div></div>
+</div>
+
+<h3 style="color:var(--blue);margin:28px 0 16px">Upside Scenario (Ceiling)</h3>
+<div class="forecast-grid">
+<div class="fbox"><div class="label">Month 1</div><div class="amount">6,000</div><div class="bar"><div class="bar-fill" style="width:4%"></div></div></div>
+<div class="fbox"><div class="label">Month 2</div><div class="amount">18,400</div><div class="bar"><div class="bar-fill" style="width:13%"></div></div></div>
+<div class="fbox"><div class="label">Month 3</div><div class="amount">62,700</div><div class="bar"><div class="bar-fill" style="width:44%"></div></div></div>
+<div class="fbox target"><div class="label">Month 4</div><div class="amount" style="color:var(--blue)">141,000 🚀</div><div class="bar"><div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--blue),#7c4dff)"></div></div></div>
+</div>
+
+<div class="insight" style="margin-top:24px">
+<strong>What changes between them?</strong> Exposure rate (15% vs 30%), deal closure rate (60% vs 80%), Promoter adoption (minimal vs active in Arbox), Isracard timing (not ready vs joins in Month 4). Even in the conservative scenario — we hit the 100K target. Every number is documented in the "Calculation Basis" tab of the spreadsheet.
+</div>
+</div>
+</section>
+
+<!-- 8. MY APPROACH -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">8</span>My Honest Take</div>
+<div class="section-sub">What I actually believe about this plan</div>
+
+<div class="card" style="border-left:4px solid var(--accent)">
+<h3>Month 1 is for planning, not revenue</h3>
+<p>Anyone who promises revenue in month one doesn't understand how partnerships work. Month 1 is research, outreach, and building the foundation.</p>
+</div>
+<div class="card" style="border-left:4px solid var(--blue)">
+<h3>Start with the inner circle</h3>
+<p>Inbound first — because there's already trust, existing integrations, and short sales cycles. Quick wins build momentum. New partnerships run in parallel.</p>
+</div>
+<div class="card" style="border-left:4px solid var(--accent2)">
+<h3>The spreadsheet is a model, not a prophecy</h3>
+<p>The numbers are grounded estimates, not guarantees. They need to be validated against reality every single week. That's how you actually hit targets — by adjusting, not by hoping.</p>
+</div>
+<div class="card" style="border-left:4px solid var(--navy)">
+<h3>Month 3 = momentum. Month 4 = closings.</h3>
+<p>Deals that were seeded in month 2 should start showing signs of closing in month 3. By month 4, the pipeline converts to real MRR.</p>
+</div>
+</div>
+</section>
+
+<!-- 9. ATTACHMENTS -->
+<section style="background:var(--navy);color:#fff">
+<div class="container" style="text-align:center;padding:40px 0">
+<h2 style="font-size:1.5rem;margin-bottom:8px">📎 Attached Documents</h2>
+<p style="color:rgba(255,255,255,.6);margin-bottom:20px">The detailed tables as requested in the assignment</p>
+<div class="downloads" style="justify-content:center">
+<a href="#" class="dl-btn"><span class="icon">📊</span>Google Sheet — Full Plan (6 tabs)</a>
+<a href="#" class="dl-btn" style="background:var(--blue)"><span class="icon">📄</span>Strategy & Methodology Document</a>
+</div>
+<p style="color:rgba(255,255,255,.4);margin-top:16px;font-size:.8rem">Spreadsheet includes: Calculation Basis | Partner Selection | Weekly Activity (12 weeks) | Conservative Forecast | Upside Forecast | Scenario Comparison</p>
+<p style="color:rgba(255,255,255,.3);margin-top:12px;font-size:.75rem">Data sources: PayMe.io | Calcalist | Assuta website | Arbox website | Wix Dev Docs | Wikipedia | Ministry of Labor | Cosmetics Association | Capterra</p>
+</div>
+</section>
+
+<div class="footer">
+PayMe — Strategic Partner Sales Assignment | July 2026
+</div>
+
+</body>
+</html>

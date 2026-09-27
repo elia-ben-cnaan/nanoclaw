@@ -12,6 +12,7 @@
 import { createWhatsAppAdapter } from '@chat-adapter/whatsapp';
 
 import { readEnvFile } from '../env.js';
+import { log } from '../log.js';
 import { createChatSdkBridge } from './chat-sdk-bridge.js';
 import { registerChannelAdapter } from './channel-registry.js';
 import { wrapWithPilotProvisioning } from './whatsapp-cloud-pilot.js';
@@ -51,7 +52,8 @@ registerChannelAdapter('whatsapp-cloud', {
     // bridge and the Telegram/general text path are untouched. Anything that is
     // not a single-https-button card (multi-button, non-https, empty) falls
     // through to the original deliver. If the Graph send fails (e.g. the 24h
-    // service window is closed) it also falls through — nothing breaks.
+    // service window is closed), send one short status instead of flattening
+    // the card to a long raw URL in the chat.
     const origDeliver = bridge.deliver.bind(bridge);
     bridge.deliver = async (platformId, threadId, message) => {
       try {
@@ -64,11 +66,23 @@ registerChannelAdapter('whatsapp-cloud', {
               const rb = res.body as { messages?: Array<{ id?: string }> };
               return rb?.messages?.[0]?.id;
             }
-            // Graph rejected (window closed etc.) — fall through to text.
+            log.warn('WhatsApp CTA card rejected; suppressing raw-link fallback', {
+              status: res.status,
+              body: res.body,
+            });
+            return origDeliver(platformId, threadId, {
+              ...message,
+              content: { text: 'לא הצלחתי להציג את כרטיס הפעולה. אפשר לנסות שוב.' },
+            });
           }
         }
-      } catch {
-        // Never let the native path break delivery — fall through.
+      } catch (err) {
+        // Never let the native path break delivery or expose a raw URL.
+        log.warn('WhatsApp CTA card send failed; suppressing raw-link fallback', { err });
+        return origDeliver(platformId, threadId, {
+          ...message,
+          content: { text: 'לא הצלחתי להציג את כרטיס הפעולה. אפשר לנסות שוב.' },
+        });
       }
       return origDeliver(platformId, threadId, message);
     };
@@ -88,6 +102,7 @@ export interface CtaUrlOptions {
   body: string; // body text, up to 1024 chars
   buttonText: string; // button label, up to 20 chars
   url: string; // https URL the button opens
+  header?: string; // short action title, up to 60 chars
   footer?: string; // optional footer, up to 60 chars
   headerImageUrl?: string; // optional public https PNG/JPG header (logo)
 }
@@ -107,6 +122,7 @@ export async function sendCtaUrl(opts: CtaUrlOptions): Promise<{ ok: boolean; st
       parameters: { display_text: opts.buttonText, url: opts.url },
     },
   };
+  if (opts.header) interactive.header = { type: 'text', text: opts.header.slice(0, 60) };
   if (opts.footer) interactive.footer = { text: opts.footer };
   if (opts.headerImageUrl) {
     interactive.header = { type: 'image', image: { link: opts.headerImageUrl } };
@@ -151,18 +167,43 @@ export async function sendCtaUrlTemplateFallback(_opts: CtaUrlOptions): Promise<
 // ---------------------------------------------------------------------------
 function ctaEmojiForUrl(url: string): string {
   try {
-    const t = new URL(url).searchParams.get('t');
-    if (t === 'email' || t === 'outlook') return '\uD83D\uDCE7 '; // envelope
-    if (t === 'wa') return '\uD83D\uDCAC '; // speech balloon
-    if (t === 'cal') return '\uD83D\uDCC5 '; // calendar
-    if (t === 'teams') return '\uD83D\uDCBC '; // briefcase
+    const parsed = new URL(url);
+    const t = parsed.searchParams.get('t')?.toLowerCase();
+    if (t === 'email') return '\uD83D\uDCE7'; // envelope
+    if (t === 'outlook') return '\uD83D\uDCE8'; // incoming envelope
+    if (t === 'wa' || t === 'whatsapp') return '\uD83D\uDFE2'; // green circle
+    if (t === 'cal' || t === 'calendar') return '\uD83D\uDCC5'; // calendar
+    if (t === 'teams' || t === 'sms') return '\uD83D\uDCAC'; // speech balloon
+    if (t === 'meet' || t === 'video') return '\uD83C\uDFA5'; // movie camera
+    if (t === 'phone' || t === 'call') return '\uD83D\uDCDE'; // telephone
+    if (t === 'drive' || t === 'navigate') return '\uD83D\uDE97'; // automobile
+    if (t === 'maps' || t === 'trip' || t === 'plan' || t === 'schedule') return '\u23F0'; // alarm clock
+    if (parsed.hostname === 'meet.google.com' || parsed.hostname.endsWith('.zoom.us')) return '\uD83C\uDFA5';
+    if (parsed.hostname === 'waze.com' || parsed.hostname.endsWith('.waze.com')) {
+      return parsed.searchParams.get('navigate') === 'yes' ? '\uD83D\uDE97' : '\u23F0';
+    }
+    if (parsed.hostname.includes('maps.google')) return parsed.pathname.includes('/dir/') ? '\uD83D\uDE97' : '\u23F0';
   } catch {
     // not a parseable URL — no prefix
   }
-  return '';
+  return '\uD83D\uDD17';
 }
 
-function buildCtaFromCard(content: unknown): { body: string; buttonText: string; url: string } | null {
+function decorateCtaText(value: string, emoji: string): string {
+  return value.startsWith(emoji) ? value : `${emoji} ${value}`;
+}
+
+function compactCardBody(value: string): string {
+  const compact = value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+  return compact.length > 180 ? `${compact.slice(0, 179).trimEnd()}…` : compact;
+}
+
+function buildCtaFromCard(content: unknown): { body: string; buttonText: string; header: string; url: string } | null {
   if (!content || typeof content !== 'object') return null;
   const c = content as Record<string, unknown>;
   if (c.type !== 'card' || !c.card || typeof c.card !== 'object') return null;
@@ -187,8 +228,10 @@ function buildCtaFromCard(content: unknown): { body: string; buttonText: string;
       }
     }
   }
-  const bodyText = parts.join('\n') || title || fallbackText;
+  const bodyText = compactCardBody(parts.join('\n') || title || fallbackText);
   if (!bodyText) return null; // nothing to say -> let original path decide
-  const buttonText = (label || '\u05E4\u05EA\u05D7 \u05D5\u05E9\u05DC\u05D7').slice(0, 20);
-  return { body: ctaEmojiForUrl(url) + bodyText, buttonText, url };
+  const emoji = ctaEmojiForUrl(url);
+  const buttonText = decorateCtaText(label || '\u05E4\u05EA\u05D7', emoji).slice(0, 20);
+  const header = decorateCtaText(title || '\u05E4\u05E2\u05D5\u05DC\u05D4', emoji).slice(0, 60);
+  return { body: bodyText, buttonText, header, url };
 }

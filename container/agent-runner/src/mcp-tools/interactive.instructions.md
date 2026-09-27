@@ -19,4 +19,15 @@ Use this when you genuinely cannot proceed without a decision. For free-text inp
 
 `card` supports: `title`, `description`, `children` (nested text or content blocks), and `actions` (buttons). `fallbackText` is sent as a plain message on platforms without card support.
 
-Use this for presenting information in a cleaner format than prose: summaries, options the user can read (but you're not waiting on), or results with contextual buttons. If you need the user to actually *choose* something and return a value, use `ask_user_question` instead.
+Use this only for a relevant action that opens a real destination for the user. Good uses include opening a drafted email, opening a WhatsApp chat or prepared message, joining a meeting, opening a calendar event, starting a call, or opening a required work item.
+
+Do not use a card for an ordinary source, a reference link, a general website, a research summary, or every link in a response. Never invent a URL.
+
+Each card should have one clear action:
+
+- `title`: short and action-oriented.
+- `description`: one short sentence explaining what will open.
+- `actions`: one URL button whose label begins with an action verb.
+- `fallbackText`: a concise fallback containing the same destination URL on its own line.
+
+After sending a card, do not repeat the same action link in a normal message. If you need the user to choose among options and return a value, use `ask_user_question` instead.

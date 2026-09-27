@@ -40,11 +40,11 @@ import {
   updateContainerConfigJson,
   updateContainerConfigScalars,
 } from './db/container-configs.js';
-import type { McpServerConfig } from './container-config.js';
 import { setCostCapUsd } from './db/usage-metering.js';
 import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
 import { initGroupFilesystem } from './group-init.js';
+import { createProfileFirstPilot } from './job-profile-first.js';
 import { log } from './log.js';
 import { createActivation, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
 import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
@@ -133,7 +133,7 @@ const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'pilot_age
 const CENTRAL_BASE = process.env.CENTRAL_BASE ?? 'http://159.195.200.224:8080';
 const FEED_TOKEN = process.env.FEED_TOKEN ?? ''; // server-side admin token; NEVER given to the agent
 const MINT_TIMEOUT_MS = 4000;
-const JOB_TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'joni_jobsearch_script.md');
+const JOB_TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'joni_onboarding_script_v1.md');
 
 /** Job-search pilot? Gate on the src flag already parsed off activation metadata. */
 function isJobPilot(meta: ActivationMetadata): boolean {
@@ -173,15 +173,38 @@ async function mintBoardToken(userId: string, ttlDays = 90): Promise<{ token: st
   }
 }
 
-/** Job-search brain — mirrors buildInstructions(), reads the sibling job template. */
+/** Job-search brain — reads the locked profile-first persona VERBATIM, then
+ *  appends a runtime-wiring footer (boardUrl + scoped token + ingest contract).
+ *  The persona file has no placeholders; replaceAll stays as a forward-compat
+ *  no-op in case placeholders are re-introduced. FEED_TOKEN is NEVER injected. */
 function buildJobInstructions(a: { userName: string; userId: string; boardToken: string; boardUrl: string }): string {
-  const template = fs.readFileSync(JOB_TEMPLATE_PATH, 'utf8');
-  return template
+  const persona = fs.readFileSync(JOB_TEMPLATE_PATH, 'utf8')
     .replaceAll('{{USER_NAME}}', a.userName)
     .replaceAll('{{USER_ID}}', a.userId)
     .replaceAll('{{BOARD_TOKEN}}', a.boardToken)
     .replaceAll('{{BOARD_URL}}', a.boardUrl)
     .replaceAll('{{CENTRAL_BASE}}', CENTRAL_BASE);
+  const ready = a.boardToken
+    ? [
+        `- board token (scoped, this user only): ${a.boardToken}`,
+        `- board URL (send ONLY after the profile gate passes): ${a.boardUrl}`,
+      ].join('\n')
+    : '- board token NOT yet minted. Say "רק מתחבר/ת" and do NOT push the profile or send a board link yet — a re-provision will mint it.';
+  const footer = [
+    '',
+    '---',
+    '## Runtime wiring (system — do not recite to the user)',
+    `- central base: ${CENTRAL_BASE}`,
+    `- userId (board key = phone digits): ${a.userId}`,
+    ready,
+    '- Push PROFILE ONLY (never ranked jobs) once the profile gate passes:',
+    `  POST ${CENTRAL_BASE}/ingest/profile`,
+    "  Authorization: Bearer <this user's board token above>",
+    '  body: { "userId": "<userId>", "profile": { ...schema-valid profile... } }',
+    '- The center ranks + writes Hebrew summaries + fills the board. Then send the board URL.',
+    '- NEVER expose the raw token in chat beyond the board link itself.',
+  ].join('\n');
+  return persona + '\n' + footer;
 }
 
 /**
@@ -226,28 +249,6 @@ const PILOT_DAILY_COST_CAP_USD = 1.0;
 // follow-up pushes hit it mid-conversation in QA (30.7). 30 gives headroom;
 // the daily cost cap stays the real spend guard.
 const PILOT_MAX_TURNS = 30;
-
-// OpenAI MCP for every pilot — gives Johnny transcription (whisper-1, so a
-// WhatsApp/Telegram voice note becomes text the agent can act on), vision
-// (analyze_media) and image generation. Points at the VENDORED patched bundle
-// mounted read-only at /opt/vendor (see buildMounts in container-runner.ts) —
-// NOT `pnpm dlx @fre4x/openai`, whose published builds send a `response_format`
-// param gpt-image rejects with 400. Credentials are injected by the OneCLI
-// gateway at request time; never a real key in config. Mirrors Daniela's
-// openai server so every app-created pilot inherits the capability with no
-// manual wiring.
-const PILOT_MCP_SERVERS: Record<string, McpServerConfig> = {
-  openai: {
-    command: 'node',
-    args: ['/opt/vendor/fre4x-openai/dist/index.mjs'],
-    env: { OPENAI_API_KEY: 'onecli-gateway-injected' },
-    instructions:
-      'The `openai` MCP server provides transcription (whisper-1), image/audio analysis, ' +
-      'and image generation. When the user sends a voice message you receive it as an audio ' +
-      'file path under /workspace/inbox/…; transcribe it with this server, then act on the ' +
-      'transcript. Credentials are injected by the OneCLI gateway; never ask the user for an API key.',
-  },
-};
 
 // Resolved once at startup from the Johnny bot token via getMe. The /provision
 // deep link points at @joni_agent_bot as of 2026-07-06 (Johnny replaces the
@@ -393,8 +394,8 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     const isJobSignup = body.src === 'agent4job' || body.src === 'jobs';
     const whatsappText = isJobSignup
       ? lang === 'en'
-        ? 'Hello Johnny\nI came through the job search service\nI would like to begin'
-        : 'שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל'
+        ? `Hello Johnny\nI came through the job search service\nI would like to begin\n\nActivation code: ${activation.code}`
+        : `שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל\n\nקוד הפעלה: ${activation.code}`
       : lang === 'en'
         ? `Hey Johnny,\n${hasName ? `I'm ${userName}, ` : ''}happy to start working together! 🙂\n\nActivation code: ${activation.code}`
         : `אהלן ג'וני,\n${hasName ? `אני ${userName}, ` : ''}אשמח להתחיל לעבוד יחד! 🙂\n\nקוד הפעלה: ${activation.code}`;
@@ -435,6 +436,8 @@ export interface PressProvisionResult {
   slug: string;
   userName: string;
   lang: PilotLang;
+  /** Set only on the profile-first path — the central "journey" opening line. */
+  profileFirstGreeting?: string;
 }
 
 /**
@@ -456,6 +459,10 @@ export async function provisionPilotAtPress(input: {
   fallbackName?: string | null;
   /** Channel name baked into the agent instructions ({{CHANNEL}}). Defaults to Telegram. */
   channel?: string;
+  /** Stable channel identity used when an Agent4Job Telegram start has no phone metadata. */
+  boardUserId?: string | null;
+  /** Public Agent4Job entries remain isolated from legacy supervisor routing. */
+  supervisor?: boolean;
 }): Promise<PressProvisionResult> {
   const meta = parseActivationMetadata(input.activation);
   // realName drives the identity block (null → explicit "address neutrally"
@@ -475,6 +482,22 @@ export async function provisionPilotAtPress(input: {
 
   const agentGroupId = `ag-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
+
+  // Explicit opt-in on the flag only; never mint a board on this path.
+  // PROD: .catch(()=>null) so a central hiccup falls back to the footer path
+  // instead of failing the whole activation (staging has no guard — see PR notes).
+  const profileFirst = isJobPilot(meta) && process.env.AGENT4JOB_PROFILE_FIRST_STAGING === '1'
+    ? await createProfileFirstPilot({
+        userId: (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, ''),
+        userName,
+        template: fs.readFileSync(process.env.AGENT4JOB_PROFILE_FIRST_TEMPLATE || '', 'utf8'),
+        baseUrl: process.env.STAGING_CENTRAL_BASE || '',
+        agentBaseUrl: process.env.AGENT4JOB_AGENT_BASE_URL || '',
+        provisionToken: process.env.STAGING_PROVISION_TOKEN || '',
+        feedToken: FEED_TOKEN, // already loaded from process.env.FEED_TOKEN; NEVER given to the agent
+      }).catch((e) => { log.warn('profile-first provision failed, falling back to footer path', { e }); return null; })
+    : null;
+
   createAgentGroup({
     id: agentGroupId,
     name: DEFAULT_ASSISTANT_NAME,
@@ -484,8 +507,17 @@ export async function provisionPilotAtPress(input: {
   });
 
   let instructions: string;
-  if (isJobPilot(meta)) {
-    const boardUserId = (meta.phone ?? '').replace(/\D/g, ''); // board keys on phone digits
+  if (profileFirst) {
+    // Validated profile-first path (persona + /interview/profile loop vs central
+    // 8091). Reachable only when the flag is '1' AND isJobPilot AND the 8091
+    // onboard above succeeded; otherwise profileFirst is null and we fall through.
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) + '\n\n' + profileFirst.instructions;
+  } else if (isJobPilot(meta)) {
+    // Signup activations keep their phone-based board identity so the same
+    // agent can be reached from either channel. A public Telegram start has
+    // no phone form, therefore falls back to its stable Telegram numeric id.
+    const boardUserId = (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, '');
     const minted = await mintBoardToken(boardUserId, 90); // null on failure — no throw
     instructions =
       buildUserIdentityBlock(realName, gender, lang) +
@@ -510,6 +542,16 @@ export async function provisionPilotAtPress(input: {
     { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
     { instructions },
   );
+
+  // Profile-first connection file: the agent reads /workspace/agent/.agent4job.json
+  // for baseUrl/userId/boardToken/token. Written 0600, never recited to the user.
+  if (profileFirst) {
+    fs.writeFileSync(
+      path.join(GROUPS_DIR, slug, '.agent4job.json'),
+      JSON.stringify(profileFirst.config),
+      { mode: 0o600 },
+    );
+  }
 
   // Ship the use-case playbook into the new agent's workspace. The seed
   // instructions carry only a compact trigger→title index (kept lean per the
@@ -537,14 +579,16 @@ export async function provisionPilotAtPress(input: {
   });
   setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
 
-  // Give the pilot the OpenAI MCP (transcription/vision/image-gen) so a voice
-  // note is actionable out of the box. Wholesale-set is safe: a fresh pilot
-  // has no other MCP servers.
-  updateContainerConfigJson(agentGroupId, 'mcp_servers', PILOT_MCP_SERVERS);
+  // Subagents must never receive an OpenAI API tool or credential. Incoming
+  // voice is transcribed locally by the host; spoken replies, when enabled,
+  // are a host-only capability restricted to the two main agents.
+  updateContainerConfigJson(agentGroupId, 'mcp_servers', {});
 
-  // Supervisor visibility + reachability.
-  wirePilotToSupervisor(agentGroupId, slug);
+  // Legacy channels retain their supervisor relationship. The public Agent4Job
+  // Telegram entrypoint explicitly opts out, so no new user can enter Daniela
+  // or be reachable through an existing personal-agent graph.
+  if (input.supervisor !== false) wirePilotToSupervisor(agentGroupId, slug);
 
   log.info('Provision: pilot agent created at press', { slug, agentGroupId, userName, lang });
-  return { agentGroupId, slug, userName, lang };
+  return { agentGroupId, slug, userName, lang, ...(profileFirst ? { profileFirstGreeting: profileFirst.greeting } : {}) };
 }

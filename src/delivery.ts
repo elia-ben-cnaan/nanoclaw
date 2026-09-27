@@ -21,15 +21,45 @@ import {
   migrateDeliveredTable,
 } from './db/session-db.js';
 import { log } from './log.js';
+import { readEnvFile } from './env.js';
 import { normalizeOptions } from './channels/ask-question.js';
 import { clearOutbox, openInboundDb, openOutboundDb, readOutboxFiles } from './session-manager.js';
 import { pauseTypingRefreshAfterDelivery, setTypingAdapter } from './modules/typing/index.js';
+import { promoteActionLinkToCard } from './action-link-guard.js';
 import type { OutboundFile } from './channels/adapter.js';
 import type { Session } from './types.js';
 
 const ACTIVE_POLL_MS = 1000;
 const SWEEP_POLL_MS = 60_000;
 const MAX_DELIVERY_ATTEMPTS = 3;
+
+const EXPLICIT_VOICE_REQUEST =
+  /(?:שלח(?:י|ו)?|תשלח(?:י|ו)?|תענה|תעני|דבר(?:י|ו)?|תדבר(?:י|ו)?|החזר(?:י|ו)?).{0,36}(?:בהקלט(?:ה|ות)|הודעה קולית|בקול)|(?:בהקלט(?:ה|ות)|הודעה קולית|בקול).{0,36}(?:תשוב(?:ה|ות)?|דבר|שלח|ענה)|\b(?:voice(?:\s+(?:note|message|reply))?|audio\s+(?:reply|message)|recording)\b/i;
+const EXPLICIT_VOICE_NEGATION = /(?:אל|לא|בלי)\s+(?:תשלח|תשלחי|תענה|תעני|תדבר|תדברי|בהקלטה|בהקלטות|בקול|הודעה קולית)/i;
+
+/**
+ * Voice is an operator-facing capability, not an agent tool.  This makes the
+ * policy enforceable even if a child agent is prompted to request it.
+ */
+function shouldMarkVoiceReply(msg: { in_reply_to: string | null }, session: Session, inDb: Database.Database): boolean {
+  const allowed = (readEnvFile(['VOICE_REPLY_ALLOWED_AGENT_GROUP_IDS'])['VOICE_REPLY_ALLOWED_AGENT_GROUP_IDS'] ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (!allowed.includes(session.agent_group_id) || !msg.in_reply_to) return false;
+
+  const row = inDb.prepare('SELECT content FROM messages_in WHERE id = ?').get(msg.in_reply_to) as
+    | { content?: string }
+    | undefined;
+  if (!row?.content) return false;
+  try {
+    const content = JSON.parse(row.content) as { text?: unknown };
+    const text = typeof content.text === 'string' ? content.text.trim() : '';
+    return !!text && !EXPLICIT_VOICE_NEGATION.test(text) && EXPLICIT_VOICE_REQUEST.test(text);
+  } catch {
+    return false;
+  }
+}
 
 /** Track delivery attempt counts. Resets on process restart (gives failed messages a fresh chance). */
 const deliveryAttempts = new Map<string, number>();
@@ -252,7 +282,21 @@ async function deliverMessage(
     return;
   }
 
-  const content = JSON.parse(msg.content);
+  let content = JSON.parse(msg.content) as Record<string, unknown>;
+  const actionLinkPromotion = promoteActionLinkToCard(content);
+  content = actionLinkPromotion.content;
+  if (actionLinkPromotion.promoted) {
+    log.info('Promoted raw action URL to a delivery card', {
+      id: msg.id,
+      channelType: msg.channel_type,
+      platformId: msg.platform_id,
+    });
+  }
+  if (shouldMarkVoiceReply(msg, session, inDb)) {
+    // The marker is consumed by the host channel adapter only. It is not an
+    // agent capability and cannot grant TTS to a child agent.
+    content.voiceReply = true;
+  }
 
   // System actions — handle internally (schedule_task, cancel_task, etc.)
   if (msg.kind === 'system') {
@@ -346,6 +390,7 @@ async function deliverMessage(
   // exist and we skip persistence — the card still delivers to the user,
   // but the response path has nowhere to land and will log unclaimed.
   if (content.type === 'ask_question' && content.questionId && hasTable(getDb(), 'pending_questions')) {
+    const questionId = content.questionId as string;
     const title = content.title as string | undefined;
     const rawOptions = content.options as unknown;
     if (!title || !Array.isArray(rawOptions)) {
@@ -354,7 +399,7 @@ async function deliverMessage(
       });
     } else {
       const inserted = createPendingQuestion({
-        question_id: content.questionId,
+        question_id: questionId,
         session_id: session.id,
         message_out_id: msg.id,
         platform_id: msg.platform_id,
@@ -389,7 +434,7 @@ async function deliverMessage(
     msg.platform_id,
     msg.thread_id,
     msg.kind,
-    msg.content,
+    JSON.stringify(content),
     files,
     deliverInstance,
   );

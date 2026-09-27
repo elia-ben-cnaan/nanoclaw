@@ -66,6 +66,7 @@ function isServerRequest(msg: JsonRpcMessage): msg is JsonRpcServerRequest {
 
 export interface AppServer {
   process: ChildProcess;
+  externalAccessToken?: string;
   readline: ReadlineInterface;
   pending: Map<number, { resolve: (r: JsonRpcResponse) => void; reject: (e: Error) => void }>;
   notificationHandlers: ((n: JsonRpcNotification) => void)[];
@@ -76,10 +77,27 @@ export function spawnCodexAppServer(configOverrides: string[] = []): AppServer {
   const args = ['app-server', '--listen', 'stdio://'];
   for (const override of configOverrides) args.push('-c', override);
 
-  log(`Spawning: codex ${args.join(' ')}`);
-  const proc = spawn('codex', args, {
+  // CLI images installed through the NanoClaw manifest expose Codex at
+  // /pnpm/codex, while some images put it on PATH. Prefer the manifest path.
+  const codexBinary = fs.existsSync('/pnpm/codex') ? '/pnpm/codex' : 'codex';
+  log(`Spawning: ${codexBinary} ${args.join(' ')}`);
+  const env = { ...process.env };
+  if (env.NANOCLAW_CODEX_AUTH === 'chatgpt') {
+    // Keep the TLS CA needed by the server network, without retaining the API proxy.
+    const caCertificate = env.CODEX_CA_CERTIFICATE || env.NODE_EXTRA_CA_CERTS || env.SSL_CERT_FILE || env.DENO_CERT;
+    // OneCLI remains available to the rest of the agent, but Codex itself
+    // must not inherit the API credential or proxy that injects one.
+    for (const key of [
+      'OPENAI_API_KEY', 'OPENAI_BASE_URL',
+      'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
+      'ALL_PROXY', 'all_proxy', 'NODE_EXTRA_CA_CERTS',
+      'SSL_CERT_FILE', 'DENO_CERT', 'CODEX_CA_CERTIFICATE', 'NODE_USE_ENV_PROXY',
+    ]) delete env[key];
+    if (caCertificate) env.CODEX_CA_CERTIFICATE = caCertificate;
+  }
+  const proc = spawn(codexBinary, args, {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env },
+    env,
   });
 
   const rl = createInterface({ input: proc.stdout! });
@@ -201,6 +219,21 @@ export function attachCodexAutoApproval(server: AppServer): void {
     log(`[approval] ${method}`);
 
     switch (method) {
+      case 'account/chatgptAuthTokens/refresh': {
+        // The desktop remains the sole owner of its rotating refresh token.
+        // Only accept a NEW valid access-token snapshot; never claim to refresh it here.
+        try {
+          const auth = readExternalChatGPTAuth();
+          if (!auth || auth.accessToken === server.externalAccessToken) throw new Error('snapshot unchanged');
+          server.externalAccessToken = auth.accessToken;
+          sendCodexResponse(server, req.id, auth);
+        } catch {
+          server.process.stdin!.write(JSON.stringify({ id: req.id, error: {
+            code: -32001, message: 'Linked desktop authorization needs an updated access-token snapshot',
+          } }) + '\n');
+        }
+        break;
+      }
       case 'item/commandExecution/requestApproval':
       case 'item/fileChange/requestApproval':
         sendCodexResponse(server, req.id, { decision: 'accept' });
@@ -238,23 +271,53 @@ export function attachCodexAutoApproval(server: AppServer): void {
 
 // ── High-level helpers ──────────────────────────────────────────────────────
 
+export interface ExternalChatGPTAuth {
+  accessToken: string;
+  chatgptAccountId: string;
+  chatgptPlanType?: string;
+}
+
+export function validateExternalChatGPTAuth(data: unknown): ExternalChatGPTAuth {
+  const auth = data as Partial<ExternalChatGPTAuth> | null;
+  if (!auth || typeof auth.accessToken !== 'string' || !auth.accessToken ||
+      typeof auth.chatgptAccountId !== 'string' || !auth.chatgptAccountId) throw new Error('Invalid external ChatGPT authorization');
+  const payload = JSON.parse(Buffer.from(auth.accessToken.split('.')[1] || '', 'base64url').toString());
+  if (typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now() + 60000) throw new Error('External ChatGPT authorization expired');
+  // Pick only supported non-refresh fields, even if a malformed file includes extras.
+  return { accessToken: auth.accessToken, chatgptAccountId: auth.chatgptAccountId,
+    ...(typeof auth.chatgptPlanType === 'string' ? { chatgptPlanType: auth.chatgptPlanType } : {}) };
+}
+
+export function readExternalChatGPTAuth(): ExternalChatGPTAuth | undefined {
+  const file = process.env.NANOCLAW_CODEX_EXTERNAL_AUTH_FILE;
+  if (!file) return undefined;
+  return validateExternalChatGPTAuth(JSON.parse(fs.readFileSync(file, 'utf8')));
+}
+
 export async function initializeCodexAppServer(server: AppServer): Promise<void> {
+  const externalAuth = readExternalChatGPTAuth();
   log('Sending initialize…');
   const resp = await sendCodexRequest(
     server,
     'initialize',
     {
       clientInfo: { name: 'nanoclaw', version: '1.0.0' },
-      capabilities: { experimentalApi: false },
+      capabilities: { experimentalApi: !!externalAuth },
     },
     INIT_TIMEOUT_MS,
   );
   if (resp.error) throw new Error(`Initialize failed: ${resp.error.message}`);
   log('Initialize successful');
+  if (externalAuth) {
+    const login = await sendCodexRequest(server, 'account/login/start', { type: 'chatgptAuthTokens', ...externalAuth }, INIT_TIMEOUT_MS);
+    if (login.error) throw new Error('External ChatGPT authorization failed');
+    server.externalAccessToken = externalAuth.accessToken;
+    log('Linked desktop ChatGPT authorization active (access token only; no refresh token)');
+  }
 }
 
 export interface ThreadParams {
-  model: string;
+  model?: string;
   cwd: string;
   sandbox?: string;
   approvalPolicy?: string;
@@ -328,7 +391,7 @@ export interface CodexMcpServer {
 }
 
 export function writeCodexMcpConfigToml(servers: Record<string, CodexMcpServer>): void {
-  const codexConfigDir = path.join(process.env.HOME || '/home/node', '.codex');
+  const codexConfigDir = process.env.CODEX_HOME || path.join(process.env.HOME || '/home/node', '.codex');
   fs.mkdirSync(codexConfigDir, { recursive: true });
   const configTomlPath = path.join(codexConfigDir, 'config.toml');
 

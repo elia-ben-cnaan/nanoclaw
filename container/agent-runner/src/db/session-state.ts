@@ -67,6 +67,7 @@ export function migrateLegacyContinuation(providerName: string): string | undefi
 }
 
 const FALLBACK_STATE_KEY = 'fallback_state';
+const CLAUDE_USAGE_ALERT_PREFIX = 'claude_usage_alert:';
 
 /**
  * Persisted quota-fallback outage state. Kept on disk (not just in the loop's
@@ -101,6 +102,15 @@ export function loadFallbackState(): PersistedFallbackState | undefined {
 
 export function saveFallbackState(state: PersistedFallbackState): void {
   setValue(FALLBACK_STATE_KEY, JSON.stringify(state));
+}
+
+/** Persist a one-time Claude usage heads-up for a specific provider window. */
+export function hasClaudeUsageAlert(windowKey: string): boolean {
+  return getValue(`${CLAUDE_USAGE_ALERT_PREFIX}${windowKey}`) !== undefined;
+}
+
+export function markClaudeUsageAlert(windowKey: string): void {
+  setValue(`${CLAUDE_USAGE_ALERT_PREFIX}${windowKey}`, 'sent');
 }
 
 export function getContinuation(providerName: string): string | undefined {

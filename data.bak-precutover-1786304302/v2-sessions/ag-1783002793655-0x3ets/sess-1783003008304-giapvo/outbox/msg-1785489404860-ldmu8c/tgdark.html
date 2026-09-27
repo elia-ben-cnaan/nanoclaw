@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=412, initial-scale=1">
+<title>ג'וני · Telegram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#0e1621;
+    display:flex;
+    justify-content:center;
+    font-family:'Heebo','Inter',-apple-system,'Segoe UI',sans-serif;
+  }
+  .app{
+    width:412px;
+    max-width:100%;
+    height:100dvh;
+    min-height:700px;
+    background:#0e1621;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .hdr{
+    height:56px;
+    background:#17212b;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 10px;
+    box-shadow:0 1px 0 rgba(0,0,0,.45);
+    z-index:2;
+  }
+  .back,.icon-btn{
+    width:36px;
+    height:36px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#7e95a7;
+  }
+  .ava{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    overflow:hidden;
+    background:#6ff0dd;
+    flex:0 0 auto;
+  }
+  .ava img{width:100%;height:100%;object-fit:contain;display:block}
+  .who{flex:1;min-width:0;line-height:1.2}
+  .name{color:#fff;font-weight:600;font-size:16px}
+  .status{color:#4fa9e6;font-size:12.5px}
+  .acts{display:flex;align-items:center;gap:2px}
+
+  .chat{
+    flex:1;
+    overflow:auto;
+    padding:12px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+    background:#0e1621;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280' viewBox='0 0 280 280'%3E%3Cg fill='none' stroke='rgba(117,138,155,.20)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='45' cy='36' r='9'/%3E%3Cpath d='M74 29l6 11 12 1-9 8 2 12-11-6-10 6 2-12-9-8 12-1z'/%3E%3Cpath d='M158 36l20 8-20 8-4 13-7-11-13-2 9-9-2-13 11 7z'/%3E%3Cpath d='M222 44c6 0 10 4 10 8 0 7-10 14-10 14s-10-7-10-14c0-4 4-8 10-8z'/%3E%3Cpath d='M36 108h20M46 98v20'/%3E%3Cpath d='M98 112c5-8 18-10 26-4 4 3 7 8 7 13'/%3E%3Cpath d='M172 96l14 5-14 6-4 9-4-9-14-6 14-5 4-9z'/%3E%3Ccircle cx='235' cy='116' r='2.2'/%3E%3Ccircle cx='216' cy='132' r='1.6'/%3E%3Ccircle cx='251' cy='133' r='1.6'/%3E%3Cpath d='M54 177l14 6-14 6-4 9-4-9-14-6 14-6 4-9z'/%3E%3Cpath d='M120 183c0-8 7-15 16-15 6 0 11 3 14 8 2-1 4-2 6-2 7 0 13 5 13 13z'/%3E%3Cpath d='M197 186h18M206 177v18'/%3E%3Cpath d='M238 212l3 7 8 1-6 5 2 8-7-4-7 4 2-8-6-5 8-1z'/%3E%3Ccircle cx='84' cy='234' r='8'/%3E%3Cpath d='M76 232h16M84 224v16'/%3E%3Cpath d='M176 236c4-2 8-1 10 2'/%3E%3C/g%3E%3C/svg%3E");
+    background-size:280px 280px;
+  }
+
+  .row{display:flex}
+  .row.in{justify-content:flex-start}
+  .row.out{justify-content:flex-end}
+
+  .bubble{
+    max-width:78%;
+    position:relative;
+    padding:7px 10px 6px;
+    border-radius:12px;
+    font-size:15px;
+    line-height:1.42;
+    color:#fff;
+    box-shadow:0 1px 1px rgba(0,0,0,.2);
+  }
+  .in .bubble{background:#182533;border-start-start-radius:4px}
+  .in .bubble::before{
+    content:'';
+    position:absolute;
+    top:0;
+    inset-inline-start:-7px;
+    border-block-start:9px solid #182533;
+    border-inline-start:8px solid transparent;
+  }
+  .out .bubble{background:#2b5278;border-start-end-radius:4px}
+  .out .bubble::before{
+    content:'';
+    position:absolute;
+    top:0;
+    inset-inline-end:-7px;
+    border-block-start:9px solid #2b5278;
+    border-inline-end:8px solid transparent;
+  }
+
+  .stamp{
+    margin-top:4px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:3px;
+    direction:ltr;
+    font-size:11px;
+    font-family:'Inter','Heebo',sans-serif;
+  }
+  .in .stamp{color:#6d7f8f}
+  .out .stamp{color:#79a8d6}
+
+  .bl{display:flex;gap:6px;margin:2px 0}
+  .quote{
+    margin:6px 0;
+    padding:6px 8px;
+    border-inline-start:3px solid #64B3F4;
+    border-radius:6px;
+    background:rgba(100,179,244,.1);
+  }
+  .ln{margin:1px 0}
+  .lbl{font-weight:600}
+
+  .kb{display:flex;justify-content:flex-start;margin-top:-2px}
+  .kb-btn{
+    width:78%;
+    background:#263646;
+    color:#fff;
+    border-radius:8px;
+    padding:9px 12px;
+    text-align:center;
+    font-size:14px;
+    box-shadow:0 1px 1px rgba(0,0,0,.2);
+  }
+
+  .inputbar{
+    background:#17212b;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 10px;
+    box-shadow:0 -1px 0 rgba(0,0,0,.45);
+  }
+  .field{
+    flex:1;
+    min-height:40px;
+    background:#242f3d;
+    border-radius:20px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 12px;
+  }
+  .ph{flex:1;color:#6d7f8f;font-size:15px}
+  .send{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    background:#4fa9e6;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+  .send svg{transform:scaleX(-1)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <div class="back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="ava"><img src="joni_avatar_wa.png" alt=""></div>
+    <div class="who">
+      <div class="name">ג'וני</div>
+      <div class="status">מחובר</div>
+    </div>
+    <div class="acts">
+      <div class="icon-btn">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z"/></svg>
+      </div>
+      <div class="icon-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <main class="chat">
+    <div class="row out">
+      <div class="bubble">
+        מה אתה יודע לעשות?
+        <div class="stamp">
+          <span>9:41</span>
+          <svg width="16" height="11" viewBox="0 0 20 12" fill="none" stroke="#64B3F4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5L4.5 10 11 2.5"/><path d="M8 6.5L11.5 10 18 2.5"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="row in">
+      <div class="bubble">
+        כמה דברים שאני הכי טוב בהם:
+        <div class="bl"><span>•</span><span>לסדר לך לו״ז לבוקר</span></div>
+        <div class="bl"><span>•</span><span>לכתוב מייל מוכן לשליחה</span></div>
+        <div class="bl"><span>•</span><span>לסכם פגישה מתמלול</span></div>
+        רוצה שננסה אחד עכשיו?
+        <div class="stamp"><span>9:41</span></div>
+      </div>
+    </div>
+
+    <div class="row out">
+      <div class="bubble">
+        תכתוב מייל לדנה שנדחה למחר
+        <div class="stamp">
+          <span>9:42</span>
+          <svg width="16" height="11" viewBox="0 0 20 12" fill="none" stroke="#64B3F4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5L4.5 10 11 2.5"/><path d="M8 6.5L11.5 10 18 2.5"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="row in">
+      <div class="bubble">
+        הכנתי, זה מה שיוצא:
+        <div class="quote">
+          <div class="ln"><span class="lbl">איש קשר:</span> דנה</div>
+          <div class="ln"><span class="lbl">נושא:</span> דחיית הפגישה</div>
+          <div class="ln"><span class="lbl">תוכן:</span> היי דנה, ניאלץ לדחות למחר, נעדכן שעה. תודה</div>
+        </div>
+        לוחץ, בודק, שולח:
+        <div class="stamp"><span>9:42</span></div>
+      </div>
+    </div>
+    <div class="kb"><div class="kb-btn">פתיחת המייל ב-Gmail</div></div>
+  </main>
+
+  <footer class="inputbar">
+    <div class="field">
+      <span class="ph">הודעה</span>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#6d7f8f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(45deg)"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+    </div>
+    <div class="send">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

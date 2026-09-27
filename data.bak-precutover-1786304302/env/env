@@ -1,0 +1,45 @@
+ONECLI_URL=http://172.17.0.1:10254
+TZ=UTC
+TELEGRAM_BOT_TOKEN=8795427222:AAEMd35cOnVuSwfKenfPlAtAw8ImbaYkozk
+
+HOST_PROVISION_TOKEN=hpt_342c2bf03e90c921ec2185d9c53ac4a37c5e5e19d810a7d9
+PILOT_TELEGRAM_BOT_TOKEN=8647391266:AAFJP6tdv2XVzYJCiF8xTNt_zIkHuI9kqeU
+# Johnny (ג'וני) — the active pilot bot as of 2026-07-06. @joni_agent_bot. Replaces
+# the pilot in provisioning; the old @Nanoco_pilot_bot keeps serving its existing agents.
+JONI_TELEGRAM_BOT_TOKEN=8849389246:AAHcFSCRuQqEP3iUJQimt1vQ2KCxEn3XPgI
+
+# Operator dashboard key (GET /admin?key=...) — added 2026-06-25T08:34:14Z
+ADMIN_KEY=NkkNu89pN136R4wd8FMACh3UWCd8QTg8
+
+# Operator dashboard: daily token cap shown in usage bar (display only, no enforcement)
+PILOT_DAILY_TOKEN_CAP=5000000
+
+# Operator dashboard: enforced per-agent daily cost cap (USD). Agent over this for the UTC day gets a fixed reply instead of running.
+PILOT_DAILY_COST_CAP_USD=1.00
+# Sized for this VM (2 CPU / 7.8GB RAM), not oversubscribed: 4×1g=4GB peak
+# leaves headroom for the host. Was 4g×6=24GB (3× the box) → OOM/thrash risk
+# under concurrent load (Elia, 31.7, pre-scale stability pass).
+CONTAINER_MEMORY_LIMIT=1g
+
+# Codex fallback provider config (added by quota-fallback setup)
+OPENAI_API_KEY=onecli-managed
+CODEX_MODEL=gpt-5.3-codex
+# 4×1.0=4 CPU-demand on a 2-core box is still oversubscribed but bounded;
+# was 1.5 (×6=9, 4.5× the box). Keep at 1.0 so no single agent starves others.
+CONTAINER_CPU_LIMIT=1.0
+CONTAINER_PIDS_LIMIT=2048
+
+# WhatsApp pilot channel — dedicated business number (+972 52-225-8800), never Elia's personal WhatsApp
+ASSISTANT_HAS_OWN_NUMBER=true
+# 4 concurrent = 4GB RAM + 4 CPU-demand peak, safe on 7.8GB/2-core. Overflow
+# queues (host-sweep retries), never drops. Was 6. Raise only on a bigger VM.
+MAX_CONCURRENT_CONTAINERS=4
+WHATSAPP_BOT_NUMBER=972548284911
+
+# WHATSAPP_PHONE_NUMBER intentionally unset (2026-07-30): while set, every
+# service restart auto-requests a new pairing code. During Meta's account
+# restriction window, each retry appears to have EXTENDED the restriction
+# timer rather than being ignored (5:58:51 remaining, up from an original
+# ~4:20:46) — Elia confirmed. Do not re-enable until the restriction clears
+# AND Elia explicitly approves a re-link attempt.
+# WHATSAPP_PHONE_NUMBER=972548284911

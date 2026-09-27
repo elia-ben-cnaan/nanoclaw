@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAST — טרנספורמציית AI לארגונים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0f17;
+  --card: #0f1521;
+  --card-hi: #1a160c;
+  --border: rgba(255,255,255,0.07);
+  --border-brass: rgba(232,178,58,0.28);
+  --text: #eef2f8;
+  --gray: #9aa6ba;
+  --dim: rgba(255,255,255,0.26);
+  --brass: #e8b23a;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Heebo', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+body { transition: opacity 0.1s; }
+
+.sora { font-family: 'Sora', sans-serif; }
+
+#rain { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+#deck { position: fixed; inset: 0; z-index: 1; }
+
+.slide {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.6s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.slide.active { opacity: 1; pointer-events: auto; }
+.s-ov { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+.s-wrap {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 1260px;
+  padding: 0 72px;
+  display: flex; flex-direction: column;
+}
+.s-wrap.centered { align-items: center; text-align: center; }
+[dir="rtl"] .s-wrap:not(.centered) { align-items: flex-end; text-align: right; }
+
+.label-sm {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--brass); margin-bottom: 22px;
+}
+.rule { width: 36px; height: 1px; background: var(--brass); margin-bottom: 28px; opacity: 0.55; }
+.rule.c { margin-left: auto; margin-right: auto; }
+
+.h-xl {
+  font-size: clamp(52px, 7.4vw, 116px);
+  font-weight: 900; line-height: 0.98; letter-spacing: -0.03em;
+  color: var(--text); margin-bottom: 36px;
+}
+.h-xl em { font-style: normal; color: var(--brass); }
+
+.h-lg {
+  font-size: clamp(36px, 4.6vw, 70px);
+  font-weight: 900; line-height: 1.02; letter-spacing: -0.025em;
+  color: var(--text); margin-bottom: 22px;
+}
+.h-lg em { font-style: normal; color: var(--brass); }
+
+.body-t {
+  font-size: clamp(14px, 1.3vw, 17px);
+  font-weight: 400; line-height: 1.78;
+  color: var(--gray); max-width: 540px;
+}
+.s-wrap.centered .body-t { max-width: 620px; }
+
+/* COVER */
+.cover-mark { width: 96px; height: auto; margin-bottom: 30px; }
+.cover-mark svg { width: 100%; height: auto; display: block; }
+.cover-word {
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(64px, 11vw, 168px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+  color: var(--text); margin-bottom: 18px;
+}
+.cover-word span { color: var(--brass); }
+.cover-tag-en {
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(13px, 1.4vw, 18px); font-weight: 600;
+  letter-spacing: 0.04em; color: var(--gray); margin-bottom: 10px;
+}
+.cover-tag-he {
+  font-size: clamp(18px, 2.2vw, 30px); font-weight: 700;
+  letter-spacing: -0.01em; color: var(--text); margin-bottom: 34px;
+}
+.cover-sub {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  justify-content: center;
+  font-size: clamp(11px, 1.1vw, 14px); font-weight: 500;
+  letter-spacing: 0.04em; color: var(--dim);
+}
+.cover-sub b { color: var(--brass); font-weight: 700; }
+.cover-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border-brass); }
+
+/* INSIGHT */
+.insight-wrap {
+  position: relative; z-index: 2;
+  width: 100%; padding: 0 64px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
+}
+.h-insight {
+  font-size: clamp(44px, 6.6vw, 100px);
+  font-weight: 900; line-height: 1.0; letter-spacing: -0.035em;
+  color: var(--text); text-align: center;
+}
+.h-insight em {
+  font-style: normal;
+  background: linear-gradient(110deg, #e8b23a 0%, #f5d488 45%, #e8b23a 90%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shimmer 5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.insight-body {
+  font-size: clamp(13px, 1.2vw, 16px);
+  line-height: 1.78; color: var(--gray); text-align: center; max-width: 620px;
+}
+.stat-row {
+  display: flex; gap: 46px; align-items: stretch; justify-content: center;
+  flex-wrap: wrap; margin-top: 6px;
+}
+.stat-box { text-align: center; min-width: 130px; }
+.stat-num {
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(48px, 6vw, 88px); font-weight: 800;
+  letter-spacing: -0.04em; line-height: 1; color: var(--brass);
+}
+.stat-num.muted { color: var(--gray); }
+.stat-lbl {
+  font-size: clamp(12px, 1.1vw, 14px); font-weight: 500;
+  color: var(--gray); margin-top: 10px; line-height: 1.5;
+}
+
+/* SPLIT / CARDS */
+.split { display: flex; align-items: flex-start; gap: 72px; width: 100%; }
+.split-l { flex: 0 0 330px; }
+.split-r { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+
+.fcard {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 24px 22px 20px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.45s, background 0.45s;
+}
+.fcard.on { border-color: var(--border-brass); background: var(--card-hi); }
+.fcard-step { font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); margin-bottom: 9px; transition: color 0.45s; }
+.fcard.on .fcard-step { color: var(--brass); }
+.fcard h3 { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom: 6px; transition: color 0.45s; }
+.fcard.on h3 { color: var(--brass); }
+.fcard p { font-size: 13px; line-height: 1.66; color: var(--gray); }
+.fcard-glow {
+  position: absolute; bottom: -24px; right: -24px;
+  width: 90px; height: 90px;
+  background: radial-gradient(circle, rgba(232,178,58,0.18) 0%, transparent 70%);
+  opacity: 0; pointer-events: none;
+  animation: gpulse 3s ease-in-out infinite;
+  transition: opacity 0.45s;
+}
+.fcard.on .fcard-glow { opacity: 1; }
+@keyframes gpulse { 0%, 100% { transform: scale(0.85); } 50% { transform: scale(1.2); } }
+.fcard-dot {
+  position: absolute; top: 22px; right: 22px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brass); box-shadow: 0 0 8px var(--brass), 0 0 16px rgba(232,178,58,0.5);
+  opacity: 0; pointer-events: none;
+  animation: dpulse 2.2s ease-in-out infinite;
+  transition: opacity 0.45s;
+}
+[dir="rtl"] .fcard-dot { right: auto; left: 22px; }
+.fcard.on .fcard-dot { opacity: 1; }
+@keyframes dpulse { 0%, 100% { transform: scale(0.8); } 50% { transform: scale(1.2); } }
+
+/* COMMAND CENTER */
+.cmd-scan {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: linear-gradient(180deg,
+    transparent 0%, rgba(232,178,58,0.02) 35%,
+    rgba(232,178,58,0.06) 50%,
+    rgba(232,178,58,0.02) 65%, transparent 100%);
+  opacity: 0;
+}
+@keyframes scan {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateY(110%); opacity: 0; }
+}
+
+.cmd-center {
+  position: absolute;
+  top: 76px; bottom: 68px;
+  left: 0; right: 0;
+  padding: 18px 72px 14px;
+  display: flex; flex-direction: column; gap: 14px;
+  z-index: 2;
+}
+
+.cmd-bg-num {
+  position: absolute;
+  right: 56px; top: 20%;
+  font-family: 'Sora', sans-serif;
+  font-size: clamp(160px, 26vw, 360px);
+  font-weight: 800; letter-spacing: -0.07em;
+  color: rgba(232,178,58,0.06);
+  line-height: 1; pointer-events: none; user-select: none;
+  transition: opacity 0.3s ease;
+}
+[dir="rtl"] .cmd-bg-num { right: auto; left: 56px; }
+
+.cmd-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.cmd-meta {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass);
+}
+
+/* Stage selector */
+.cmd-selector {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: rgba(255,255,255,0.045);
+  border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.cmd-node {
+  background: #090c12;
+  padding: 18px 16px 15px;
+  cursor: pointer; position: relative; overflow: hidden;
+  transition: background 0.35s;
+}
+.cmd-node.active { background: var(--card-hi); }
+.cmd-node:hover:not(.active) { background: rgba(255,255,255,0.025); }
+.cmd-node-num {
+  font-family: 'Sora', sans-serif;
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 6px; transition: color 0.35s;
+}
+.cmd-node.active .cmd-node-num { color: var(--brass); }
+.cmd-node-name {
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0; color: rgba(255,255,255,0.32); line-height: 1.35; transition: color 0.35s;
+}
+.cmd-node.active .cmd-node-name { color: rgba(255,255,255,0.9); }
+.cmd-node::before {
+  content: ''; position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 2px; background: var(--brass);
+  opacity: 0; transition: opacity 0.35s;
+}
+.cmd-node.active::before { opacity: 1; }
+.cmd-prog {
+  position: absolute; bottom: 0; right: 0;
+  height: 2px; width: 0%;
+  background: var(--brass);
+  box-shadow: 0 0 6px rgba(232,178,58,0.7);
+  opacity: 0;
+}
+.cmd-node.active .cmd-prog { opacity: 1; }
+
+/* Main content */
+.cmd-main {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  max-width: 62%;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+[dir="rtl"] .cmd-main { align-self: flex-end; text-align: right; }
+
+.cmd-stage-label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--brass); margin-bottom: 16px;
+}
+.cmd-stage-title {
+  font-size: clamp(36px, 5vw, 76px);
+  font-weight: 900; letter-spacing: -0.03em;
+  line-height: 1.02; color: var(--text);
+  margin-bottom: 32px;
+}
+
+.cmd-bullets {
+  display: flex; flex-direction: column; gap: 15px;
+}
+.cmd-bullet-item {
+  font-size: clamp(14px, 1.6vw, 20px);
+  font-weight: 400; line-height: 1.38; letter-spacing: -0.005em;
+  padding-left: 18px;
+  border-left: 2px solid rgba(232,178,58,0.08);
+  color: rgba(255,255,255,0.2);
+  transition: color 0.55s ease, border-color 0.55s ease, text-shadow 0.55s ease, padding 0.3s ease;
+}
+.cmd-bullet-item.lit {
+  color: rgba(255,255,255,0.94);
+  border-left-color: rgba(232,178,58,0.85);
+  text-shadow: 0 0 28px rgba(232,178,58,0.22);
+  padding-left: 22px;
+}
+.cmd-bullet-item.seen {
+  color: rgba(255,255,255,0.42);
+  border-left-color: rgba(232,178,58,0.2);
+}
+[dir="rtl"] .cmd-bullet-item {
+  padding-left: 0; padding-right: 18px;
+  border-left: none;
+  border-right: 2px solid rgba(232,178,58,0.08);
+}
+[dir="rtl"] .cmd-bullet-item.lit {
+  padding-left: 0; padding-right: 22px;
+  border-right-color: rgba(232,178,58,0.85);
+}
+[dir="rtl"] .cmd-bullet-item.seen {
+  border-right-color: rgba(232,178,58,0.2);
+}
+
+/* INFRA SLIDE */
+.infra-cards {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 16px; width: 100%; margin-top: 44px;
+}
+.infra-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px 26px;
+  position: relative; overflow: hidden; text-align: right;
+  transition: border-color 0.45s, background 0.45s;
+}
+.infra-card.on { border-color: var(--border-brass); background: var(--card-hi); }
+.infra-card-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; background: linear-gradient(90deg, var(--brass), transparent); opacity: 0.4;
+}
+.infra-num {
+  font-family: 'Sora', sans-serif;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.1em;
+  color: var(--dim); margin-bottom: 18px; transition: color 0.45s;
+}
+.infra-card.on .infra-num { color: var(--brass); }
+.infra-icon {
+  width: 38px; height: 38px; border: 1px solid var(--border-brass);
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px; margin-right: auto; margin-left: 0; color: var(--brass); transition: box-shadow 0.45s;
+}
+.infra-card.on .infra-icon { box-shadow: 0 0 16px rgba(232,178,58,0.25); }
+.infra-icon svg { width: 19px; height: 19px; }
+.infra-card h3 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom: 10px; transition: color 0.45s; }
+.infra-card.on h3 { color: var(--brass); }
+.infra-card p { font-size: 13px; line-height: 1.72; color: var(--gray); }
+
+/* CLOSING BANNER */
+.banner {
+  font-size: clamp(34px, 5vw, 78px);
+  font-weight: 900; letter-spacing: -0.03em; line-height: 1.05;
+  color: var(--text); text-align: center; margin-bottom: 40px;
+}
+.banner em { font-style: normal; color: var(--brass); }
+.next-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 14px; width: 100%; max-width: 880px; margin-top: 8px;
+}
+.next-cell {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 20px; text-align: right;
+  transition: border-color 0.3s;
+}
+.next-cell:hover { border-color: var(--border-brass); }
+.next-num { font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 800; color: var(--brass); margin-bottom: 8px; }
+.next-cell h4 { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+.next-cell p { font-size: 12px; line-height: 1.6; color: var(--gray); }
+
+/* NAVBAR */
+#navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 26px 48px; pointer-events: all;
+}
+[dir="rtl"] #navbar { flex-direction: row-reverse; }
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Sora', sans-serif;
+  font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--text);
+}
+.nav-logo svg { width: 18px; height: 21px; display: block; }
+.nav-r { display: flex; gap: 20px; align-items: center; }
+.nav-count { font-size: 11px; color: var(--dim); letter-spacing: 0.07em; font-variant-numeric: tabular-nums; }
+.nav-count b { color: rgba(255,255,255,0.65); font-weight: 500; }
+
+/* BOTTOMBAR */
+#bottombar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 48px; pointer-events: all;
+}
+[dir="rtl"] #bottombar { flex-direction: row-reverse; }
+#slide-lbl { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); min-width: 110px; }
+#progress { display: flex; gap: 5px; align-items: center; direction: ltr; }
+.pdot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,0.18); cursor: pointer; transition: all 0.22s; }
+.pdot.on { background: var(--brass); width: 18px; border-radius: 2px; }
+.pdot:hover:not(.on) { background: rgba(255,255,255,0.42); }
+#arrows { display: flex; gap: 6px; direction: ltr; }
+.arr-btn {
+  width: 40px; height: 40px; border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.65); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  border-radius: 7px;
+}
+.arr-btn:hover { border-color: var(--brass); color: var(--brass); background: rgba(232,178,58,0.08); }
+
+/* MOBILE */
+@media (max-width: 768px) {
+  /* slides scroll vertically so tall content is never clipped */
+  .slide { display: block; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .s-wrap, .insight-wrap {
+    min-height: 100%;
+    justify-content: center;
+    padding: 86px 22px 94px;
+  }
+  #navbar { padding: 16px 18px; background: linear-gradient(to bottom, var(--bg) 62%, rgba(11,15,23,0)); }
+  #bottombar { padding: 14px 18px 16px; background: linear-gradient(to top, var(--bg) 62%, rgba(11,15,23,0)); }
+  .nav-logo { font-size: 16px; }
+  #slide-lbl { min-width: 0; }
+  .h-xl { font-size: clamp(40px, 11vw, 72px); }
+  .h-lg { font-size: clamp(30px, 9vw, 52px); }
+  .h-insight { font-size: clamp(30px, 8.4vw, 60px); }
+  .cover-word { font-size: clamp(56px, 18vw, 120px); }
+  .body-t { font-size: 14px; }
+  .split { flex-direction: column !important; gap: 20px; }
+  .split-l { flex: none; }
+  .split-r { gap: 12px; }
+  /* command center flows in the scroll container instead of absolute fill */
+  .cmd-center {
+    position: static; height: auto; min-height: 100%;
+    justify-content: center;
+    padding: 86px 20px 94px; gap: 18px;
+  }
+  .cmd-bg-num { font-size: 100px; left: 6px; top: auto; bottom: 14%; }
+  .cmd-main { max-width: 100%; }
+  .cmd-stage-title { font-size: clamp(30px, 9vw, 50px); margin-bottom: 22px; }
+  .cmd-selector { grid-template-columns: repeat(2, 1fr); }
+  .cmd-bullet-item { font-size: 15px; }
+  .infra-cards { grid-template-columns: 1fr; margin-top: 26px; }
+  .next-grid { grid-template-columns: 1fr; }
+  .banner { font-size: clamp(32px, 9vw, 58px); }
+  .stat-row { gap: 26px; }
+}
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-logo" dir="ltr">
+    <svg viewBox="0 0 120 140">
+      <path fill-rule="evenodd" fill="#e8b23a" d="M74 16 L26 116 L74 116 Z  M74 56 L52 102 L74 102 Z"/>
+      <rect x="74" y="14" width="26" height="8" rx="2" fill="#eef2f8"/>
+      <rect x="83" y="14" width="8" height="100" rx="2" fill="#eef2f8"/>
+      <rect x="74" y="106" width="26" height="8" rx="2" fill="#eef2f8"/>
+      <rect x="20" y="124" width="80" height="7" rx="3.5" fill="#9aa6ba"/>
+    </svg>
+    <span>M<span style="color:var(--brass)">A</span>ST</span>
+  </div>
+  <div class="nav-r">
+    <span class="nav-count" dir="ltr"><b id="cur">01</b>&thinsp;/&thinsp;10</span>
+  </div>
+</nav>
+
+<div id="deck"></div>
+
+<div id="bottombar">
+  <div id="slide-lbl"></div>
+  <div id="progress"></div>
+  <div id="arrows">
+    <button class="arr-btn" id="arr-back">&#8592;</button>
+    <button class="arr-btn" id="arr-fwd">&#8594;</button>
+  </div>
+</div>
+
+<script>
+// background animation removed — clean dark backdrop
+window.resetRain = function() {};
+
+// MAST mark (reused on cover)
+const MARK_SVG = `<svg viewBox="0 0 120 140">
+  <path fill-rule="evenodd" fill="#e8b23a" d="M74 16 L26 116 L74 116 Z  M74 56 L52 102 L74 102 Z"/>
+  <rect x="74" y="14" width="26" height="8" rx="2" fill="#eef2f8"/>
+  <rect x="83" y="14" width="8" height="100" rx="2" fill="#eef2f8"/>
+  <rect x="74" y="106" width="26" height="8" rx="2" fill="#eef2f8"/>
+  <rect x="20" y="124" width="80" height="7" rx="3.5" fill="#9aa6ba"/>
+</svg>`;
+
+// STAGE DATA — culture-embedding service, 4 phases (Hebrew only)
+const STAGES = [
+  {
+    n: '01',
+    t: 'תחקיר\nפנים-ארגוני',
+    bullets: [
+      'אייג\'נטים ממפים מה כל תפקיד באמת עושה',
+      'ראיון אישי לכל עובד, לא הנחות מלמעלה',
+      'איתור התהליכים שגוזלים הכי הרבה זמן',
+      'תמונת מצב אמיתית של איך העבודה זורמת היום'
+    ]
+  },
+  {
+    n: '02',
+    t: 'אפיון\nתפקיד',
+    bullets: [
+      'מגדירים איפה ה-AI נכנס לכל תפקיד',
+      'מתאימים את הכלי למשימה, לא להפך',
+      'מסמנים נקודות חיכוך ורווחים מהירים',
+      'בונים תכנית שימוש קונקרטית לכל אדם'
+    ]
+  },
+  {
+    n: '03',
+    t: 'קמפיין\nפנים-ארגוני',
+    bullets: [
+      'השיווק מופנה פנימה, אל העובדים',
+      'יוצרים סקרנות ורצון, לא חובה כפויה',
+      'מספרים את הסיפור עד שהשימוש נדבק',
+      'הופכים אימוץ מהוראה להרגל'
+    ]
+  },
+  {
+    n: '04',
+    t: 'הרגלים\nותחזוקה',
+    bullets: [
+      'ריטיינר ששומר שהמערכת חיה ומתעדכנת',
+      'מדידת שימוש בפועל, לא רק מסירה',
+      'התאמות שוטפות לפי מה שעובד בשטח',
+      'שיפור מתמשך של נכס שהוא כבר שלך'
+    ]
+  }
+];
+
+const ICON_SVG = {
+  megaphone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 001 1h3l8 5V5L7 10H4a1 1 0 00-1 1z"/><path d="M18 8a4 4 0 010 8"/></svg>`,
+  gears: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 00-1.7-1l-.4-2.6h-4l-.4 2.6a7 7 0 00-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 000 2l-2 1.5 2 3.4 2.3-1a7 7 0 001.7 1l.4 2.6h4l.4-2.6a7 7 0 001.7-1l2.3 1 2-3.4-2-1.5c.07-.33.1-.66.1-1z"/></svg>`,
+  people: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>`
+};
+
+// SLIDE DATA — Hebrew only
+const SLIDES = [
+  { label: 'פתיחה', type: 'cover', ov: 0.5 },
+  {
+    label: 'המהות', type: 'statement', ov: 0.5,
+    meta: 'מה אנחנו בונים',
+    hl: 'מכניסים לארגון\nAI ש<em>באמת\nעובד.</em>',
+    bd: 'MAST עושה טרנספורמציית AI מלאה לארגונים, גם הטכנולוגיה וגם התרבות. דאן-פור-יו, הלקוח הבעלים של הכול, ונכנסים דרך השיווק כדי להוכיח ערך תוך שבועות.'
+  },
+  {
+    label: 'הכאב', type: 'insight', ov: 0.5,
+    hl: 'כולם קונים AI.\nכמעט אף אחד\n<em>לא משתמש.</em>',
+    bd: 'זו לא בעיה של ידע, זו בעיה של אימוץ. רוב העובדים יכולים להשתמש ב-AI, אבל רק מיעוט עושה את זה בפועל. כאן נשרף הערך, ובדיוק כאן MAST נכנסת.',
+    stats: [
+      { num: '85%', lbl: 'מהעובדים יכולים\nלהשתמש ב-AI', muted: true },
+      { num: '25%', lbl: 'בלבד באמת\nעושים את זה' }
+    ]
+  },
+  {
+    label: 'הפוטנציאל', type: 'insight', ov: 0.5,
+    hl: 'הביקוש כבר כאן.\nוהוא <em>חוזר\nכל חודש.</em>',
+    bd: 'כמעט כל ארגון כבר קנה AI ורוצה שזה יעבוד, אבל נתקע באימוץ. מי שפותר את האימוץ לא מוכר פרויקט חד פעמי, אלא נכס חי עם ליווי שוטף. ביקוש רחב ועוד ערך חוזר, זה פוטנציאל אמיתי ולא הימור.',
+    stats: [
+      { num: '98%', lbl: 'מהארגונים מאמינים\nש-AI יעזור להם', muted: true },
+      { num: '27%', lbl: 'בלבד מדווחים על\nאימוץ רחב בפועל' }
+    ]
+  },
+  {
+    label: 'הפער', type: 'split', cycle: true, ov: 0.92,
+    hl: 'יש כמה דרכים.\nרק אחת גם מייעצת\n<em>וגם עושה.</em>',
+    bd: 'ארגון שרוצה AI יכול לנסות לבד, להביא יועצים, או לקנות עוד כלי. כל אלה משאירים אותו עם חצי פתרון. MAST היא הגשר, מייעצת, מרכיבה, מריצה ומטמיעה, עד שזה באמת עובד.',
+    cards: [
+      { step: 'לבד', hl: 'להרכיב לבד', bd: 'הכלים קיימים, אבל רוב הארגונים לא פנויים ולא יודעים להרכיב אותם, אז זה פשוט לא קורה.' },
+      { step: 'יועצים', hl: 'להביא יועצים', bd: 'ממליצים ובונים תוכנית יפה, אבל משאירים אתכם לבד מול הביצוע בפועל.' },
+      { step: 'MAST', hl: 'הגשר שמייעץ ועושה', bd: 'דאן-פור-יו מלא. גם מייעצים, גם מרכיבים ומריצים, וגם מטמיעים עד שזה עובד.' }
+    ]
+  },
+  {
+    label: 'מה מוכרים', type: 'infra', cycle: true, ov: 0.92,
+    hl: 'שלושה עמודים.\nראש חץ אחד.',
+    bd: 'נכנסים מהר דרך השיווק, מתרחבים פנימה אל המערכות והתהליכים, ומקבעים את הכול בתרבות הארגונית.',
+    infraCards: [
+      { icon: 'megaphone', num: '01', title: 'אוטומציית שיווק ודיגיטל', desc: 'ראש החץ. כניסה מהירה, סיכון נמוך, ROI תוך שבועות. לידים, תוכן ומעקב שעובדים מהיום הראשון.' },
+      { icon: 'gears', num: '02', title: 'אוטומציה של תהליכים ומערכות', desc: 'אייג\'נטים ואוטומציות שמתחברים למערכות הספציפיות שלכם ולתהליכים הפנימיים, מהליבה ועד התפעול. בלי להחליף מה שיש, עם שיפור אמיתי בזרימת העבודה.' },
+      { icon: 'people', num: '03', title: 'הטמעת תרבות AI', desc: 'עמוד השדרה והבידול האמיתי. הופכים את האימוץ מהבטחה למשהו שקורה בפועל, יום אחרי יום.' }
+    ]
+  },
+  {
+    label: 'המתודולוגיה', type: 'cmdcenter', ov: 0.94,
+    meta: 'המתודולוגיה · איך מטמיעים תרבות AI'
+  },
+  {
+    label: 'למה אנחנו', type: 'split', cycle: true, ov: 0.92,
+    hl: 'למה\n<em>אנחנו.</em>',
+    bd: 'שלוש נקודות שאף אחד אחר בשוק הזה לא מספק ביחד. זה מה שהופך את MAST לקשה להעתקה.',
+    cards: [
+      { step: 'בידול', hl: 'נמדדים על שימוש בפועל', bd: 'לא על מסירת תוכנה, אלא על האם האנשים שלכם באמת משתמשים בה. זה כל המשחק.' },
+      { step: 'DNA', hl: 'שיווק שמופנה פנימה', bd: 'הכוח שלנו ביצירת רצון. אנחנו מפנים אותו אל העובדים, וכך נוצר אימוץ אמיתי ולא כפוי.' },
+      { step: 'אמון', hl: 'בלי נעילה, הכול שלך', bd: 'כלים פתוחים, מתועדים, בבעלותכם. תעזבו אותנו מחר וזה ממשיך לעבוד.' }
+    ]
+  },
+  {
+    label: 'הגעה לשוק', type: 'split', cycle: true, ov: 0.92,
+    hl: 'שני\n<em>ערוצים.</em>',
+    bd: 'מגיעים ללקוחות בשתי דרכים משלימות, ישירות ודרך שותפים שכבר נמצאים בפנים.',
+    cards: [
+      { step: 'ערוץ 01', hl: 'ישיר לארגונים', bd: 'פנייה ישירה לארגונים שכבר משקיעים ב-AI. נכנסים דרך השיווק ומתרחבים לטרנספורמציה מלאה.' },
+      { step: 'ערוץ 02', hl: 'שותפות עם חברות ייעוץ', bd: 'נותנים לחברות ייעוץ ארגוני את שכבת ה-AI, בנייה ואימוץ, שאין להן. הם מביאים לקוחות, אנחנו מספקים.' }
+    ]
+  },
+  {
+    label: 'ההזדמנות', type: 'closing', ov: 0.55,
+    meta: 'למה עכשיו',
+    banner: 'ביקוש אמיתי. תזמון נכון.\nמתודולוגיה ש<em>אין לאף אחד.</em>',
+    next: [
+      { num: '01', t: 'פיילוט שיווקי', d: 'נכנסים בראש החץ, מוכיחים ערך תוך שבועות עם סיכון נמוך.' },
+      { num: '02', t: 'הרחבה לטרנספורמציה', d: 'מתרחבים פנימה אל המערכות והתהליכים ואל הטמעת התרבות לפי קצב הארגון.' },
+      { num: '03', t: 'ריטיינר וצמיחה', d: 'נכס חוזר שמייצר הכנסה קבועה, והרחבת ערוצים דרך שותפי ייעוץ.' }
+    ]
+  }
+];
+
+const N = SLIDES.length;
+let cur = 0;
+const cycleIntervals = {}, cycleState = {};
+
+const BULLET_DURATION = 1875;
+let cmdActiveIdx = -1;
+let cmdBulletTimer = null;
+let cmdBulletIdx = -1;
+
+function pad2(n) { return String(n + 1).padStart(2, '0'); }
+
+function buildSlideHTML(s, i) {
+  const ov = `<div class="s-ov" style="background:rgba(11,15,23,${s.ov})"></div>`;
+
+  if (s.type === 'cover') {
+    return ov + `<div class="s-wrap centered">
+      <div class="cover-mark">${MARK_SVG}</div>
+      <div class="cover-word sora">M<span>A</span>ST</div>
+      <div class="cover-tag-he">טרנספורמציית AI לארגונים.</div>
+      <div class="cover-sub">
+        <span>דק רציונל</span>
+        <span class="cover-dot"></span>
+        <span>למה העסק, ולמה עכשיו</span>
+        <span class="cover-dot"></span>
+        <b>יוני 2026</b>
+      </div>
+    </div>`;
+  }
+
+  if (s.type === 'statement') {
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm" id="meta-${i}"></div>
+      <div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}"></h1>
+      <p class="body-t" id="bd-${i}"></p>
+    </div>`;
+  }
+
+  if (s.type === 'split') {
+    const cards = s.cards.map((c, ci) => `
+      <div class="fcard">
+        <div class="fcard-step" id="cstep-${i}-${ci}"></div>
+        <h3 id="ctitle-${i}-${ci}"></h3>
+        <p id="cdesc-${i}-${ci}"></p>
+        <div class="fcard-dot"></div>
+        <div class="fcard-glow"></div>
+      </div>`).join('');
+    return ov + `<div class="s-wrap">
+      <div class="split">
+        <div class="split-l">
+          <div class="rule"></div>
+          <h1 class="h-lg" id="hl-${i}"></h1>
+          <p class="body-t" id="bd-${i}"></p>
+        </div>
+        <div class="split-r">${cards}</div>
+      </div>
+    </div>`;
+  }
+
+  if (s.type === 'insight') {
+    const stats = s.stats ? `<div class="stat-row">${s.stats.map((st, si) =>
+      `<div class="stat-box"><div class="stat-num ${st.muted ? 'muted' : ''}">${st.num}</div><div class="stat-lbl" id="stat-lbl-${i}-${si}"></div></div>`
+    ).join('')}</div>` : '';
+    return ov + `<div class="insight-wrap">
+      <h1 class="h-insight" id="hl-${i}"></h1>
+      <p class="insight-body" id="bd-${i}"></p>
+      ${stats}
+    </div>`;
+  }
+
+  if (s.type === 'cmdcenter') {
+    const nodes = STAGES.map((st, si) => `
+      <div class="cmd-node" id="cmd-node-${si}" onclick="cmdSelectStage(${si})">
+        <div class="cmd-node-num sora">${st.n}</div>
+        <div class="cmd-node-name" id="cmd-nname-${si}"></div>
+        <div class="cmd-prog" id="cmd-prog-${si}"></div>
+      </div>`).join('');
+    return ov + `
+      <div class="cmd-scan" id="cmd-scan"></div>
+      <div class="cmd-center">
+        <div class="cmd-bg-num sora" id="cmd-bg-num">01</div>
+        <div class="cmd-header">
+          <div class="cmd-meta" id="meta-${i}"></div>
+        </div>
+        <div class="cmd-selector">${nodes}</div>
+        <div class="cmd-main" id="cmd-content">
+          <div class="cmd-stage-label" id="cmd-active-num">01</div>
+          <div class="cmd-stage-title" id="cmd-active-name"></div>
+          <div class="cmd-bullets" id="cmd-bullets"></div>
+        </div>
+      </div>`;
+  }
+
+  if (s.type === 'infra') {
+    const cards = s.infraCards.map((c, ci) => `
+      <div class="infra-card" id="infra-card-${i}-${ci}">
+        <div class="infra-card-top"></div>
+        <div class="infra-num sora">${c.num}</div>
+        <div class="infra-icon">${ICON_SVG[c.icon]}</div>
+        <h3 id="infra-title-${i}-${ci}"></h3>
+        <p id="infra-desc-${i}-${ci}"></p>
+      </div>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">ארכיטקטורת השירות</div>
+      <div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(40px,6vw,90px);margin-bottom:16px"></h1>
+      <p class="body-t" id="bd-${i}"></p>
+      <div class="infra-cards">${cards}</div>
+    </div>`;
+  }
+
+  if (s.type === 'closing') {
+    const cells = s.next.map((c, ci) => `
+      <div class="next-cell">
+        <div class="next-num sora">${c.num}</div>
+        <h4 id="next-t-${i}-${ci}"></h4>
+        <p id="next-d-${i}-${ci}"></p>
+      </div>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm" id="meta-${i}"></div>
+      <div class="rule c"></div>
+      <h1 class="banner" id="banner-${i}"></h1>
+      <div class="next-grid">${cells}</div>
+    </div>`;
+  }
+
+  return ov;
+}
+
+function buildDeck() {
+  const deck = document.getElementById('deck');
+  const prog = document.getElementById('progress');
+  SLIDES.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'slide' + (i === 0 ? ' active' : '');
+    el.id = 'slide-' + i;
+    el.innerHTML = buildSlideHTML(s, i);
+    deck.appendChild(el);
+    const dot = document.createElement('div');
+    dot.className = 'pdot' + (i === 0 ? ' on' : '');
+    dot.onclick = () => goTo(i);
+    prog.appendChild(dot);
+  });
+  renderContent();
+}
+
+function renderContent() {
+  SLIDES.forEach((s, i) => {
+    const hl   = document.getElementById('hl-' + i);
+    const bd   = document.getElementById('bd-' + i);
+    const meta = document.getElementById('meta-' + i);
+    if (hl && s.hl) hl.innerHTML = s.hl.replace(/\n/g, '<br>');
+    if (bd && s.bd) bd.innerHTML = s.bd.replace(/\n/g, '<br>');
+    if (meta && s.meta) meta.textContent = s.meta;
+
+    if (s.stats) s.stats.forEach((st, si) => {
+      const l = document.getElementById(`stat-lbl-${i}-${si}`);
+      if (l) l.innerHTML = st.lbl.replace(/\n/g, '<br>');
+    });
+
+    if (s.cards) s.cards.forEach((c, ci) => {
+      const st = document.getElementById(`cstep-${i}-${ci}`);
+      const t  = document.getElementById(`ctitle-${i}-${ci}`);
+      const d  = document.getElementById(`cdesc-${i}-${ci}`);
+      if (st) st.textContent = c.step;
+      if (t)  t.textContent  = c.hl;
+      if (d)  d.textContent  = c.bd;
+    });
+
+    if (s.infraCards) s.infraCards.forEach((c, ci) => {
+      const t = document.getElementById(`infra-title-${i}-${ci}`);
+      const d = document.getElementById(`infra-desc-${i}-${ci}`);
+      if (t) t.textContent = c.title;
+      if (d) d.textContent = c.desc;
+    });
+
+    if (s.type === 'closing') {
+      const banner = document.getElementById(`banner-${i}`);
+      if (banner && s.banner) banner.innerHTML = s.banner.replace(/\n/g, '<br>');
+      s.next.forEach((c, ci) => {
+        const t = document.getElementById(`next-t-${i}-${ci}`);
+        const d = document.getElementById(`next-d-${i}-${ci}`);
+        if (t) t.textContent = c.t;
+        if (d) d.textContent = c.d;
+      });
+    }
+
+    if (s.type === 'cmdcenter') {
+      STAGES.forEach((st, si) => {
+        const nn = document.getElementById(`cmd-nname-${si}`);
+        if (nn) nn.innerHTML = st.t.replace(/\n/g, '<br>');
+      });
+      if (cmdActiveIdx >= 0) updateCmdContent();
+    }
+  });
+
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+}
+
+// AUTO-CYCLING (split + infra)
+function startCycle(slideIdx) {
+  if (cycleIntervals[slideIdx]) return;
+  const s = SLIDES[slideIdx];
+  const selector = s.type === 'infra'
+    ? `#slide-${slideIdx} .infra-card`
+    : `#slide-${slideIdx} .fcard`;
+  const cards = document.querySelectorAll(selector);
+  if (!cards.length) return;
+  if (cycleState[slideIdx] === undefined) cycleState[slideIdx] = 0;
+  cards.forEach((c, i) => c.classList.toggle('on', i === cycleState[slideIdx]));
+  cycleIntervals[slideIdx] = setInterval(() => {
+    cards[cycleState[slideIdx]].classList.remove('on');
+    cycleState[slideIdx] = (cycleState[slideIdx] + 1) % cards.length;
+    cards[cycleState[slideIdx]].classList.add('on');
+  }, 2400);
+}
+function stopCycle(slideIdx) {
+  if (cycleIntervals[slideIdx]) { clearInterval(cycleIntervals[slideIdx]); delete cycleIntervals[slideIdx]; }
+  if (SLIDES[slideIdx] && SLIDES[slideIdx].type === 'infra') {
+    document.querySelectorAll(`#slide-${slideIdx} .infra-card`).forEach(c => c.classList.remove('on'));
+  }
+}
+
+// COMMAND CENTER
+function startCmdCenter() { cmdSelectStage(0); }
+
+function stopCmdCenter() {
+  stopBulletCycle();
+  cmdActiveIdx = -1;
+  for (let i = 0; i < STAGES.length; i++) {
+    const node = document.getElementById(`cmd-node-${i}`);
+    if (node) node.classList.remove('active');
+    const bar = document.getElementById(`cmd-prog-${i}`);
+    if (bar) { bar.style.transition = 'none'; bar.style.width = '0%'; }
+  }
+}
+
+function cmdSelectStage(idx) {
+  stopBulletCycle();
+  cmdActiveIdx = idx;
+
+  for (let i = 0; i < STAGES.length; i++) {
+    const node = document.getElementById(`cmd-node-${i}`);
+    if (node) node.classList.toggle('active', i === idx);
+  }
+
+  const bgNum = document.getElementById('cmd-bg-num');
+  if (bgNum) {
+    bgNum.style.opacity = '0';
+    setTimeout(() => { bgNum.textContent = STAGES[idx].n; bgNum.style.opacity = '1'; }, 220);
+  }
+
+  triggerScanLine();
+  updateCmdContent();
+
+  const content = document.getElementById('cmd-content');
+  if (content) { content.style.opacity = '1'; content.style.transform = 'translateY(0)'; }
+
+  for (let i = 0; i < STAGES.length; i++) {
+    const bar = document.getElementById(`cmd-prog-${i}`);
+    if (bar) { bar.style.transition = 'none'; bar.style.width = '0%'; }
+  }
+  const bar = document.getElementById(`cmd-prog-${idx}`);
+  if (bar) {
+    void bar.offsetWidth;
+    bar.style.transition = `width ${BULLET_DURATION * 4}ms linear`;
+    bar.style.width = '100%';
+  }
+
+  startBulletCycle();
+}
+
+function startBulletCycle() {
+  stopBulletCycle();
+  cmdBulletIdx = 0;
+  highlightBullet(0);
+  cmdBulletTimer = setInterval(() => {
+    cmdBulletIdx++;
+    if (cmdBulletIdx < 4) {
+      highlightBullet(cmdBulletIdx);
+    } else {
+      stopBulletCycle();
+    }
+  }, BULLET_DURATION);
+}
+
+function stopBulletCycle() {
+  if (cmdBulletTimer) { clearInterval(cmdBulletTimer); cmdBulletTimer = null; }
+  cmdBulletIdx = -1;
+}
+
+function highlightBullet(activeIdx) {
+  const bullets = document.querySelectorAll('#cmd-bullets .cmd-bullet-item');
+  bullets.forEach((b, i) => {
+    b.classList.remove('lit', 'seen');
+    if (i < activeIdx) b.classList.add('seen');
+    else if (i === activeIdx) b.classList.add('lit');
+  });
+}
+
+function updateCmdContent() {
+  if (cmdActiveIdx < 0) return;
+  const st = STAGES[cmdActiveIdx];
+  const activeNum  = document.getElementById('cmd-active-num');
+  const activeName = document.getElementById('cmd-active-name');
+  if (activeNum)  activeNum.textContent = st.n;
+  if (activeName) activeName.innerHTML  = st.t.replace(/\n/g, '<br>');
+  const bulletsEl = document.getElementById('cmd-bullets');
+  if (bulletsEl) {
+    bulletsEl.innerHTML = st.bullets
+      .map(b => `<div class="cmd-bullet-item">${b}</div>`)
+      .join('');
+  }
+}
+
+function triggerScanLine() {
+  const el = document.getElementById('cmd-scan');
+  if (!el) return;
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'scan 0.7s ease-out forwards';
+}
+
+// NAVIGATION
+function goTo(n) {
+  const slides = document.querySelectorAll('.slide');
+  const dots   = document.querySelectorAll('.pdot');
+  const prev = cur;
+
+  if (SLIDES[prev].cycle) stopCycle(prev);
+  if (SLIDES[prev].type === 'cmdcenter') stopCmdCenter();
+
+  slides[prev].classList.remove('active');
+  dots[prev].classList.remove('on');
+  cur = ((n % N) + N) % N;
+  slides[cur].classList.add('active');
+  dots[cur].classList.add('on');
+  document.getElementById('cur').textContent = pad2(cur);
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+
+  if (SLIDES[cur].cycle) startCycle(cur);
+  if (SLIDES[cur].type === 'cmdcenter') startCmdCenter();
+  if (['cover', 'statement', 'insight', 'closing'].includes(SLIDES[cur].type)) resetRain();
+}
+function nav(d) { goTo(cur + d); }
+
+// arrows — Hebrew paging: right button advances forward, left goes back
+document.getElementById('arr-back').onclick = () => nav(-1);
+document.getElementById('arr-fwd').onclick = () => nav(1);
+
+// EVENTS — right advances forward, left goes back
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nav(1);
+  if (e.key === 'ArrowDown')  nav(1);
+  if (e.key === 'ArrowLeft')  nav(-1);
+  if (e.key === 'ArrowUp')    nav(-1);
+  if (e.key === 'Escape') goTo(0);
+});
+
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 44) nav(dx < 0 ? 1 : -1);
+}, { passive: true });
+
+document.getElementById('deck').addEventListener('click', e => {
+  if (SLIDES[cur].type === 'cmdcenter') return;
+  if (e.target.closest('.next-cell') || e.target.closest('.infra-card') || e.target.closest('.fcard')) return;
+  const x = e.clientX / window.innerWidth;
+  // Hebrew paging: right side advances forward, left side goes back
+  if (x > 0.65) nav(1);
+  else if (x < 0.35) nav(-1);
+});
+
+buildDeck();
+</script>
+</body>
+</html>

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayMe · Strategic Partner Sales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #171B3A;
+  --card: #242B54;
+  --card-hi: #2E3667;
+  --brand: #2A315D;
+  --accent: #2FC2BC;
+  --accent-d: #22A9A3;
+  --border: rgba(255,255,255,0.09);
+  --border-acc: rgba(47,194,188,0.36);
+  --text: #F4F5FB;
+  --gray: #A7ADCC;
+  --dim: rgba(255,255,255,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+
+#deck { position: fixed; inset: 0; z-index: 1; }
+
+.slide { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.55s ease; display: flex; align-items: center; justify-content: center; }
+.slide.active { opacity: 1; pointer-events: auto; }
+.s-ov { position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(120% 90% at 50% 0%, rgba(42,49,93,0.6) 0%, transparent 55%); }
+
+.s-wrap { position: relative; z-index: 2; width: 100%; max-width: 1280px; padding: 0 72px; display: flex; flex-direction: column; }
+.s-wrap.centered { align-items: center; text-align: center; }
+
+.label-sm { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 20px; }
+.rule { width: 40px; height: 2px; background: var(--accent); margin-bottom: 26px; opacity: 0.75; border-radius: 2px; }
+.rule.c { margin-right: auto; margin-left: auto; }
+
+.h-xl { font-size: clamp(44px, 6.4vw, 98px); font-weight: 900; line-height: 1.02; letter-spacing: -0.02em; color: var(--text); margin-bottom: 30px; }
+.h-xl em { font-style: normal; color: var(--accent); }
+.h-lg { font-size: clamp(34px, 4.4vw, 64px); font-weight: 900; line-height: 1.05; letter-spacing: -0.015em; color: var(--text); margin-bottom: 22px; }
+.h-lg em { font-style: normal; color: var(--accent); }
+.body-t { font-size: clamp(15px, 1.35vw, 18px); font-weight: 400; line-height: 1.8; color: var(--gray); max-width: 560px; }
+.s-wrap.centered .body-t { max-width: 640px; }
+
+/* COVER */
+.cover-logo { width: 128px; height: auto; border-radius: 14px; margin-bottom: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
+.proc-dir { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding: 14px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.proc-dir .pd-tag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+.pd-eq { display: flex; flex-direction: column; align-items: flex-start; }
+.pd-eq b { font-size: 17px; font-weight: 900; color: var(--text); letter-spacing: -0.01em; }
+.pd-eq span { font-size: 10.5px; font-weight: 600; color: var(--dim); }
+.pd-eq.pd-res b { color: var(--accent); }
+.pd-op { font-style: normal; font-size: 16px; font-weight: 800; color: var(--border-acc); }
+.cover-tag { font-size: clamp(11px, 1.2vw, 15px); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 22px; }
+.cover-h { font-size: clamp(40px, 6.4vw, 88px); font-weight: 900; letter-spacing: -0.028em; line-height: 1.02; color: var(--text); text-align: center; margin-bottom: 20px; }
+.cover-h em { font-style: normal; color: var(--accent); }
+.cover-line { font-size: clamp(14px, 1.4vw, 18px); font-weight: 500; color: var(--gray); max-width: 600px; line-height: 1.6; margin-bottom: 34px; }
+.cover-math { display: flex; align-items: stretch; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 34px; }
+.cm-item { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; min-width: 150px; text-align: center; }
+.cm-item.cm-res { border-color: var(--accent); background: var(--card-hi); }
+.cm-num { font-size: clamp(20px, 2.4vw, 30px); font-weight: 900; color: var(--text); letter-spacing: -0.02em; }
+.cm-res .cm-num { color: var(--accent); }
+.cm-lbl { font-size: 11.5px; font-weight: 700; color: var(--text); margin-top: 6px; line-height: 1.4; }
+.cm-lbl span { display: block; font-weight: 500; color: var(--gray); font-size: 10.5px; margin-top: 2px; }
+.cm-op { display: flex; align-items: center; font-size: 24px; font-weight: 800; color: var(--accent); }
+.cover-meta { display: flex; gap: 13px; align-items: center; flex-wrap: wrap; justify-content: center; font-size: clamp(11px, 1.1vw, 14px); font-weight: 500; color: var(--dim); }
+.cover-meta b { color: var(--text); font-weight: 700; }
+.cover-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border-acc); }
+
+/* PROCESS */
+.proc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; width: 100%; margin-top: 40px; }
+.proc-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 26px 22px; text-align: left; position: relative; overflow: hidden; transition: border-color .45s, background .45s; }
+.proc-card.on { border-color: var(--border-acc); background: var(--card-hi); }
+.proc-num { font-size: 30px; font-weight: 900; color: var(--dim); line-height: 1; margin-bottom: 14px; transition: color .45s; }
+.proc-card.on .proc-num { color: var(--accent); }
+.proc-card h3 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 7px; }
+.proc-card p { font-size: 13px; line-height: 1.6; color: var(--gray); }
+.proc-band { margin-top: 16px; display: flex; gap: 14px; width: 100%; }
+.proc-eng { flex: 1; background: rgba(47,194,188,0.08); border: 1px solid var(--border-acc); border-radius: 12px; padding: 16px 20px; text-align: left; }
+.proc-eng b { color: var(--accent); font-weight: 800; font-size: 15px; }
+.proc-eng span { display: block; color: var(--gray); font-size: 12.5px; margin-top: 3px; }
+
+/* SPLIT / CARDS */
+.split { display: flex; align-items: flex-start; gap: 64px; width: 100%; }
+.split-l { flex: 0 0 340px; }
+.split-r { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.split-r.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+.split-r.grid2 .fcard { padding: 15px 17px 14px; }
+.split-r.grid2 .fcard h3 { font-size: 15.5px; margin-bottom: 4px; }
+.split-r.grid2 .fcard p { font-size: 12.5px; line-height: 1.55; }
+.split-r.grid2 .fcard .mrr { margin-top: 7px; font-size: 11.5px; }
+.fcard { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 20px; position: relative; overflow: hidden; transition: border-color .45s, background .45s; }
+.fcard.on { border-color: var(--border-acc); background: var(--card-hi); }
+.fcard-step { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; color: var(--dim); margin-bottom: 8px; transition: color .45s; }
+.fcard.on .fcard-step { color: var(--accent); }
+.fcard h3 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.fcard p { font-size: 13.5px; line-height: 1.68; color: var(--gray); }
+.fcard .mrr { display: inline-block; margin-top: 9px; font-size: 12.5px; font-weight: 800; color: var(--accent); background: rgba(47,194,188,0.12); padding: 3px 11px; border-radius: 20px; }
+.fcard-dot { position: absolute; top: 20px; left: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 9px var(--accent); opacity: 0; animation: dpulse 2.2s ease-in-out infinite; transition: opacity .45s; }
+.fcard.on .fcard-dot { opacity: 1; }
+@keyframes dpulse { 0%,100% { transform: scale(0.8);} 50% { transform: scale(1.25);} }
+
+/* TABLE */
+.tbl-wrap { width: 100%; max-width: 1180px; margin-top: 30px; overflow-x: auto; }
+.ptable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; min-width: 720px; }
+.ptable thead th { background: var(--brand); color: var(--text); font-weight: 800; font-size: 12.5px; padding: 13px 15px; text-align: left; border-bottom: 2px solid var(--accent); white-space: nowrap; }
+.ptable thead th:first-child { border-top-right-radius: 10px; }
+.ptable thead th:last-child { border-top-left-radius: 10px; }
+.ptable tbody td { padding: 12px 15px; text-align: left; color: var(--gray); border-bottom: 1px solid var(--border); line-height: 1.45; vertical-align: top; }
+.ptable tbody tr:nth-child(even) td { background: rgba(255,255,255,0.018); }
+.ptable tbody tr:hover td { background: rgba(47,194,188,0.07); }
+.ptable td:first-child { color: var(--text); font-weight: 700; white-space: nowrap; }
+.ptable .num { color: var(--accent); font-weight: 800; white-space: nowrap; }
+.ptable .stars { color: var(--accent); letter-spacing: 1px; white-space: nowrap; }
+.ptable .tag-pain { color: var(--text); font-weight: 700; }
+.ptable .tag-hunger { color: var(--accent); font-weight: 700; }
+.ptable .st-ok { display: inline-block; font-size: 11px; font-weight: 800; color: #16241f; background: var(--accent); border-radius: 20px; padding: 3px 12px; white-space: nowrap; }
+.ptable .st-chk { display: inline-block; font-size: 11px; font-weight: 800; color: #E7B84B; border: 1px solid rgba(231,184,75,0.55); border-radius: 20px; padding: 3px 12px; white-space: nowrap; }
+.tbl-foot { margin-top: 16px; font-size: 14px; font-weight: 700; color: var(--text); text-align: center; }
+.tbl-foot b { color: var(--accent); }
+.tbl-src { margin-top: 8px; font-size: 11px; color: var(--dim); text-align: center; }
+
+/* FORMULA */
+.fx-eq { display: flex; align-items: stretch; justify-content: center; gap: 9px; flex-wrap: wrap; margin: 30px 0 30px; direction: ltr; }
+.fx-res-lead { display: flex; align-items: center; font-size: clamp(24px, 3.4vw, 44px); font-weight: 900; color: var(--accent); }
+.fx-op { display: flex; align-items: center; font-size: clamp(17px, 2vw, 26px); font-weight: 800; color: var(--gray); }
+.fx-eq-sign { color: var(--accent); }
+.fx-term { background: var(--card); border: 1px solid var(--border-acc); border-radius: 12px; padding: 15px 18px; min-width: 116px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.fx-term-t { font-size: 12px; font-weight: 700; color: var(--gray); margin-bottom: 7px; line-height: 1.3; }
+.fx-term-ex { font-size: clamp(17px, 1.9vw, 23px); font-weight: 900; color: var(--text); }
+.fx-example { display: flex; flex-direction: column; gap: 9px; align-items: center; background: rgba(47,194,188,0.08); border: 1px solid var(--border-acc); border-radius: 14px; padding: 20px 30px; }
+.fx-ex-label { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent); }
+.fx-ex-calc { font-size: clamp(16px, 2vw, 26px); font-weight: 600; color: var(--text); direction: ltr; }
+.fx-ex-calc b { color: var(--accent); font-weight: 900; }
+
+/* INSIGHT */
+.insight-wrap { position: relative; z-index: 2; width: 100%; padding: 0 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+.h-insight { font-size: clamp(40px, 6vw, 90px); font-weight: 900; line-height: 1.02; letter-spacing: -0.02em; color: var(--text); text-align: center; }
+.h-insight em { font-style: normal; color: var(--accent); }
+.insight-body { font-size: clamp(14px, 1.25vw, 17px); line-height: 1.8; color: var(--gray); text-align: center; max-width: 660px; }
+.stat-row { display: flex; gap: 44px; align-items: stretch; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+.stat-box { text-align: center; min-width: 150px; }
+.stat-num { font-size: clamp(46px, 5.6vw, 84px); font-weight: 900; letter-spacing: -0.03em; line-height: 1; color: var(--accent); }
+.stat-num.muted { color: var(--gray); }
+.stat-lbl { font-size: clamp(12px, 1.1vw, 14px); font-weight: 600; color: var(--gray); margin-top: 10px; line-height: 1.5; }
+
+/* STATEMENT */
+.pts { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 760px; margin-top: 8px; }
+.pt-item { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--border-acc); border-radius: 12px; padding: 18px 22px; text-align: left; transition: border-color .4s, background .4s; }
+.pt-item.on { background: var(--card-hi); border-right-color: var(--accent); }
+.pt-item h4 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.pt-item p { font-size: 13.5px; line-height: 1.6; color: var(--gray); }
+
+/* COMMAND CENTER */
+.cmd-scan { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(180deg, transparent 0%, rgba(47,194,188,0.05) 50%, transparent 100%); opacity: 0; }
+@keyframes scan { 0% { transform: translateY(-100%); opacity: 0;} 8% {opacity:1;} 92% {opacity:1;} 100% { transform: translateY(110%); opacity: 0;} }
+.cmd-center { position: absolute; top: 78px; bottom: 70px; right: 0; left: 0; padding: 18px 72px 14px; display: flex; flex-direction: column; gap: 14px; z-index: 2; }
+.cmd-bg-num { position: absolute; left: 56px; top: 20%; font-size: clamp(110px,18vw,280px); font-weight: 900; letter-spacing: -0.05em; color: rgba(47,194,188,0.07); line-height: 1; pointer-events: none; user-select: none; transition: opacity .3s; }
+.cmd-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.cmd-meta { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; color: var(--accent); }
+.cmd-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+.cmd-node { background: var(--bg); padding: 17px 16px 15px; cursor: pointer; position: relative; overflow: hidden; transition: background .35s; }
+.cmd-node.active { background: var(--card-hi); }
+.cmd-node:hover:not(.active) { background: rgba(255,255,255,0.03); }
+.cmd-node-num { font-size: 13px; font-weight: 900; color: var(--dim); margin-bottom: 6px; transition: color .35s; }
+.cmd-node.active .cmd-node-num { color: var(--accent); }
+.cmd-node-name { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.34); line-height: 1.35; transition: color .35s; }
+.cmd-node.active .cmd-node-name { color: rgba(255,255,255,0.92); }
+.cmd-node::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: 0; transition: opacity .35s; }
+.cmd-node.active::before { opacity: 1; }
+.cmd-prog { position: absolute; bottom: 0; right: 0; height: 2px; width: 0%; background: var(--accent); box-shadow: 0 0 6px var(--accent); opacity: 0; }
+.cmd-node.active .cmd-prog { opacity: 1; }
+.cmd-main { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; max-width: 64%; }
+.cmd-stage-label { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 14px; }
+.cmd-stage-title { font-size: clamp(34px, 4.6vw, 68px); font-weight: 900; letter-spacing: -0.02em; line-height: 1.04; color: var(--text); margin-bottom: 26px; }
+.cmd-bullets { display: flex; flex-direction: column; gap: 13px; }
+.cmd-bullet-item { font-size: clamp(15px, 1.5vw, 21px); font-weight: 500; line-height: 1.35; padding-right: 18px; border-right: 2px solid rgba(47,194,188,0.1); color: rgba(255,255,255,0.22); transition: color .55s, border-color .55s, text-shadow .55s, padding .3s; }
+.cmd-bullet-item.lit { color: rgba(255,255,255,0.95); border-right-color: rgba(47,194,188,0.9); text-shadow: 0 0 26px rgba(47,194,188,0.28); padding-right: 22px; }
+.cmd-bullet-item.seen { color: rgba(255,255,255,0.44); border-right-color: rgba(47,194,188,0.3); }
+.cmd-mrr-tag { margin-top: 22px; display: inline-block; align-self: flex-start; font-size: 15px; font-weight: 900; color: #fff; background: var(--accent); padding: 7px 18px; border-radius: 24px; }
+
+/* CLOSING */
+.banner { font-size: clamp(32px, 4.8vw, 74px); font-weight: 900; letter-spacing: -0.02em; line-height: 1.06; color: var(--text); text-align: center; margin-bottom: 20px; }
+.close-line { font-size: clamp(14px, 1.5vw, 18px); font-weight: 500; color: var(--gray); max-width: 700px; line-height: 1.65; text-align: center; margin: 0 auto 30px; }
+.banner em { font-style: normal; color: var(--accent); }
+.next-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; max-width: 1000px; margin-top: 6px; }
+.next-cell { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 18px; text-align: left; transition: border-color .3s; }
+.next-cell:hover { border-color: var(--border-acc); }
+.next-kind { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); border: 1px solid var(--border-acc); border-radius: 5px; padding: 3px 8px; margin-bottom: 12px; }
+.next-cell h4 { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.next-cell p { font-size: 11.5px; line-height: 1.55; color: var(--gray); }
+a.next-cell { text-decoration: none; display: block; cursor: pointer; }
+a.next-cell:hover { border-color: var(--accent); }
+.next-open { display: inline-block; margin-top: 9px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; color: var(--accent); }
+
+/* PROFILE */
+.profile-wrap { display: flex; flex-direction: row; align-items: center; gap: clamp(28px, 5vw, 72px); max-width: 1040px; margin: 0 auto; width: 100%; }
+.prof-photo { flex: none; width: clamp(200px, 24vw, 300px); aspect-ratio: 1; border-radius: 24px; overflow: hidden; background: linear-gradient(150deg, var(--card-hi), var(--card)); border: 1px solid var(--border-acc); box-shadow: 0 24px 70px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; position: relative; }
+.prof-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prof-mono { font-size: clamp(56px, 7vw, 88px); font-weight: 900; color: var(--accent); letter-spacing: 0.02em; }
+.prof-text { flex: 1; text-align: left; }
+.prof-name { font-size: clamp(30px, 4vw, 52px); font-weight: 900; letter-spacing: -0.02em; color: var(--text); margin: 6px 0 8px; }
+.prof-role { font-size: clamp(13px, 1.5vw, 17px); font-weight: 700; color: var(--accent); margin-bottom: 26px; letter-spacing: 0.01em; }
+.prof-pts { display: flex; flex-direction: column; gap: 15px; }
+.prof-pt { position: relative; padding-left: 20px; font-size: clamp(14px, 1.55vw, 18px); font-weight: 500; line-height: 1.55; color: var(--gray); }
+.prof-pt b { color: var(--text); font-weight: 800; }
+.prof-dot { position: absolute; left: 0; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+/* FINALE */
+.finale-wrap { gap: 0; }
+.finale-logo { width: clamp(96px, 11vw, 132px); height: auto; border-radius: 14px; margin-bottom: 34px; box-shadow: 0 18px 54px rgba(0,0,0,0.45); }
+.finale-h { font-size: clamp(38px, 6vw, 82px); font-weight: 900; letter-spacing: -0.025em; line-height: 1.04; color: var(--text); text-align: center; margin-bottom: 24px; }
+.finale-h em { font-style: normal; color: var(--accent); }
+.finale-line { font-size: clamp(15px, 1.7vw, 20px); font-weight: 500; color: var(--gray); max-width: 720px; line-height: 1.6; text-align: center; margin: 0 auto 34px; }
+.finale-sign { font-size: clamp(14px, 1.5vw, 18px); font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.finale-contact { font-size: 13px; font-weight: 600; color: var(--dim); letter-spacing: 0.03em; direction: ltr; }
+
+/* NAVBAR */
+#navbar { position: fixed; top: 0; right: 0; left: 0; z-index: 200; display: flex; align-items: center; justify-content: space-between; padding: 22px 44px; pointer-events: all; }
+.nav-logo img { height: 42px; width: auto; border-radius: 8px; display: block; }
+.nav-count { font-size: 12px; color: var(--dim); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+.nav-count b { color: rgba(255,255,255,0.7); font-weight: 600; }
+.nav-left, .nav-right { display: flex; align-items: center; gap: 14px; }
+.lang-toggle { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--border-acc); border-radius: 20px; padding: 5px 13px; text-decoration: none; transition: all .2s; }
+.lang-toggle:hover { background: rgba(47,194,188,0.12); }
+
+/* BOTTOMBAR */
+#bottombar { position: fixed; bottom: 0; right: 0; left: 0; z-index: 200; display: flex; align-items: center; justify-content: space-between; padding: 20px 44px 22px; pointer-events: none; background: linear-gradient(to top, var(--bg) 55%, rgba(23,27,58,0.75) 80%, transparent); }
+#bottombar > * { pointer-events: all; }
+#slide-lbl { font-size: 11px; letter-spacing: 0.05em; color: var(--dim); min-width: 120px; font-weight: 600; }
+#progress { display: flex; gap: 5px; align-items: center; direction: ltr; }
+.pdot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.22s; }
+.pdot.on { background: var(--accent); width: 18px; border-radius: 2px; }
+.pdot:hover:not(.on) { background: rgba(255,255,255,0.45); }
+#arrows { display: flex; gap: 6px; direction: ltr; }
+.arr-btn { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,0.24); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; border-radius: 8px; }
+.arr-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(47,194,188,0.12); }
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .slide { display: block; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .s-wrap, .insight-wrap { min-height: 100%; justify-content: center; padding: 84px 20px 92px; }
+  #navbar { padding: 15px 16px; background: linear-gradient(to bottom, var(--bg) 62%, transparent); }
+  #bottombar { padding: 12px 16px 14px; background: linear-gradient(to top, var(--bg) 62%, transparent); }
+  .nav-logo img { height: 34px; }
+  #slide-lbl { min-width: 0; }
+  .h-xl { font-size: clamp(36px, 10vw, 66px); }
+  .h-lg { font-size: clamp(28px, 8vw, 48px); }
+  .h-insight { font-size: clamp(30px, 8vw, 56px); }
+  .cover-logo { width: 124px; }
+  .split { flex-direction: column !important; gap: 18px; }
+  .split-l { flex: none; }
+  .proc-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+  .proc-band { flex-direction: column; }
+  .tbl-wrap { margin-top: 20px; }
+  .ptable { font-size: 12px; }
+  .cmd-center { position: static; height: auto; min-height: 100%; justify-content: center; padding: 84px 18px 92px; gap: 16px; }
+  .cmd-bg-num { font-size: 92px; left: 4px; top: auto; bottom: 12%; }
+  .cmd-main { max-width: 100%; }
+  .cmd-stage-title { font-size: clamp(28px, 8vw, 46px); margin-bottom: 20px; }
+  .cmd-selector { grid-template-columns: repeat(2, 1fr); }
+  .cmd-bullet-item { font-size: 15px; }
+  .next-grid { grid-template-columns: 1fr 1fr; }
+  .profile-wrap { flex-direction: column; gap: 24px; }
+  .prof-photo { width: clamp(150px, 46vw, 210px); }
+  .prof-text { text-align: left; width: 100%; }
+  .banner { font-size: clamp(30px, 8vw, 54px); }
+  .stat-row { gap: 24px; }
+  .fx-eq { gap: 6px; }
+  .fx-term { min-width: 74px; padding: 10px 9px; }
+  .fx-term-t { font-size: 10.5px; }
+  .fx-example { padding: 16px 18px; }
+  .fx-ex-calc { font-size: 15px; }
+}
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-right">
+    <div class="nav-count"><b id="cur">01</b>&thinsp;/&thinsp;<span id="tot">14</span></div>
+    <a class="lang-toggle" href="/index.html">HE</a>
+  </div>
+  <div class="nav-logo"><img src="payme-logo.jpg" alt="PayMe"></div>
+</nav>
+
+<div id="deck"></div>
+
+<div id="bottombar">
+  <div id="arrows">
+    <button class="arr-btn" id="arr-back">&#8592;</button>
+    <button class="arr-btn" id="arr-fwd">&#8594;</button>
+  </div>
+  <div id="progress"></div>
+  <div id="slide-lbl"></div>
+</div>
+
+<script>
+const STAGES = [
+  { n: 'Month 1', t: 'Planning\n& Groundwork', mrr: '₪5,000', bullets: [
+    'Build the plan and its go-to-market assets, map the market and the real opportunities',
+    'Research and sampling only, no active sales process yet',
+    'Warm touches to the close circle and known Inbound contacts, not a sales cycle',
+    'Open the distribution channels: LinkedIn, email, personal network, first social presence'
+  ]},
+  { n: 'Month 2', t: 'First Contact\n& Pilots', mrr: '₪13,600', bullets: [
+    'First real touch with the market: outreach, newsletters and WhatsApp on the fitting service',
+    'Schedule and hold meetings, send supporting materials',
+    'Phone-level sampling to learn where the feedback comes from',
+    'After every meeting, a price quote goes out'
+  ]},
+  { n: 'Month 3', t: 'Maturation', mrr: '₪47,000', bullets: [
+    'Personalized proposals and follow-ups running, complex closing negotiations begin',
+    'Deals on the table, and maturing processes we can already see closing next month',
+    'Warm up the precise, high-intent accounts',
+    'Inbound expansion continues in parallel'
+  ]},
+  { n: 'Month 4', t: 'Closing\n& Optimization', mrr: '₪102,100', bullets: [
+    'Start closing deals',
+    'Optimize: double down on the serious accounts, drop the ones going nowhere',
+    'Test parallel prospects in the same segments per feedback from the field',
+    'Cross the target: over ₪100K net MRR'
+  ]}
+];
+
+const SLIDES = [
+  { label: 'Cover', type: 'cover' },
+  { label: 'Behind the deck', type: 'profile',
+    kicker: 'WHO IS BEHIND THE DECK',
+    photo: 'elia.png',
+    name: 'Elia Ben Cnaan',
+    role: 'Business Development · Marketing Strategy · 15 years',
+    pts: [
+      '<b>15 years in business development and marketing strategy</b>, from the first meeting to closing the deal.',
+      'Fieldwork with partners: opening doors, building shared value and driving a commercial process all the way through.',
+      'I have already run this method in the field: mapping a market, opening the right door and closing commercial partnerships end to end. That is exactly what the role requires.'
+    ]
+  },
+  { label: 'How I built the strategy', type: 'process', dir: true,
+    kicker: 'THE METHODOLOGY',
+    hl: 'How I built\n<em>the strategy</em>',
+    bd: 'Not guesswork. A four-step process, from the breadth of the market down to a plan you can run.',
+    steps: [
+      { num: '1', h: 'Market research', p: '5 segments, 40+ potential partners' },
+      { num: '2', h: 'Filter & focus', p: 'The segments with the highest potential' },
+      { num: '3', h: 'Split', p: 'Inbound (leverage existing) + Outbound (new partners)' },
+      { num: '4', h: 'Operating plan', p: 'Who to approach, what to say, when to close, how much it brings' }
+    ],
+    band: [
+      { b: 'Inbound', s: '4 existing partners · product expansion · ~90,000 businesses' },
+      { b: 'Outbound', s: '6 new partners · 5 segments · ~20,000 businesses' }
+    ]
+  },
+  { label: 'Two engines', type: 'split', cycle: true,
+    hl: 'Two engines.\n<em>One target.</em>',
+    bd: 'I did not bet everything on new deals. Half the plan grows partners already inside, fast and low-risk. The other half opens new ground. If one is delayed, the other compensates.',
+    cards: [
+      { step: 'ENGINE 01', hl: 'Inbound', bd: 'Four partners already working with PayMe. Expand what they sell, from payments to accounting and marketing. The closest circle first, no starting from zero.' },
+      { step: 'ENGINE 02', hl: 'Outbound', bd: 'Six new partnerships where PayMe is not yet present, chosen because the fit is clear and the sales cycle is short.' }
+    ]
+  },
+  { label: 'Inbound · complementary products', type: 'table',
+    kicker: 'ENGINE 01 · INBOUND',
+    hl: 'Complementary products for <em>existing partners</em>',
+    sub: 'Each partner already uses one PayMe product. These are the openings to add a second. One gap is validated. The rest are hypotheses that need a discovery call before we commit resources.',
+    cols: ['Partner', 'Uses today', 'Product to add', 'Why', 'Status', 'Est. MRR'],
+    rows: [
+      ['Wix', 'Payments only', 'Accounting (IL invoicing)', 'No tax-authority-approved invoicing for Israeli merchants. A legal requirement with zero coverage today.', '<span class="st-ok">Validated</span>', '<span class="num">₪7,500</span>'],
+      ['Wolt Merchants', 'Accounting + Payments (couriers)', 'Promoter for restaurants', 'Restaurants want more orders and visibility. May overlap Wolt\'s in-app Promoted Listings.', '<span class="st-chk">To validate</span>', 'TBD'],
+      ['Isracard / Cal', 'Payments (White Label)', 'Accounting + Promoter bundle', 'Every competitor offers payments. Adding Accounting + Promoter is the differentiation. 6+ month cycle.', '<span class="st-chk">To validate</span>', 'TBD'],
+      ['Zester', 'Payments B2B (suppliers)', 'Accounting for restaurants', 'Restaurants pay suppliers through PayMe but manage invoices separately. May already have bookkeeping.', '<span class="st-chk">To validate</span>', 'TBD']
+    ],
+    foot: 'Only Wix is a validated gap today (₪7,500). The rest are hypotheses for discovery. At a conservative ramp the Inbound engine adds ~₪30,000 MRR, the other half of the ₪102,100 target.',
+    src: 'Source: PayMe website, Wix Developer Docs, Isracard.co.il'
+  },
+  { label: 'Outbound · segment mapping', type: 'table',
+    kicker: 'ENGINE 02 · OUTBOUND',
+    hl: 'Five segments, by priority',
+    cols: ['Segment', 'Market size (IL)', 'Strategic partners', 'PayMe product', 'Priority'],
+    rows: [
+      ['Gig Economy', '25,000-35,000', '<span class="tag-hunger">10bis · Yango Deli · Gett</span>', 'Accounting', '<span class="stars">★★★★★</span>'],
+      ['Medical centers', '1,500-2,000', '<span class="tag-hunger">Assuta · HMC · Medica</span>', 'Accounting + Payments', '<span class="stars">★★★★★</span>'],
+      ['Fitness / studios', '10,000-20,000', '<span class="tag-hunger">Arbox · BoostApp · Fizikal</span>', 'Accounting + Promoter', '<span class="stars">★★★★</span>'],
+      ['Beauty / cosmetics', '10,000-20,000', '<span class="tag-hunger">Plannie · Arbox · Fresha</span>', 'Payments + Accounting', '<span class="stars">★★★★</span>'],
+      ['Professionals', 'tens of thousands', '<span class="tag-hunger">Midrag · HaMiktzoanim</span>', 'Accounting + Payments', '<span class="stars">★★★★</span>']
+    ],
+    foot: 'Total Addressable Market: ~50,000-80,000 small and independent businesses in Israel',
+    src: 'Detailed sources in the "Calculation Basis" sheet + the attached research documents'
+  },
+  { label: 'Outbound · selected partners', type: 'table',
+    kicker: 'ENGINE 02 · OUTBOUND',
+    hl: 'Six chosen out of 40+',
+    sub: 'Criteria: sales cycle, existing PoC, volume, product fit. Exposure runs from a conservative to an upside scenario, and drives the Month 4 MRR.',
+    cols: ['Partner', 'Ecosystem', 'Product', 'Why chosen', 'Exposure (cons → upside)', 'MRR M4'],
+    rows: [
+      ['10bis', '~6,000 couriers', 'Accounting', 'Wolt PoC proven. 100% independents in 2025. Replaces Keycost.', '900 · 15% → 1,800 · 30%', '<span class="num">₪33,750</span>'],
+      ['Arbox', '~7,000 businesses', 'Accounting + Promoter', '#1 fitness platform. Missing Accounting. Huge volume.', '350 · 5% → 700 · 10%', '<span class="num">₪17,600</span>'],
+      ['Plannie', '~3,000 businesses', 'Payments + Accounting', 'Scheduling without payment processing. A natural fit.', '300 · 10% → 600 · 20%', '<span class="num">₪12,000</span>'],
+      ['Yango Deli', '~2,000 couriers', 'Accounting', 'Same model as Wolt. From Yandex.', '200 · 10% → 400 · 20%', '<span class="num">₪7,500</span>'],
+      ['Assuta', '~400 physicians', 'Accounting + Payments', 'Credibility. One deal = hundreds of physicians.', '20 · 5% → 50 · 12%', '<span class="num">₪1,250</span>'],
+      ['HMC · Herzliya Medical', '~500 physicians', 'Accounting + Payments', 'Premium private hospital. A quality signal for the sector.', 'upside scenario', '<span class="tag-pain">upside</span>']
+    ],
+    foot: 'Total Outbound (conservative): ~₪72,000 MRR in Month 4 · full model: ₪102,100 conservative · ₪141,000 upside',
+    src: 'Source: "Partner Selection" + "Conservative / Upside Scenario" sheets, PayMe_Final_Plan.xlsx'
+  },
+  { label: 'Value proposition', type: 'split', cycle: true,
+    hl: 'A value prop,\n<em>not a fee.</em>',
+    bd: 'On both engines the pitch is the same. Not the fee, but what the partner gains and cannot build alone. Three Outbound examples and one Inbound.',
+    cards: [
+      { step: 'OUTBOUND · 10bis', hl: 'Courier retention', bd: 'A courier who cannot handle the paperwork leaves. PayMe replaces Keycost with a better service, and the courier stays.' },
+      { step: 'OUTBOUND · Arbox', hl: 'The missing feature', bd: 'Customers ask "why is there no invoicing?". PayMe delivers it without a single line of code on their side.' },
+      { step: 'OUTBOUND · Plannie', hl: 'Double the ARPU', bd: 'From ₪50 (calendar) to ₪200 (calendar + payments + invoices). PayMe doubles Plannie\'s ARPU.' },
+      { step: 'INBOUND · Wix', hl: 'A complete UX', bd: 'An Israeli merchant runs 3 separate systems. With Accounting it is all in one place, Lock-in and a new revenue stream.' }
+    ]
+  },
+  { label: 'How it works in practice', type: 'insight',
+    hl: 'How it looks\n<em>in practice.</em>',
+    bd: 'One example, taken all the way down: the physicians segment. This is not an extra line in the plan, it is a demonstration of the method. Spot the pain, build the commercial model, find the entry point. The exact same breakdown runs on every segment we choose to enter.'
+  },
+  { label: 'Use Case · methodology demo', type: 'split', cycle: true, tag: 'METHODOLOGY DEMO',
+    hl: 'Use case · the physician\n<em>inside the large clinic</em>',
+    bd: 'Not a physician opening a clinic. The target is physicians working inside large private clinics and medical centers that employ many practitioners, and the young physicians early in their path. Not all keep organized books, and even those who do run their processing and invoicing across separate systems. PayMe does not open a business for them, it makes the day-to-day money management one flow.',
+    foot: 'A practitioner running 4 systems for ~₪1,200/mo runs everything through PayMe for ~₪250, in one place.',
+    cards: [
+      { step: 'Payments', hl: 'One-click processing', bd: 'The patient pays by card, Bit or transfer. No separate terminal, no extra provider, no double processing fees.' },
+      { step: 'Accounting', hl: 'Automatic invoice + tax report', bd: 'An invoice is issued the moment payment is made and the tax report is ready, flowing to the accountant with no manual work.' },
+      { step: 'One interface', hl: 'Connected to the clinic software', bd: 'Instead of separate systems that do not talk, one flow that plugs into the clinic management software already in use.' }
+    ]
+  },
+  { label: 'Use Case · the commercial model', type: 'table',
+    kicker: 'THE COMMERCIAL MODEL · VIA CLINIC MANAGEMENT SOFTWARE',
+    hl: 'Who <em>gains</em> what',
+    sub: 'The recommended path: enter through an existing platform like Tipulog, and approach the large medical centers (Assuta, HMC, Medica) in parallel. One deal reaches many practitioners at once, and every side comes out ahead.',
+    cols: ['Side', 'What they get', 'How much'],
+    rows: [
+      ['Physician / practitioner', 'Payments + Accounting built into software they already use', 'Pays <span class="num">~₪250</span> instead of ~1,200. Saves ~₪950/mo'],
+      ['The platform (Tipulog)', 'Revenue share + customer retention + higher ARPU', '<span class="num">₪40-60</span>/practitioner/mo'],
+      ['PayMe', 'Access to many practitioners with no long individual sales cycle', '<span class="num">₪100-150K</span> MRR (1,000 practitioners × ₪100-150 ARPU after revenue share)']
+    ],
+    foot: 'When we choose to enter this segment, the recommended entry is a platform like Tipulog, thousands of practitioners with no processing. One deal reaches many, and the exact same thinking runs on every vertical we go after.',
+    src: 'The model repeats for every vertical, fitness · beauty · construction. Physicians are the proof of concept.'
+  },
+  { label: 'Calculation basis', type: 'formula',
+    kicker: 'BEHIND THE NUMBERS',
+    hl: 'Every shekel here is <em>calculated.</em>',
+    terms: [
+      { t: 'Businesses in ecosystem', ex: '6,000' },
+      { t: '% exposure', ex: '15%' },
+      { t: 'Activation rate', ex: '25%' },
+      { t: 'Monthly ARPU', ex: '₪150' }
+    ],
+    result: '₪33,750',
+    exLabel: 'One worked example · 10bis · Month 4',
+    note: 'This is the 10bis line, spelled out. The identical formula runs on every one of the partners, the full per-partner table sits in the attached workbook. Exposure builds gradually over the quarter and reaches its full level (15%) by Month 4.',
+    src: 'Source: "Calculation Basis" sheet, PayMe_Final_Plan.xlsx'
+  },
+  { label: '4-month plan', type: 'cmdcenter', meta: 'Work plan · month by month' },
+  { label: 'Forecast', type: 'insight',
+    hl: 'Two scenarios.\n<em>Both clear the target.</em>',
+    bd: 'The conservative scenario assumes 60% close rate and a slow rollout, and still clears the 100K target. In that scenario it is roughly 800 active users by Month 4, right inside the 700-1,000 we set out to reach at the start. The upside assumes a fast rollout, a working Promoter, and Isracard landing on time. The plan does not depend on any single win.',
+    stats: [
+      { num: '₪102,100', lbl: 'Conservative\n60% close · 15% exposure' },
+      { num: '₪141,000', lbl: 'Upside\n80% close · 30% exposure · Promoter active', muted: true }
+    ]
+  },
+  { label: 'Sources', type: 'closing',
+    kicker: 'THE WORK BEHIND THE DECK',
+    banner: 'Researched. Modeled.\n<em>Ready to run.</em>',
+    close: 'The supporting materials, ready to open straight in your browser. This is what I bring to the role: not just spotting an opportunity, but translating it into a numbers-backed plan you can open your first day of work with.',
+    next: [
+      { t: 'Workbook · final plan (Excel)', d: '6 sheets, 200+ live formulas: calculation basis, partner selection, 12-week activity, two scenarios and a comparison.', href: 'https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fpayme-partners.vercel.app%2Fmaterials%2Fplan.xlsx' },
+      { t: 'Companion document (Word)', d: 'The dual-engine model, Inbound methodology, segment selection, value propositions and forecast logic.', href: 'https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fpayme-partners.vercel.app%2Fmaterials%2Fcompanion.docx' }
+    ]
+  },
+  { label: 'Ready to start', type: 'finale',
+    hl: 'Ready to start.\n<em>From day one.</em>',
+    line: 'I did not just analyze a market. I built a plan you can open your first day of work with, and reach ₪100,000 MRR in four months. I would love to go deep with the team and get started.',
+    sign: 'Elia Ben Cnaan · Strategic Partner Sales',
+    contact: 'elia@bencnaan.net · 052-8738698'
+  }
+];
+
+const N = SLIDES.length;
+let cur = 0;
+const cycleIntervals = {}, cycleState = {};
+const BULLET_DURATION = 1875;
+let cmdActiveIdx = -1, cmdBulletTimer = null, cmdBulletIdx = -1, cmdAutoTimer = null;
+
+function pad2(n){ return String(n+1).padStart(2,'0'); }
+
+function buildSlideHTML(s, i) {
+  const ov = `<div class="s-ov"></div>`;
+
+  if (s.type === 'cover') {
+    return ov + `<div class="s-wrap centered">
+      <img class="cover-logo" src="payme-logo.jpg" alt="PayMe">
+      <div class="cover-tag">Strategic Partner Sales</div>
+      <h1 class="cover-h">₪100,000 net MRR.<br><em>In four months.</em></h1>
+      <div class="cover-line">Not just a market analysis. A partnerships plan you can open on day one.</div>
+      <div class="cover-meta"><span>Submitted by</span><span class="cover-dot"></span><b>Elia Ben Cnaan</b></div>
+    </div>`;
+  }
+
+  if (s.type === 'process') {
+    const cards = s.steps.map((c,ci)=>`
+      <div class="proc-card" id="proc-card-${i}-${ci}"><div class="proc-num">${c.num}</div><h3>${c.h}</h3><p>${c.p}</p></div>`).join('');
+    const band = s.band.map(e=>`<div class="proc-eng"><b>${e.b}</b><span>${e.s}</span></div>`).join('');
+    const dir = s.dir ? `<div class="proc-dir"><span class="pd-tag">The direction</span>
+      <div class="pd-eq"><b>₪100,000</b><span>net per month</span></div><i class="pd-op">÷</i>
+      <div class="pd-eq"><b>₪100-150</b><span>net ARPU per user</span></div><i class="pd-op">=</i>
+      <div class="pd-eq pd-res"><b>~700-1,000</b><span>users to acquire</span></div></div>` : '';
+    return ov + `<div class="s-wrap">
+      <div class="label-sm">${s.kicker}</div><div class="rule"></div>
+      <h1 class="h-lg" id="hl-${i}"></h1><p class="body-t" id="bd-${i}"></p>
+      <div class="proc-grid">${cards}</div><div class="proc-band">${band}</div>${dir}
+    </div>`;
+  }
+
+  if (s.type === 'split') {
+    const cards = s.cards.map((c,ci)=>`
+      <div class="fcard">
+        <div class="fcard-step" id="cstep-${i}-${ci}"></div>
+        <h3 id="ctitle-${i}-${ci}"></h3><p id="cdesc-${i}-${ci}"></p>
+        ${c.mrr ? `<span class="mrr">${c.mrr}</span>` : ''}<div class="fcard-dot"></div>
+      </div>`).join('');
+    return ov + `<div class="s-wrap"><div class="split">
+        <div class="split-l">${s.tag ? `<div class="label-sm">${s.tag}</div>` : ''}<div class="rule"></div>
+          <h1 class="h-lg" id="hl-${i}"></h1><p class="body-t" id="bd-${i}"></p>
+          ${s.foot ? `<div style="margin-top:22px;font-size:14px;font-weight:800;color:var(--accent)">${s.foot}</div>` : ''}
+        </div>
+        <div class="split-r${s.cards.length > 3 ? ' grid2' : ''}">${cards}</div>
+      </div></div>`;
+  }
+
+  if (s.type === 'table') {
+    const head = s.cols.map(c=>`<th>${c}</th>`).join('');
+    const body = s.rows.map(r=>`<tr>${r.map(c=>`<td>${String(c).replace(/\n/g,'<br>')}</td>`).join('')}</tr>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(34px,4.6vw,66px);margin-bottom:${s.sub?'8px':'0'}"></h1>
+      ${s.sub ? `<p class="body-t" style="max-width:720px">${s.sub}</p>` : ''}
+      <div class="tbl-wrap"><table class="ptable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+      ${s.foot ? `<div class="tbl-foot">${s.foot.replace(/(~?[\d,]+(?:-[\d,]+)?\s*₪?)/,'<b>$1</b>')}</div>` : ''}
+      ${s.src ? `<div class="tbl-src">${s.src}</div>` : ''}
+    </div>`;
+  }
+
+  if (s.type === 'formula') {
+    const terms = s.terms.map((t,ti)=>`
+      <div class="fx-term"><div class="fx-term-t">${t.t}</div><div class="fx-term-ex">${t.ex}</div></div>
+      ${ti < s.terms.length-1 ? '<div class="fx-op">×</div>' : ''}`).join('');
+    const calc = s.terms.map(t=>t.ex).join(' × ') + ' = <b>' + s.result + '</b>';
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(34px,4.6vw,64px);margin-bottom:6px"></h1>
+      <div class="fx-eq"><div class="fx-res-lead">MRR</div><div class="fx-op fx-eq-sign">=</div>${terms}</div>
+      <div class="fx-example"><span class="fx-ex-label">${s.exLabel}</span><span class="fx-ex-calc">${calc}</span></div>
+      <div class="tbl-src" style="margin-top:22px;max-width:660px;line-height:1.6">${s.note}</div>
+      ${s.src ? `<div class="tbl-src">${s.src}</div>` : ''}
+    </div>`;
+  }
+
+  if (s.type === 'insight') {
+    const stats = s.stats ? `<div class="stat-row">${s.stats.map((st,si)=>
+      `<div class="stat-box"><div class="stat-num ${st.muted?'muted':''}">${st.num}</div><div class="stat-lbl" id="stat-lbl-${i}-${si}"></div></div>`).join('')}</div>` : '';
+    return ov + `<div class="insight-wrap"><h1 class="h-insight" id="hl-${i}"></h1><p class="insight-body" id="bd-${i}"></p>${stats}</div>`;
+  }
+
+  if (s.type === 'statement') {
+    const pts = s.pts.map((p,pi)=>`<div class="pt-item" id="pt-${i}-${pi}"><h4>${p.h}</h4><p>${p.p}</p></div>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(38px,5vw,72px);margin-bottom:30px"></h1>
+      <div class="pts">${pts}</div></div>`;
+  }
+
+  if (s.type === 'cmdcenter') {
+    const nodes = STAGES.map((st,si)=>`
+      <div class="cmd-node" id="cmd-node-${si}" onclick="cmdSelectStage(${si})">
+        <div class="cmd-node-num">${st.n}</div><div class="cmd-node-name" id="cmd-nname-${si}"></div>
+        <div class="cmd-prog" id="cmd-prog-${si}"></div>
+      </div>`).join('');
+    return ov + `
+      <div class="cmd-scan" id="cmd-scan"></div>
+      <div class="cmd-center">
+        <div class="cmd-bg-num" id="cmd-bg-num">Month 1</div>
+        <div class="cmd-header"><div class="cmd-meta" id="meta-${i}"></div></div>
+        <div class="cmd-selector">${nodes}</div>
+        <div class="cmd-main" id="cmd-content">
+          <div class="cmd-stage-label" id="cmd-active-num"></div>
+          <div class="cmd-stage-title" id="cmd-active-name"></div>
+          <div class="cmd-bullets" id="cmd-bullets"></div>
+          <div class="cmd-mrr-tag" id="cmd-mrr"></div>
+        </div>
+      </div>`;
+  }
+
+  if (s.type === 'closing') {
+    const kinds = ['XLSX','DOCX','PDF','PDF'];
+    const cells = s.next.map((c,ci)=>{
+      const inner = `<div class="next-kind">${kinds[ci]||'DOC'}</div><h4 id="next-t-${i}-${ci}"></h4><p id="next-d-${i}-${ci}"></p>${c.href?`<span class="next-open">Open in browser ↗</span>`:''}`;
+      return c.href
+        ? `<a class="next-cell" href="${c.href}" target="_blank" rel="noopener">${inner}</a>`
+        : `<div class="next-cell">${inner}</div>`;
+    }).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="banner" id="banner-${i}"></h1>
+      ${s.close ? `<div class="close-line">${s.close}</div>` : ''}
+      <div class="next-grid">${cells}</div></div>`;
+  }
+
+  if (s.type === 'profile') {
+    const photo = s.photo
+      ? `<img src="${s.photo}" alt="${s.name}">`
+      : `<div class="prof-mono">EB</div>`;
+    const pts = s.pts.map(p=>`<div class="prof-pt"><span class="prof-dot"></span>${p}</div>`).join('');
+    return ov + `<div class="s-wrap profile-wrap">
+      <div class="prof-photo">${photo}</div>
+      <div class="prof-text">
+        <div class="label-sm">${s.kicker||''}</div><div class="rule"></div>
+        <h1 class="prof-name">${s.name}</h1>
+        <div class="prof-role">${s.role}</div>
+        <div class="prof-pts">${pts}</div>
+      </div>
+    </div>`;
+  }
+
+  if (s.type === 'finale') {
+    return ov + `<div class="s-wrap centered finale-wrap">
+      <img class="finale-logo" src="payme-logo.jpg" alt="PayMe">
+      <h1 class="finale-h">${s.hl.replace(/\n/g,'<br>')}</h1>
+      <div class="finale-line">${s.line}</div>
+      <div class="finale-sign">${s.sign}</div>
+      <div class="finale-contact">${s.contact}</div>
+    </div>`;
+  }
+  return ov;
+}
+
+function buildDeck() {
+  const deck = document.getElementById('deck');
+  const prog = document.getElementById('progress');
+  document.getElementById('tot').textContent = N;
+  SLIDES.forEach((s,i)=>{
+    const el = document.createElement('div');
+    el.className = 'slide' + (i===0?' active':'');
+    el.id = 'slide-'+i;
+    el.innerHTML = buildSlideHTML(s,i);
+    deck.appendChild(el);
+    const dot = document.createElement('div');
+    dot.className = 'pdot' + (i===0?' on':'');
+    dot.onclick = ()=>goTo(i);
+    prog.appendChild(dot);
+  });
+  renderContent();
+}
+
+function renderContent() {
+  SLIDES.forEach((s,i)=>{
+    const hl = document.getElementById('hl-'+i);
+    const bd = document.getElementById('bd-'+i);
+    const meta = document.getElementById('meta-'+i);
+    if (hl && s.hl) hl.innerHTML = s.hl.replace(/\n/g,'<br>');
+    if (bd && s.bd) bd.innerHTML = s.bd.replace(/\n/g,'<br>');
+    if (meta && s.meta) meta.textContent = s.meta;
+    if (s.stats) s.stats.forEach((st,si)=>{ const l = document.getElementById(`stat-lbl-${i}-${si}`); if (l) l.innerHTML = st.lbl.replace(/\n/g,'<br>'); });
+    if (s.cards) s.cards.forEach((c,ci)=>{
+      const st = document.getElementById(`cstep-${i}-${ci}`);
+      const t = document.getElementById(`ctitle-${i}-${ci}`);
+      const d = document.getElementById(`cdesc-${i}-${ci}`);
+      if (st) st.textContent = c.step; if (t) t.textContent = c.hl; if (d) d.textContent = c.bd;
+    });
+    if (s.type === 'closing') {
+      const banner = document.getElementById(`banner-${i}`);
+      if (banner && s.banner) banner.innerHTML = s.banner.replace(/\n/g,'<br>');
+      s.next.forEach((c,ci)=>{
+        const t = document.getElementById(`next-t-${i}-${ci}`);
+        const d = document.getElementById(`next-d-${i}-${ci}`);
+        if (t) t.textContent = c.t; if (d) d.textContent = c.d;
+      });
+    }
+    if (s.type === 'cmdcenter') {
+      STAGES.forEach((st,si)=>{ const nn = document.getElementById(`cmd-nname-${si}`); if (nn) nn.innerHTML = st.t.replace(/\n/g,'<br>'); });
+      if (cmdActiveIdx>=0) updateCmdContent();
+    }
+  });
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+}
+
+function startCycle(slideIdx) {
+  if (cycleIntervals[slideIdx]) return;
+  const s = SLIDES[slideIdx];
+  let sel = `#slide-${slideIdx} .fcard`;
+  if (s.type === 'process') sel = `#slide-${slideIdx} .proc-card`;
+  if (s.type === 'statement') sel = `#slide-${slideIdx} .pt-item`;
+  const cards = document.querySelectorAll(sel);
+  if (!cards.length) return;
+  if (cycleState[slideIdx] === undefined) cycleState[slideIdx] = 0;
+  cards.forEach((c,i)=>c.classList.toggle('on', i===cycleState[slideIdx]));
+  cycleIntervals[slideIdx] = setInterval(()=>{
+    cards[cycleState[slideIdx]].classList.remove('on');
+    cycleState[slideIdx] = (cycleState[slideIdx]+1) % cards.length;
+    cards[cycleState[slideIdx]].classList.add('on');
+  }, 2300);
+}
+function stopCycle(slideIdx) { if (cycleIntervals[slideIdx]) { clearInterval(cycleIntervals[slideIdx]); delete cycleIntervals[slideIdx]; } }
+
+function startCmdCenter(){ cmdSelectStage(0, true); }
+function stopCmdCenter(){
+  stopBulletCycle(); if (cmdAutoTimer){ clearTimeout(cmdAutoTimer); cmdAutoTimer=null; } cmdActiveIdx = -1;
+  for (let i=0;i<STAGES.length;i++){
+    const node = document.getElementById(`cmd-node-${i}`); if (node) node.classList.remove('active');
+    const bar = document.getElementById(`cmd-prog-${i}`); if (bar){ bar.style.transition='none'; bar.style.width='0%'; }
+  }
+}
+function cmdSelectStage(idx, auto){
+  stopBulletCycle(); if (cmdAutoTimer){ clearTimeout(cmdAutoTimer); cmdAutoTimer=null; } cmdActiveIdx = idx;
+  for (let i=0;i<STAGES.length;i++){ const node = document.getElementById(`cmd-node-${i}`); if (node) node.classList.toggle('active', i===idx); }
+  const bgNum = document.getElementById('cmd-bg-num');
+  if (bgNum){ bgNum.style.opacity='0'; setTimeout(()=>{ bgNum.textContent = STAGES[idx].n; bgNum.style.opacity='1'; },220); }
+  triggerScanLine(); updateCmdContent();
+  for (let i=0;i<STAGES.length;i++){ const bar = document.getElementById(`cmd-prog-${i}`); if (bar){ bar.style.transition='none'; bar.style.width='0%'; } }
+  const bar = document.getElementById(`cmd-prog-${idx}`);
+  if (bar){ void bar.offsetWidth; bar.style.transition=`width ${BULLET_DURATION*4}ms linear`; bar.style.width='100%'; }
+  startBulletCycle();
+  if (auto !== false && SLIDES[cur] && SLIDES[cur].type === 'cmdcenter'){
+    cmdAutoTimer = setTimeout(()=>{ cmdSelectStage((idx+1) % STAGES.length, true); }, BULLET_DURATION*4 + 900);
+  }
+}
+function startBulletCycle(){
+  stopBulletCycle(); cmdBulletIdx = 0; highlightBullet(0);
+  cmdBulletTimer = setInterval(()=>{ cmdBulletIdx++; if (cmdBulletIdx < 4) highlightBullet(cmdBulletIdx); else stopBulletCycle(); }, BULLET_DURATION);
+}
+function stopBulletCycle(){ if (cmdBulletTimer){ clearInterval(cmdBulletTimer); cmdBulletTimer=null; } cmdBulletIdx=-1; }
+function highlightBullet(activeIdx){
+  document.querySelectorAll('#cmd-bullets .cmd-bullet-item').forEach((b,i)=>{
+    b.classList.remove('lit','seen');
+    if (i<activeIdx) b.classList.add('seen'); else if (i===activeIdx) b.classList.add('lit');
+  });
+}
+function updateCmdContent(){
+  if (cmdActiveIdx<0) return;
+  const st = STAGES[cmdActiveIdx];
+  const an = document.getElementById('cmd-active-num');
+  const aname = document.getElementById('cmd-active-name');
+  const mrr = document.getElementById('cmd-mrr');
+  if (an) an.textContent = st.n;
+  if (aname) aname.innerHTML = st.t.replace(/\n/g,'<br>');
+  if (mrr) mrr.textContent = st.mrr;
+  const bl = document.getElementById('cmd-bullets');
+  if (bl) bl.innerHTML = st.bullets.map(b=>`<div class="cmd-bullet-item">${b}</div>`).join('');
+}
+function triggerScanLine(){
+  const el = document.getElementById('cmd-scan'); if (!el) return;
+  el.style.animation='none'; el.offsetHeight; el.style.animation='scan 0.7s ease-out forwards';
+}
+
+function goTo(n){
+  const slides = document.querySelectorAll('.slide');
+  const dots = document.querySelectorAll('.pdot');
+  const prev = cur;
+  if (SLIDES[prev].cycle) stopCycle(prev);
+  if (SLIDES[prev].type === 'cmdcenter') stopCmdCenter();
+  slides[prev].classList.remove('active'); dots[prev].classList.remove('on');
+  cur = ((n%N)+N)%N;
+  slides[cur].classList.add('active'); dots[cur].classList.add('on');
+  document.getElementById('cur').textContent = pad2(cur);
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+  if (SLIDES[cur].cycle) startCycle(cur);
+  if (SLIDES[cur].type === 'cmdcenter') startCmdCenter();
+}
+function nav(d){ goTo(cur+d); }
+
+document.getElementById('arr-back').onclick = ()=>nav(-1);
+document.getElementById('arr-fwd').onclick = ()=>nav(1);
+document.addEventListener('keydown', e=>{
+  if (e.key==='ArrowRight' || e.key==='ArrowDown') nav(1);
+  if (e.key==='ArrowLeft' || e.key==='ArrowUp') nav(-1);
+  if (e.key==='Escape') goTo(0);
+});
+let tx=0;
+document.addEventListener('touchstart', e=>{ tx=e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend', e=>{ const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx)>44) nav(dx<0 ? 1 : -1); }, {passive:true});
+document.getElementById('deck').addEventListener('click', e=>{
+  if (SLIDES[cur].type==='cmdcenter') return;
+  if (e.target.closest('.next-cell')||e.target.closest('.fcard')||e.target.closest('.proc-card')||e.target.closest('.ptable')||e.target.closest('.pt-item')) return;
+  const x = e.clientX / window.innerWidth;
+  if (x > 0.65) nav(1); else if (x < 0.35) nav(-1);
+});
+
+buildDeck();
+</script>
+</body>
+</html>

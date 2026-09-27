@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PayMe — Strategic Partner Sales Assignment</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--navy:#2D3154;--navy-light:#3d4270;--blue:#4A6FA5;--accent:#00C9A7;--accent2:#FF6B6B;--bg:#f8f9fc;--white:#fff;--text:#2c2c2c;--muted:#6b7280;--border:#e5e7eb;--shadow:0 4px 24px rgba(0,0,0,.08)}
+body{font-family:'Heebo','Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:960px;margin:0 auto;padding:0 24px}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-light) 50%,#1a1d3a 100%);color:#fff;padding:80px 0 60px;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;top:-50%;right:-50%;width:200%;height:200%;background:radial-gradient(circle at 30% 50%,rgba(0,201,167,.08) 0%,transparent 50%);pointer-events:none}
+.hero img{width:120px;margin-bottom:24px;border-radius:16px}
+.hero h1{font-size:2.4rem;font-weight:800;margin-bottom:8px;letter-spacing:-0.5px}
+.hero .sub{font-size:1.15rem;color:rgba(255,255,255,.7);font-weight:400;max-width:600px;margin:0 auto}
+.hero .badge{display:inline-block;background:var(--accent);color:var(--navy);font-weight:700;padding:6px 18px;border-radius:20px;font-size:.85rem;margin-top:20px}
+
+/* SECTIONS */
+section{padding:48px 0}
+section:nth-child(odd){background:var(--white)}
+section:nth-child(even){background:var(--bg)}
+.section-title{font-size:1.6rem;font-weight:800;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.section-title .num{background:var(--navy);color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.section-sub{color:var(--muted);font-size:1rem;margin-bottom:28px}
+
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:var(--shadow);transition:transform .2s}
+.card:hover{transform:translateY(-2px)}
+.card h3{font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:8px}
+.card p{color:var(--muted);font-size:.95rem}
+.card .tag{display:inline-block;background:#e8f5e9;color:#2e7d32;font-size:.75rem;font-weight:600;padding:3px 10px;border-radius:10px;margin-left:8px}
+.card .tag.outbound{background:#fff3e0;color:#e65100}
+.card .tag.inbound{background:#e8f5e9;color:#2e7d32}
+
+/* DUAL ENGINE */
+.engines{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+.engine{border-radius:12px;padding:28px;text-align:center}
+.engine.out{background:linear-gradient(135deg,#fff3e0,#ffe0b2);border:2px solid #ffcc80}
+.engine.in{background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #a5d6a7}
+.engine h3{font-size:1.2rem;font-weight:800;margin-bottom:8px}
+.engine p{font-size:.9rem;color:var(--muted)}
+.engine .big{font-size:2.5rem;font-weight:900;margin:12px 0}
+.engine.out .big{color:#e65100}
+.engine.in .big{color:#2e7d32}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:.88rem;margin:16px 0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+thead{background:var(--navy);color:#fff}
+th{padding:12px 14px;text-align:right;font-weight:600;font-size:.8rem;letter-spacing:.5px}
+td{padding:10px 14px;border-bottom:1px solid var(--border);text-align:right}
+tbody tr:hover{background:#f0f4ff}
+tr.inbound{background:#f0faf0}
+tr.inbound:hover{background:#e0f5e0}
+
+/* TIMELINE */
+.timeline{position:relative;padding:20px 40px 20px 0}
+.timeline::before{content:'';position:absolute;right:16px;top:0;bottom:0;width:3px;background:var(--navy);border-radius:3px}
+.tl-item{position:relative;padding:0 40px 24px 0;margin-bottom:0}
+.tl-item::before{content:'';position:absolute;right:8px;top:6px;width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid var(--navy);z-index:1}
+.tl-item .month{font-size:.75rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.tl-item h4{font-size:.95rem;font-weight:700;color:var(--navy);margin:4px 0}
+.tl-item p{font-size:.85rem;color:var(--muted)}
+
+/* FORECAST */
+.forecast-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+.fbox{background:var(--white);border-radius:12px;padding:20px;text-align:center;border:1px solid var(--border);box-shadow:var(--shadow)}
+.fbox .label{font-size:.8rem;color:var(--muted);font-weight:500}
+.fbox .amount{font-size:1.8rem;font-weight:900;color:var(--navy);margin:8px 0}
+.fbox .bar{height:6px;background:#eee;border-radius:3px;margin-top:8px;overflow:hidden}
+.fbox .bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--blue))}
+.fbox.target .amount{color:var(--accent)}
+
+/* VALUE PROP */
+.vp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vp-card{border-radius:12px;padding:24px;border-right:4px solid var(--accent)}
+.vp-card h4{font-weight:700;color:var(--navy);margin-bottom:6px}
+.vp-card .not{color:var(--accent2);font-weight:600;font-size:.85rem}
+.vp-card .but{color:var(--accent);font-weight:600;font-size:.85rem;margin-top:4px}
+
+/* INSIGHT BOX */
+.insight{background:linear-gradient(135deg,#e3f2fd,#e8eaf6);border-right:4px solid var(--blue);border-radius:8px;padding:16px 20px;margin:20px 0;font-size:.95rem}
+.insight strong{color:var(--navy)}
+
+/* LINKS */
+.downloads{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px}
+.dl-btn{display:inline-flex;align-items:center;gap:8px;background:var(--navy);color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:.9rem;transition:all .2s}
+.dl-btn:hover{background:var(--blue);transform:translateY(-2px)}
+.dl-btn .icon{font-size:1.2rem}
+
+/* FOOTER */
+.footer{background:var(--navy);color:rgba(255,255,255,.6);text-align:center;padding:30px;font-size:.85rem}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .engines,.vp-grid{grid-template-columns:1fr}
+  .forecast-grid{grid-template-columns:repeat(2,1fr)}
+  .hero h1{font-size:1.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+<img src="data:image/png;base64,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" alt="PayMe">
+<h1>Strategic Partner Sales</h1>
+<div class="sub">Home Assignment — תוכנית אסטרטגית להשגת 100,000 ש״ח MRR תוך 4 חודשים באמצעות שותפויות הפצה</div>
+<div class="badge">יולי 2026</div>
+</div>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">1</span>תקציר מנהלים</div>
+<div class="section-sub">שלוש תובנות שמנחות את כל התוכנית</div>
+
+<div class="card">
+<h3>PayMe היא לא חברת סליקה — היא חברת Embedded Finance</h3>
+<p>הלקוח האמיתי של PayMe הוא לא העסק הקטן, אלא הפלטפורמה שמשרתת עסקים קטנים. השותף מטמיע את שירותי PayMe בתוך המוצר שלו — והעסק הקטן משתמש בהם כחלק אינטגרלי מהחוויה.</p>
+</div>
+
+<div class="card">
+<h3>מודל דו-מנועי: לא רק Outbound, גם Inbound</h3>
+<p>במקום לבנות תוכנית שמבוססת רק על שותפים חדשים — בניתי מודל שמשלב מינוף שותפים קיימים (Wolt, Wix, Isracard) להוספת מוצרים. זה מפחית סיכון ומבטיח שגם אם מנוע אחד מתעכב — השני מפצה.</p>
+</div>
+
+<div class="card">
+<h3>הצעת ערך אמיתית — לא ״קח עמלה״</h3>
+<p>לכל שותף הצעת ערך מותאמת: לתן ביס = שימור שליחים. ל-Arbox = פיצ׳ר שהלקוחות מבקשים. ל-Plannie = הכפלת ARPU. ל-Wix = חווית משתמש שלמה. לא Revenue Share גנרי.</p>
+</div>
+</div>
+</section>
+
+<!-- 2. DUAL ENGINE -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">2</span>מודל דו-מנועי: Outbound + Inbound</div>
+<div class="section-sub">שני מנועי צמיחה שעובדים במקביל ומפצים אחד את השני</div>
+
+<div class="engines">
+<div class="engine out">
+<h3>🚀 Outbound</h3>
+<p>שותפים חדשים</p>
+<div class="big">6</div>
+<p>תן ביס, Arbox, Plannie, אסותא, HMC, יאנגו דלי</p>
+<p style="margin-top:12px;font-size:.8rem;color:#bf360c">Sales Cycle: 4-8 שבועות | Volume גבוה</p>
+</div>
+<div class="engine in">
+<h3>🔄 Inbound</h3>
+<p>מינוף שותפים קיימים</p>
+<div class="big">4</div>
+<p>Wolt Merchants, Wix Upsell, Isracard/Cal הרחבה, Zester Upsell</p>
+<p style="margin-top:12px;font-size:.8rem;color:#1b5e20">Sales Cycle: 2-4 שבועות | יחסים קיימים</p>
+</div>
+</div>
+
+<div class="insight">
+<strong>למה זה חשוב?</strong> אם מנוע ה-Outbound מתעכב (שותף לא חותם בזמן) — מנוע ה-Inbound מפצה. ולהפך. פיזור סיכונים = ביטחון שנגיע ליעד.
+</div>
+</div>
+</section>
+
+<!-- 3. INBOUND METHODOLOGY -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">3</span>מתודולוגיית Inbound: כאב ורעב</div>
+<div class="section-sub">שני סוגי הזדמנויות שונים שדורשים גישה שונה</div>
+
+<div class="engines">
+<div class="engine" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0);border:2px solid #f48fb1">
+<h3>🔥 כאב</h3>
+<p>בעיה שהשותף סובל ממנה</p>
+<div style="text-align:right;margin-top:16px;font-size:.88rem;color:#880e4f">
+<strong>Wix:</strong> סוחרים ישראלים מנהלים 3 מערכות נפרדות — Wix, PayMe/Isracard, iCount. חווית משתמש שבורה.<br><br>
+<strong>Zester:</strong> מסעדות משלמות ספקים דרך PayMe אבל מנהלות חשבוניות בנפרד. חוסר יעילות.
+</div>
+</div>
+<div class="engine" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9);border:2px solid #a5d6a7">
+<h3>🍽️ רעב</h3>
+<p>הזדמנות שהשותף רוצה לנצל</p>
+<div style="text-align:right;margin-top:16px;font-size:.88rem;color:#1b5e20">
+<strong>Wolt Merchants:</strong> הוספת Accounting למסעדות = Revenue Stream חדש + Lock-in חזק יותר.<br><br>
+<strong>Isracard/Cal:</strong> הוספת Accounting + Promoter = דיפרנציאציה מול כל המתחרים.
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 4. PARTNER SELECTION -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">4</span>בחירת שותפים — 10 שותפים</div>
+<div class="section-sub">6 Outbound (שותפויות חדשות) + 4 Inbound (הרחבת קיימים)</div>
+
+<table>
+<thead><tr><th>שותף</th><th>מוצרים</th><th>עסקים (הערכה)</th><th>למה?</th></tr></thead>
+<tbody>
+<tr><td><strong>תן ביס</strong> <span class="tag outbound">Outbound</span></td><td>Accounting</td><td>~6,000 שליחים</td><td>עברה ל-100% עצמאיים ב-2025. עובדת עם Keycost. PoC של Wolt מוכח.</td></tr>
+<tr><td><strong>Arbox</strong> <span class="tag outbound">Outbound</span></td><td>Accounting + Promoter</td><td>~7,000 עסקים</td><td>פלטפורמת ניהול מובילה. חסר הנהלת חשבונות + שיווק. Volume ענק.</td></tr>
+<tr><td><strong>Plannie</strong> <span class="tag outbound">Outbound</span></td><td>Payments + Accounting</td><td>~3,000 עסקים</td><td>תורים ללא סליקה חזקה. PayMe = Fit טבעי.</td></tr>
+<tr><td><strong>אסותא</strong> <span class="tag outbound">Outbound</span></td><td>Accounting + Payments</td><td>~400 רופאים</td><td>רופאים עצמאיים. Credibility גבוה מאוד.</td></tr>
+<tr><td><strong>HMC</strong> <span class="tag outbound">Outbound</span></td><td>Accounting + Payments</td><td>~500 רופאים</td><td>בי״ח פרטי פרימיום. אות איכות חזק.</td></tr>
+<tr><td><strong>יאנגו דלי</strong> <span class="tag outbound">Outbound</span></td><td>Accounting</td><td>~2,000 שליחים</td><td>אותו מודל כמו Wolt. חברת בת Yandex.</td></tr>
+<tr class="inbound"><td><strong>Wolt Merchants</strong> <span class="tag inbound">Inbound</span></td><td>Accounting + Promoter</td><td>~4,000 מסעדות</td><td>PayMe כבר משרתת שליחים. Upsell ל-Merchants.</td></tr>
+<tr class="inbound"><td><strong>Wix Upsell</strong> <span class="tag inbound">Inbound</span></td><td>Accounting + Promoter</td><td>~20,000 סוחרים IL</td><td>כבר על PayMe Payments. חסר חשבוניות ישראליות.</td></tr>
+<tr class="inbound"><td><strong>Isracard/Cal</strong> <span class="tag inbound">Inbound</span></td><td>Accounting + Promoter</td><td>~50,000 עסקים</td><td>כבר מפיצים Payments. דיפרנציאציה מול מתחרים.</td></tr>
+<tr class="inbound"><td><strong>Zester</strong> <span class="tag inbound">Inbound</span></td><td>Accounting</td><td>~500-1,000 מסעדות</td><td>כבר Payments B2B. הוספת Accounting = מעטפת שלמה.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<!-- 5. VALUE PROPOSITIONS -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">5</span>הצעת ערך — מה השותף מרוויח (מעבר לעמלה)</div>
+<div class="section-sub">לכל שותף — סיבה אמיתית לרוץ</div>
+
+<div class="vp-grid">
+<div class="card vp-card">
+<h4>תן ביס</h4>
+<div class="not">❌ לא עמלה</div>
+<div class="but">✅ שימור שליחים — שליח שלא מסתדר עם ניירת = עוזב. PayMe = הפחתת נטישה. בנוסף, מחליפה את Keycost (99 ש״ח) עם שירות טוב יותר.</div>
+</div>
+<div class="card vp-card">
+<h4>Arbox</h4>
+<div class="not">❌ לא עמלה</div>
+<div class="but">✅ פיצ׳ר שהלקוחות מבקשים — ״למה אין לכם הנהלת חשבונות?״ PayMe נותנת להם את הפיצ׳ר בלי שורת קוד.</div>
+</div>
+<div class="card vp-card">
+<h4>Plannie</h4>
+<div class="not">❌ לא עמלה</div>
+<div class="but">✅ הכפלת ARPU — מ-50 ש״ח/חודש (יומן) ל-200 ש״ח/חודש (יומן + סליקה + חשבוניות).</div>
+</div>
+<div class="card vp-card">
+<h4>Wix</h4>
+<div class="not">❌ לא עמלה</div>
+<div class="but">✅ חווית משתמש שלמה — סוחר ישראלי מנהל 3 מערכות. עם Accounting = הכל במקום אחד. Lock-in + Revenue Stream.</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 6. TIMELINE -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">6</span>תוכנית עבודה — 12 שבועות</div>
+<div class="section-sub">Quick Wins קודם, Strategic Deals אחר כך, Scale בסוף</div>
+
+<div class="timeline">
+<div class="tl-item"><div class="month">שבועות 1-4 — Quick Wins</div><h4>תן ביס + Plannie + אסותא Pilot</h4><p>פנייה, פגישה, הצגת PoC של Wolt, חתימת שותפות ראשונה. Plannie — סגירה מהירה (אין סליקה = Fit ברור). אסותא — Pilot עם קבוצת רופאים אחת.</p></div>
+<div class="tl-item"><div class="month">שבועות 3-8 — Strategic Deals</div><h4>Arbox + Wix Upsell + Wolt Merchants</h4><p>Arbox — משא ומתן על Accounting + Promoter כ-Add-on. Wix — פגישה פנימית על Accounting לסוחרים ישראלים. Wolt Merchants — הצעת Accounting למסעדות.</p></div>
+<div class="tl-item"><div class="month">שבועות 6-12 — Scale</div><h4>Rollout + הרחבה + Isracard</h4><p>תן ביס — Rollout מלא. Arbox — Beta + הרחבה. אסותא — מ-Pilot לקבוצות נוספות. Isracard/Cal — חתימה על הרחבה.</p></div>
+</div>
+
+<p style="text-align:center;margin-top:12px;font-size:.85rem;color:var(--muted)">📊 טבלת פעילות שבועית מפורטת (7 שותפים × 12 שבועות) — בגיליון האלקטרוני המצורף</p>
+</div>
+</section>
+
+<!-- 7. FORECAST -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">7</span>תחזית הכנסות — שני תרחישים</div>
+<div class="section-sub">רף תחתון שמגיע ליעד, ורף עליון שמשאיר מרחב לגדילה</div>
+
+<h3 style="color:var(--navy);margin-bottom:16px">תרחיש שמרני (Conservative)</h3>
+<div class="forecast-grid">
+<div class="fbox"><div class="label">חודש 1</div><div class="amount">5,000₪</div><div class="bar"><div class="bar-fill" style="width:5%"></div></div></div>
+<div class="fbox"><div class="label">חודש 2</div><div class="amount">13,600₪</div><div class="bar"><div class="bar-fill" style="width:14%"></div></div></div>
+<div class="fbox"><div class="label">חודש 3</div><div class="amount">47,000₪</div><div class="bar"><div class="bar-fill" style="width:47%"></div></div></div>
+<div class="fbox target"><div class="label">חודש 4</div><div class="amount">102,100₪ ✓</div><div class="bar"><div class="bar-fill" style="width:100%"></div></div></div>
+</div>
+
+<h3 style="color:var(--blue);margin:28px 0 16px">תרחיש עליון (Upside)</h3>
+<div class="forecast-grid">
+<div class="fbox"><div class="label">חודש 1</div><div class="amount">6,000₪</div><div class="bar"><div class="bar-fill" style="width:4%"></div></div></div>
+<div class="fbox"><div class="label">חודש 2</div><div class="amount">18,400₪</div><div class="bar"><div class="bar-fill" style="width:13%"></div></div></div>
+<div class="fbox"><div class="label">חודש 3</div><div class="amount">62,700₪</div><div class="bar"><div class="bar-fill" style="width:44%"></div></div></div>
+<div class="fbox target"><div class="label">חודש 4</div><div class="amount" style="color:var(--blue)">141,000₪ 🚀</div><div class="bar"><div class="bar-fill" style="width:100%;background:linear-gradient(90deg,var(--blue),#7c4dff)"></div></div></div>
+</div>
+
+<div class="insight" style="margin-top:24px">
+<strong>מה ההבדל?</strong> חשיפה (15% vs 30%), סגירה (60% vs 80%), Promoter (כמעט לא vs מופעל ב-Arbox), Isracard (לא מספיק vs מצטרף). גם בתרחיש השמרני — מגיעים ליעד. כל המספרים מבוססים ומתועדים בגיליון ״בסיס החישוב״.
+</div>
+</div>
+</section>
+
+<!-- 8. SUMMARY -->
+<section>
+<div class="container">
+<div class="section-title"><span class="num">8</span>סיכום — 3 עקרונות</div>
+<div class="section-sub">התוכנית בנויה על שלושה עקרונות מנחים</div>
+
+<div class="card" style="border-right:4px solid var(--accent)">
+<h3>עקרון 1 — מודל דו-מנועי</h3>
+<p>לא רק Outbound. גם Inbound. שני מנועי צמיחה שעובדים במקביל ומפצים אחד את השני. פיזור סיכונים = ביטחון שנגיע ליעד.</p>
+</div>
+<div class="card" style="border-right:4px solid var(--blue)">
+<h3>עקרון 2 — פוקוס</h3>
+<p>מתוך 5 סגמנטים ו-40+ שותפים שנחקרו — התמקדות ב-2+1 סגמנטים שבהם הפוטנציאל הגבוה ביותר בזמן הקצר ביותר: Gig Economy, כושר/יופי, ומרכזים רפואיים ל-Credibility.</p>
+</div>
+<div class="card" style="border-right:4px solid var(--accent2)">
+<h3>עקרון 3 — הצעת ערך אמיתית</h3>
+<p>לא ״קח עמלה״. אלא: ״אני פותר לך בעיה / אני מאפשר לך להרוויח יותר.״ לכל שותף — הצעה מותאמת שמבוססת על כאב או רעב אמיתי.</p>
+</div>
+</div>
+</section>
+
+<!-- 9. DOWNLOADS -->
+<section style="background:var(--navy);color:#fff">
+<div class="container" style="text-align:center;padding:40px 0">
+<h2 style="font-size:1.5rem;margin-bottom:8px">📎 קבצים מצורפים</h2>
+<p style="color:rgba(255,255,255,.6);margin-bottom:20px">הטבלאות המפורטות כפי שנדרשו במשימה</p>
+<div class="downloads" style="justify-content:center">
+<a href="#" class="dl-btn"><span class="icon">📊</span>Google Sheet — טבלאות (6 גיליונות)</a>
+<a href="#" class="dl-btn" style="background:var(--blue)"><span class="icon">📄</span>מסמך נלווה — אסטרטגיה ומתודולוגיה</a>
+</div>
+<p style="color:rgba(255,255,255,.4);margin-top:16px;font-size:.8rem">הגיליון כולל: בסיס החישוב | בחירת שותפים | פעילות שבועית (12 שבועות) | תרחיש שמרני | תרחיש עליון | השוואת תרחישים</p>
+</div>
+</section>
+
+<div class="footer">
+PayMe — Strategic Partner Sales Assignment | יולי 2026
+</div>
+
+</body>
+</html>

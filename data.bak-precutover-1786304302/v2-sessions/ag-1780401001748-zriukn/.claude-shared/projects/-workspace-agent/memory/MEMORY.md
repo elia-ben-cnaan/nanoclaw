@@ -1,0 +1,28 @@
+# Memory Index
+
+- [Elia Name Preference](feedback_elia_no_name.md) — Never start messages with "אליה" or his name; he finds it annoying
+- [Action-First Ordering](feedback_action_first_ordering.md) — Guide steps lead with the concrete starting action; explanation goes to the bottom (recurring note)
+- [Voice Notes & Mock-ups](feedback_long_msg_voice_mockups.md) — Long messages → send a voice note; design changes → mock-up first for approval
+- [OneCLI bind-host rule](project_onecli_bind_host_rule.md) — CRITICAL: ONECLI_BIND_HOST must stay 172.17.0.1 or my container dies (Jun 22 incident)
+- [Copy-paste in checkboxes](feedback_copypaste_checkbox.md) — Text Elia should copy-paste must be a clearly-marked separated block, never buried in prose
+- [Pilot single-instance rule](feedback_pilot_single_instance.md) — CRITICAL: never manually launch the pilot service; double-launch breaks the inbound channel (Jun 23 incident)
+- [Daniela VM terminal](project_daniela_vm_terminal.md) — Pilot/provision work = daniela.xterm.exe.xyz (daniela VM), NOT eliabc
+- [No duplicate delivery](feedback_no_duplicate_delivery.md) — Never repeat content across a mid-turn send_message and the final message block; deliver once
+- [Claude Code handoff = paste text](feedback_claude_code_paste_text.md) — Hand tasks to Claude Code as pasteable inline TEXT, never files/terminal paths; Desktop app is the stronger path
+- [No message flood](feedback_no_message_flood.md) — Don't send many separate messages in a row; stay quiet while he works, batch into one when I do speak
+- [Resource conservation mode](feedback_resource_conservation.md) — Standing frugal mode: consolidate to one message, fewer words, archive not hoard, resource-aware
+- [No file-send narration](feedback_no_file_send_narration.md) — When sending a voice note/file, don't also write "sent you a recording"; the attachment speaks for itself
+- [Model tiering mode](feedback_model_tiering.md) — Default light model for writing/simple tasks, escalate by complexity, strongest model for dev work; concise results-first messages
+- [Model-switch safety](feedback_model_switch_safety.md) — CRITICAL: verify account has access before switching any model; access-check → canary → e2e-verify → rollback. Failure is SILENT. fable-5 access flips day-to-day (blocked Jul 1, live Jul 2)
+- [nova — my Fable agent](project_nova_fable_agent.md) — my isolated companion agent running on claude-fable-5; offload work to it without touching me
+- [No AI traces in copy](feedback_no_ai_traces_copy.md) — All written text must read human; never use em-dashes; sweep every deliverable (mine, nova's, builder's) for AI-tells
+- [Ultra-concise messages](feedback_ultra_concise.md) — Fewest words possible; Elia has no patience for long text; give just the answer or the exact paste text
+- [Guide: only proven steps](feedback_guide_only_proven_steps.md) — Only verified, working steps go in the guide; no trial-and-error in instructional content (Jul 7 incident)
+- [Language toggle in Latin](feedback_lang_toggle_latin.md) — Toggle labels both in English letters (HE / EN), never Hebrew script (עב)
+- [NanoClaw PR #3012 memory](reference_nanoclaw_pr3012_memory.md) — provider-agnostic persistent memory (Amit Shafnir's LinkedIn post); merged core, Elia eyeing it as a feature to surface
+- [Pilot reflection Jul 16](project_pilot_reflection_jul16.md) — all 6 pilots self-diagnosed: too reactive, don't pivot users to real work; two persona fixes + Yechezkel re-engagement test
+- [Always use a message block](feedback_always_message_block.md) — CRITICAL: every reply must be wrapped in <message to="..."> or it's silently dropped and I look like I went silent (root cause of "הפסיקה להגיב")
+- [Bare clickable links](feedback_bare_clickable_links.md) — Links must be a bare URL on their own line; never glue "ב-" or markdown or they stop being clickable
+- [Positive framing](feedback_positive_framing.md) — All copy framed positively; never the word "לא"/negation; "how yes" not "how not" (standing, whole-deck level)
+- [Expectation-alignment is a virtue](feedback_expectation_alignment_virtue.md) — Agent aligning expectations before a dev task is smart, not a defect; optimize it (one reflection pass, ≤2 build-changing questions), don't push "just execute"
+- [No send without explicit approval](feedback_no_send_without_explicit_approval.md) — Never message a real end user (esp. VIP Avigail) without Elias explicit OK on exact wording; casual go-ahead is NOT approval

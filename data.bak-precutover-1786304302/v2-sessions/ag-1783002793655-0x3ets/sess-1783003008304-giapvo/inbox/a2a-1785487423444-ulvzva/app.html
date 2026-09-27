@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>NanoShellano · פתיחת סוכן</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="description" content="פותחים סוכן AI אישי בטלגרם בקליק אחד, בלי רקע טכני.">
+<meta property="og:locale" content="he_IL">
+<meta property="og:type" content="website">
+<meta property="og:title" content="NanoShellano · פתיחת סוכן">
+<meta property="og:description" content="פותחים סוכן AI אישי בטלגרם בקליק אחד, בלי רקע טכני.">
+<meta property="og:url" content="https://nanohubdemo.vercel.app/app.html">
+<meta property="og:site_name" content="NanoShellano">
+<meta property="og:image" content="https://nanohubdemo.vercel.app/shellano_og_share.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="NanoShellano, your next hire is an AI agent">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NanoShellano · פתיחת סוכן">
+<meta name="twitter:image" content="https://nanohubdemo.vercel.app/shellano_og_share.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000; --panel:#0E0E0E; --panel2:#161616; --line:#242424;
+    --ink:#FFF; --mut:#B0B0B0; --dim:#6F6F6F;
+    --teal:#56EDD6; --teal-deep:#0F756D; --on-teal:#04211D;
+    --red:#FF4D4D; --orange:#E85D3A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:#050505; font-family:Heebo,system-ui,sans-serif; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:0}
+
+  .device{position:relative; width:100%; max-width:412px; height:100vh; max-height:880px;
+    background:var(--bg); overflow:hidden; display:flex; flex-direction:column;
+    border:1px solid var(--line); border-radius:34px; box-shadow:0 30px 80px rgba(0,0,0,.7)}
+  @media (max-width:480px){ .device{max-width:none; height:100vh; max-height:none; border:0; border-radius:0} }
+
+  .topbar{flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:16px 16px 10px; position:relative; z-index:5}
+  .back{width:44px; height:44px; border-radius:13px; border:1px solid var(--line); background:var(--panel);
+    color:var(--ink); font-size:22px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; transition:opacity .2s}
+  .back[disabled]{opacity:.28; pointer-events:none}
+  .prog{flex:1; display:flex; gap:5px}
+  .seg{flex:1; height:4px; border-radius:99px; background:#1c1c1c; overflow:hidden}
+  .seg i{display:block; height:100%; width:0; background:var(--teal); border-radius:99px; transition:width .4s ease}
+  .seg.done i,.seg.cur i{width:100%}
+  .stepn{flex:0 0 auto; font-size:11px; color:var(--dim); font-weight:800; min-width:26px; text-align:center}
+  .lang{flex:0 0 auto; font-size:11px; font-weight:800; color:var(--teal); background:var(--panel);
+    border:1px solid var(--line); border-radius:99px; padding:7px 11px; cursor:pointer; letter-spacing:.4px}
+
+  .stage{flex:1; overflow:hidden; position:relative}
+  .screen{position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    display:flex; flex-direction:column; padding:14px 22px 26px}
+  .screen.in-fwd{animation:inFwd .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.in-back{animation:inBack .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.out-fwd{animation:outFwd .36s cubic-bezier(.22,.61,.36,1) both}
+  .screen.out-back{animation:outBack .36s cubic-bezier(.22,.61,.36,1) both}
+  @keyframes inFwd{from{transform:translateX(-100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outFwd{from{transform:translateX(0);opacity:1} to{transform:translateX(100%);opacity:.2}}
+  @keyframes inBack{from{transform:translateX(100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outBack{from{transform:translateX(0);opacity:1} to{transform:translateX(-100%);opacity:.2}}
+  html[dir=ltr] .screen.in-fwd{animation:inFwdL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.out-fwd{animation:outFwdL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.in-back{animation:inBackL .36s cubic-bezier(.22,.61,.36,1) both}
+  html[dir=ltr] .screen.out-back{animation:outBackL .36s cubic-bezier(.22,.61,.36,1) both}
+  @keyframes inFwdL{from{transform:translateX(100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outFwdL{from{transform:translateX(0);opacity:1} to{transform:translateX(-100%);opacity:.2}}
+  @keyframes inBackL{from{transform:translateX(-100%);opacity:.4} to{transform:translateX(0);opacity:1}}
+  @keyframes outBackL{from{transform:translateX(0);opacity:1} to{transform:translateX(100%);opacity:.2}}
+
+  .glow{position:absolute; top:-50px; left:50%; transform:translateX(-50%);
+    width:280px; height:280px; background:radial-gradient(circle,rgba(86,237,214,.15),transparent 70%); pointer-events:none}
+  .spacer{flex:1; min-height:8px}
+
+  .lockup{display:block; height:40px; width:auto; margin:2px auto 0}
+  .hero-mascot{width:118px; height:118px; margin:10px auto 14px;
+    display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 45%,rgba(86,237,214,.22),transparent 68%)}
+  .hero-mascot img{width:108px; height:108px; object-fit:contain}
+
+  h2{font-size:23px; font-weight:800; margin-bottom:9px; text-align:center; line-height:1.22}
+  .lead{color:var(--mut); font-size:14px; text-align:center; line-height:1.65; margin-bottom:18px}
+  .lead b{color:var(--ink)}
+  .prose{color:var(--mut); font-size:14px; text-align:start; line-height:1.85; margin-bottom:12px}
+  .prose b{color:var(--ink)}
+  .prose .em{color:var(--teal); font-weight:700}
+  .byline{color:var(--mut); font-size:12px; text-align:center; margin-top:7px; font-weight:700}
+
+  .flist{display:flex; flex-direction:column; gap:12px; margin:4px 0}
+  .fitem{display:flex; gap:12px; align-items:flex-start; text-align:start}
+  .fic{flex:0 0 36px; width:36px; height:36px; border-radius:11px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:17px}
+  .ftx{font-size:13px; line-height:1.5; color:var(--mut)}
+  .ftx b{color:var(--ink); display:block; font-size:13.5px; margin-bottom:2px}
+  .ftx a{color:var(--teal); text-decoration:underline; font-weight:700; cursor:pointer}
+
+  /* security band */
+  .secband{display:flex; gap:11px; align-items:flex-start; background:rgba(86,237,214,.07);
+    border:1px solid var(--teal-deep); border-radius:14px; padding:13px 14px; margin:2px 0 16px; text-align:start}
+  .secband .sic{flex:0 0 32px; width:32px; height:32px; border-radius:9px; background:rgba(86,237,214,.14);
+    display:flex; align-items:center; justify-content:center; font-size:17px}
+  .secband .stx{font-size:12.5px; line-height:1.55; color:var(--mut)}
+  .secband .stx b{display:block; color:var(--teal); font-size:13.5px; margin-bottom:2px}
+  .linkrow{text-align:center; margin:8px 0 2px}
+  .linkrow a{color:var(--teal); font-size:12.5px; font-weight:700; text-decoration:underline; cursor:pointer}
+
+  label{display:block; font-size:13px; color:var(--mut); font-weight:700; margin:14px 2px 6px}
+  .inp{width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:14px; color:var(--ink); font-size:15.5px; font-family:inherit}
+  .inp:focus{outline:none; border-color:var(--teal-deep)}
+  .inp.bad{border-color:var(--red)}
+  .seg-g{display:flex; gap:8px; margin-top:6px}
+  .seg-g button{flex:1; padding:12px; border-radius:11px; border:1px solid var(--line);
+    background:var(--panel); color:var(--mut); font-size:14.5px; font-weight:700; font-family:inherit; cursor:pointer}
+  .seg-g button.on{background:var(--teal); color:var(--on-teal); border-color:var(--teal)}
+
+  .check{display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:13px; color:var(--mut); line-height:1.5; text-align:start; cursor:pointer}
+  .box{flex:0 0 24px; width:24px; height:24px; border-radius:7px; border:1px solid var(--line); background:var(--panel);
+    color:var(--on-teal); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; margin-top:1px; transition:.2s}
+  .check.on .box{background:var(--teal); border-color:var(--teal)}
+  .check .box span{opacity:0; transition:.2s}
+  .check.on .box span{opacity:1}
+  .check b{color:var(--teal)}
+
+  .ho-ico{width:78px; height:78px; margin:8px auto 16px; border-radius:22px;
+    background:linear-gradient(135deg,#229ED9,#1c84b3); display:flex; align-items:center; justify-content:center; font-size:38px}
+  .tg-peek{display:flex; gap:10px; align-items:center; background:#0c1418; border:1px solid #1a2832; border-radius:14px; padding:11px 12px; margin-bottom:6px}
+  .peek-av{flex:0 0 32px; width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#56EDD6,#0F756D);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:#04211D; font-size:15px}
+  .peek-bub{font-size:13px; color:#cfe0e3; line-height:1.4}
+  .how{font-size:12.5px; color:var(--mut); line-height:1.6; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:12px; margin-top:10px; text-align:start; display:none}
+  .how.open{display:block; animation:fade .3s ease both}
+  @keyframes fade{from{opacity:0} to{opacity:1}}
+  .dl{display:block; text-align:center; margin-top:14px; color:var(--teal); font-size:13px; text-decoration:none; font-weight:700}
+  .dl span{color:var(--dim); font-weight:400}
+
+  /* connections / service library */
+  .svc{display:flex; align-items:center; gap:11px; background:var(--panel); border:1px solid var(--line);
+    border-radius:13px; padding:11px 13px; margin-bottom:9px}
+  .svc .si{flex:0 0 36px; width:36px; height:36px; border-radius:10px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center}
+  .svc .sn{flex:1; text-align:start}
+  .svc .sn b{display:block; font-size:13.5px}
+  .svc .sn span{font-size:11.5px; color:var(--dim)}
+  .pill{font-size:11px; font-weight:800; padding:5px 11px; border-radius:999px; white-space:nowrap}
+  .pill.on{background:rgba(86,237,214,.14); color:var(--teal); border:1px solid var(--teal-deep)}
+  .pill.off{background:transparent; color:var(--mut); border:1px solid var(--line)}
+
+  /* telegram chat */
+  .tg{flex:1; background:#0c1418; border-radius:18px; padding:14px 12px; display:flex; flex-direction:column;
+    background-image:radial-gradient(rgba(255,255,255,.025) 1px,transparent 1px); background-size:18px 18px}
+  .tg-top{display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid #1a2832; margin-bottom:14px}
+  .tg-av{width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#56EDD6,#0F756D);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:#04211D; font-size:18px}
+  .tg-name{font-weight:700; font-size:15px}
+  .tg-on{color:#56EDD6; font-size:11px}
+  .bub{max-width:88%; background:#17242c; border-radius:14px 14px 14px 4px; padding:10px 13px;
+    font-size:13.5px; line-height:1.6; color:#eaf2f4; margin-bottom:9px; animation:pop .34s ease both}
+  @keyframes pop{from{opacity:0; transform:translateY(6px) scale(.98)} to{opacity:1; transform:none}}
+  .bub .tm{display:block; font-size:10px; color:#5d7585; text-align:end; margin-top:4px}
+  .bub.me{background:#244536; border-radius:14px 14px 4px 14px; margin-inline-start:auto; color:#dff5ea}
+  .bub b{color:#fff}
+  .bub .danger{color:#FF6b6b; font-weight:800}
+  .bub.warn{background:#2a1c1c; border:1px solid #5a2b2b}
+  .delbtn{display:inline-block; margin-top:8px; background:#FF4D4D; color:#1a0606; font-weight:800;
+    padding:7px 14px; border-radius:9px; font-size:12px}
+  .sysmsg{align-self:center; margin:2px auto 12px; background:rgba(255,255,255,.06); color:#8aa0ab;
+    font-size:11px; padding:4px 12px; border-radius:11px; animation:pop .34s ease both}
+  .tg-input{margin-top:auto; display:flex; gap:8px; align-items:center; background:#17242c; border-radius:20px; padding:11px 15px; color:#5d7585; font-size:13px}
+
+  .foot{flex:0 0 auto; padding:12px 22px calc(18px + env(safe-area-inset-bottom)); background:linear-gradient(transparent,#000 22%)}
+  .cta{width:100%; padding:16px; border:0; border-radius:14px; background:var(--teal); color:var(--on-teal);
+    font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; transition:.15s; min-height:54px}
+  .cta:active{transform:scale(.985)}
+  .cta[disabled]{opacity:.32; pointer-events:none; background:var(--panel2); color:var(--dim); border:1px solid var(--line)}
+  .cta.ghost{background:transparent; color:var(--teal); border:1px solid var(--teal-deep); margin-top:10px}
+  .howlink{display:block; width:100%; margin:12px auto 0; background:none; border:0; color:var(--teal);
+    font-family:inherit; font-size:13.5px; cursor:pointer; text-decoration:underline; text-underline-offset:3px}
+  .note{color:var(--dim); font-size:11.5px; text-align:center; margin-top:12px; line-height:1.55}
+  .note.inbody{margin-top:14px}
+
+  /* sheet overlay (terms / nanoclaw explainer) */
+  .sheet{position:absolute; inset:0; z-index:55; background:rgba(0,0,0,.82); backdrop-filter:blur(4px);
+    display:none; flex-direction:column; justify-content:flex-end}
+  .sheet.on{display:flex; animation:fade .25s ease both}
+  .sheet-card{background:var(--panel); border:1px solid var(--line); border-radius:22px 22px 0 0;
+    padding:22px 22px calc(22px + env(safe-area-inset-bottom)); max-height:82%; overflow-y:auto; animation:up .3s ease both}
+  @keyframes up{from{transform:translateY(40px); opacity:.5} to{transform:translateY(0); opacity:1}}
+  .sheet-card h3{font-size:18px; font-weight:800; margin-bottom:12px}
+  .sheet-card p{font-size:13.5px; color:var(--mut); line-height:1.8; margin-bottom:10px; text-align:start}
+  .sheet-card p b{color:var(--ink)}
+
+  /* telegram switch overlay */
+  .switch{position:absolute; inset:0; z-index:50; background:rgba(0,0,0,.92); backdrop-filter:blur(4px);
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; padding:30px}
+  .switch.on{display:flex; animation:fade .25s ease both}
+  .switch .ho-ico{margin:0; animation:bob 1s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)}}
+  .switch p{color:var(--mut); font-size:14px; line-height:1.6}
+  .switch b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="topbar">
+      <button class="back" id="back" onclick="go(-1)" aria-label="back">‹</button>
+      <div class="prog" id="prog"></div>
+      <span class="stepn" id="stepn"></span>
+      <button class="lang" id="lang" onclick="toggleLang()">EN</button>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="sheet" id="sheet" onclick="if(event.target===this)closeSheet()"></div>
+    <div class="switch" id="switch"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+
+<script>
+const N = 6;
+const BOT_FALLBACK = 'https://telegram.me/joni_agent_bot';
+let i = 0, L = 'he', agree = false, howOpen = false, animating = false, submitting = false;
+let deepLink = '';
+const SRC = new URLSearchParams(location.search).get('src') || '';
+const reg = { name:'', phone:'', email:'', gender:'m' };
+
+const T = {
+  he:{
+    s1_title:'הסוכן שעושה<br>את העבודה עצמה',
+    s1_p:['פיתחתי מערכת שמקימה לך <b>סוכן AI אישי</b> ומעמידה אותו לשיחה איתך <span class="em">תוך 2 דקות</span>.',
+          'הוא לא עוזר בצד, הוא <b>עושה את העבודה עצמה מקצה לקצה</b>, תמיד עם אישור שלך לפני שמשהו יוצא החוצה. שעות עבודה שחוזרות אליך, בלי שתבקש, בשפה רגילה, בלי רקע במחשבים.',
+          'המערכת <b>חינמית לשבוע התנסות</b>, וזה פיילוט שאני עושה כדי להכניס עוד אנשים לעולם הסוכנים. בלי התחייבות.'],
+    s1_cta:'בואו נבנה את הנאנוקלו שלך →',
+    s1_note:'פיילוט בגישה מוזמנת · גרסה ראשונה',
+    s1_by:'מאת אליה בן כנען',
+
+    s2_title:'מה נפתח לך פה',
+    s2_lead:'בגובה העיניים, לפני שמתחילים.',
+    s2_sic:'🔒',
+    s2_sec_t:'מאובטח, ורק שלך',
+    s2_sec:'כל חיבור נסגר מוצפן ומבודד לחשבון שלך בלבד. אתה שולט בדיוק במה שהסוכן נוגע, מחבר רק מה שאתה בוחר, ומנתק כל שירות מתי שתרצה. אנחנו לא מוכרים ולא משתפים את המידע שלך עם אף אחד.',
+    s2_f:[['🔌','מתחבר לכל מה שצריך, חינם','מתחבר למייל ולכל סביבת Google שלך, לוואטסאפ ולטלגרם. החיבור עצמו חינם בשבוע ההתנסות.'],
+          ['🚪','יוצאים מתי שרוצים','בכל רגע אפשר למחוק את הנאנוקלו שלך, ומאותו רגע אין לנו גישה לכלום.']],
+    s2_nano_lbl:'מה זה NanoClaw?',
+    s2_nano_link:'לחצו לקרוא',
+    s2_nano_tail:'מהי תשתית הסוכנים שעליה הכל רץ.',
+    s2_terms_link:'קראו את תנאי השימוש והפרטיות המלאים',
+    s2_cta:'הבנתי, בוא נכיר →',
+    s2_note:'אפשר לשוחח עם הסוכן בכל שפה, בעברית או באנגלית.',
+
+    s3_title:'פתיחת משתמש',
+    s3_lead:'זה הרגע שבו אנחנו פותחים לך משתמש. מלא את הפרטים, אשר, <b>והסוכן נפתח.</b>',
+    s3_name:'שם מלא', s3_name_ph:'איך קוראים לך',
+    s3_phone:'טלפון', s3_phone_ph:'050-0000000',
+    s3_email:'מייל', s3_email_ph:'you@example.com',
+    s3_gender:'פנייה אליך', s3_g_m:'בלשון זכר', s3_g_f:'בלשון נקבה',
+    s3_check:'קראתי ומאשר את <b>תנאי השימוש והפרטיות</b>. האישור הזה פותח את הסוכן.',
+    s3_cta:'פתח לי סוכן →', s3_cta_load:'פותח לך סוכן…',
+    s3_note:'הפרטים נשמרים כדי שהסוכן יקבל את פניך נכון. בלי ספאם.',
+
+    s4_title:'הסוכן שלך מוכן',
+    s4_lead:'<b>הסוכן שלך מופיע ברגע שתלחץ "אתחל שיחה".</b> נשלחת הודעה לסוכן מחשבון הטלגרם שלך, והשיחה מתחילה.',
+    s4_peek:'אהלן! 👋 אני הננו שלך…',
+    s4_cta:'אתחל שיחה בטלגרם',
+    s4_next:'המשך לחיבורים →',
+    s4_how_btn:'איך זה עובד?',
+    s4_how:'הקישור פותח את טלגרם ושולח START מהצד שלך. ככה הסוכן מורשה לפנות אליך (בוט לא יכול לפנות ראשון). מאותו רגע השיחה איתו רגילה לגמרי.',
+    s4_dl:'אין לך טלגרם?', s4_dl2:'להורדה (דקה)',
+    s4_note:'הלחיצה שולחת START מהצד שלך, ככה הסוכן מורשה לפנות אליך.',
+    sw_title:'פותחים את טלגרם…', sw_sub:'הסוכן <b>מחכה לך שם</b>. עוד רגע אתם בשיחה.',
+
+    s5_title:'חברו מה שבא לכם',
+    s5_lead:'ספריית חיבורים שמורה אצלכם. מחברים בקצב שלכם, בלחיצה.',
+    s5_more:'עוד שירותים', s5_more_sub:'הרשימה המלאה נפתחת בהדרגה', s5_more_pill:'בקרוב',
+    s5_cta:'הבנתי, להמשך →',
+    s5_note:'כל חיבור אפשר לעשות בשתי דרכים: פשוט לבקש מהסוכן בשיחה, או לפתוח את המדריך השמור ולעקוב צעד-צעד. שתיהן עובדות, המדריך פשוט מזרז.',
+
+    s6_name:'הננו שלך',
+    s6:[['me','תנתק את הגישה למייל','12:10 ✓✓'],
+        ['','נותקתי מהמייל שלך. ✅ אין לי יותר גישה אליו. אפשר לחבר מחדש מתי שתרצה בבקשה אחת.','12:10'],
+        ['me','מחק את החשבון שלי','12:11 ✓✓'],
+        ['','רגע לפני, זו פעולה לצמיתות. כדי שלא יקרה בטעות, אני שולח לך אישור כאן בטלגרם. רק לחיצה על <span class="danger">"כן, מחק לצמיתות"</span> תמחק את הכל, ואין שחזור.','12:11']],
+    s6_warn:'⚠️ אישור מחיקה',
+    s6_del:'כן, מחק לצמיתות',
+    s6_note:'המחיקה דורשת אישור פה בטלגרם, לא בלחיצה אחת באתר, כדי ששום דבר לא יימחק בטעות. בפיילוט אין דשבורד נפרד: הסוכן הוא הממשק לניתוק, חיבור, איפוס, מחיקה ושינוי שם.',
+    s6_cta:'חזרה להתחלה ↺',
+    type:'הקלד הודעה…',
+
+    sheet_terms_t:'תנאי שימוש ופרטיות',
+    sheet_terms:['<b>שבוע התנסות חינם.</b> שיחה מלאה עם הסוכן ועזרה יומיומית, בלי התחייבות.',
+      '<b>הפרטים שלך נשארים שלך.</b> אתה שולט בדיוק במה שהסוכן נוגע, מחבר רק מה שאתה בוחר, ומנתק כל שירות מתי שתרצה. אנחנו לא מוכרים ולא משתפים את המידע שלך.',
+      '<b>שקיפות.</b> זו לא הבטחה ש"אין לנו גישה". האמת היא שאתה מאשר כל חיבור בעצמך, בחשבון שלך, ויכול לבטל בכל רגע. בלחיצה אחת אתה מוחק את הסוכן ואיתו את כל הנתונים.',
+      '<b>גרסה ראשונה.</b> זה פיילוט בגישה מוזמנת. דברים עוד משתפרים, ואנחנו פה לכל שאלה: 052-8738698 · elia@bencnaan.net'],
+    sheet_nano_t:'מה זה NanoClaw?',
+    sheet_nano:['<b>NanoClaw</b> היא תשתית הסוכנים שעליה הכל רץ. סוכן אישי שחי על שרת מנוהל, תמיד פעיל, ומדבר איתך דרך טלגרם בשפה רגילה.',
+      'הסוכן הוא שלך, לא של חברה. הוא לומד מה אתה צריך, מבצע משימות, ויכול להתחבר למערכות שלך כשתרצה, תמיד בשליטה שלך.',
+      'הפיילוט הזה הוא הדרך הכי פשוטה לפתוח סוכן כזה, בלי רקע טכני ובלי הגדרות.'],
+    sheet_close:'הבנתי'
+  },
+  en:{
+    s1_title:'The agent that does<br>the work itself',
+    s1_p:['I built a system that sets up a <b>personal AI agent</b> for you and puts it in a conversation with you <span class="em">within 2 minutes</span>.',
+          'It does not help on the side, it <b>does the work itself end to end</b>, always with your approval before anything goes out. Work hours that come back to you, without asking, in plain language, no computer background.',
+          'The system is <b>free</b>, this is a pilot I run to bring more people into the world of agents. No credit card, no commitment.'],
+    s1_cta:"Let's build your NanoClaw →",
+    s1_note:'Invite-only pilot · First version',
+    s1_by:'By Elia Ben Cnaan',
+
+    s2_title:'What opens up here',
+    s2_lead:'Eye to eye, before we start.',
+    s2_sic:'🔒',
+    s2_sec_t:'Secure, and only yours',
+    s2_sec:'Every connection is encrypted and isolated to your account alone. You control exactly what the agent touches, connect only what you choose, and disconnect any service whenever you want. We do not sell or share your data with anyone.',
+    s2_f:[['🔌','Connects to whatever you need, free','Connects to your email and your whole Google environment, WhatsApp and Telegram. The connection itself is free in the pilot.'],
+          ['🚪','Leave whenever you want','At any moment you can delete your NanoClaw, and from that moment we have no access to anything.']],
+    s2_nano_lbl:'What is NanoClaw?',
+    s2_nano_link:'Tap to read',
+    s2_nano_tail:'The agent infrastructure everything runs on.',
+    s2_terms_link:'Read the full terms of use and privacy',
+    s2_cta:"Got it, let's meet →",
+    s2_note:'You can chat with the agent in any language, Hebrew or English.',
+
+    s3_title:'Open your account',
+    s3_lead:'This is the moment we open your account. Fill in the details, approve, <b>and the agent opens.</b>',
+    s3_name:'Full name', s3_name_ph:'What is your name',
+    s3_phone:'Phone', s3_phone_ph:'050-0000000',
+    s3_email:'Email', s3_email_ph:'you@example.com',
+    s3_gender:'Address you as', s3_g_m:'Male', s3_g_f:'Female',
+    s3_check:'I have read and accept the <b>terms of use and privacy</b>. This approval opens the agent.',
+    s3_cta:'Open my agent →', s3_cta_load:'Opening your agent…',
+    s3_note:'Details are saved so the agent greets you right. No spam.',
+
+    s4_title:'Your agent is ready',
+    s4_lead:'<b>Your agent appears the moment you tap "Start the chat".</b> A message is sent to the agent from your Telegram account, and the conversation begins.',
+    s4_peek:"Hey! 👋 I'm your Nano…",
+    s4_cta:'Start the chat on Telegram',
+    s4_next:'Continue to connections →',
+    s4_how_btn:'How does it work?',
+    s4_how:'The link opens Telegram and sends START from your side. That is what lets the agent reach out to you (a bot cannot message first). From that moment the conversation is completely normal.',
+    s4_dl:'No Telegram?', s4_dl2:'Download (a minute)',
+    s4_note:'The tap sends START from your side, that is how the agent is allowed to reach you.',
+    sw_title:'Opening Telegram…', sw_sub:'Your agent is <b>waiting there</b>. You are about to be in a conversation.',
+
+    s5_title:'Connect whatever you like',
+    s5_lead:'A connections library saved with you. Connect at your own pace, with one tap.',
+    s5_more:'More services', s5_more_sub:'The full list opens gradually', s5_more_pill:'Soon',
+    s5_cta:'Got it, continue →',
+    s5_note:'Every connection can be done two ways: just ask the agent in chat, or open the saved guide and follow step by step. Both work, the guide just speeds it up.',
+
+    s6_name:'Your Nano',
+    s6:[['me','Disconnect the email access','12:10 ✓✓'],
+        ['','Disconnected from your email. ✅ I no longer have access to it. You can reconnect anytime with a single request.','12:10'],
+        ['me','Delete my account','12:11 ✓✓'],
+        ['','One moment, this is permanent. So it does not happen by accident, I am sending you a confirmation here in Telegram. Only tapping <span class="danger">"Yes, delete permanently"</span> will erase everything, with no recovery.','12:11']],
+    s6_warn:'⚠️ Delete confirmation',
+    s6_del:'Yes, delete permanently',
+    s6_note:'Deletion requires a confirmation here in Telegram, not a one-click web action, so nothing gets deleted by accident. In the pilot there is no separate dashboard: the agent is the interface for disconnect, connect, reset, delete and rename.',
+    s6_cta:'Back to start ↺',
+    type:'Type a message…',
+
+    sheet_terms_t:'Terms of use and privacy',
+    sheet_terms:['<b>The pilot is free.</b> Full conversation with the agent and daily help, no credit card and no commitment.',
+      '<b>Your data stays yours.</b> You control exactly what the agent touches, connect only what you choose, and disconnect any service whenever you want. We do not sell or share your data.',
+      '<b>Transparency.</b> This is not a promise that "we have no access." The truth is you approve every connection yourself, in your own account, and can revoke it anytime. With one tap you delete the agent and all its data with it.',
+      '<b>First version.</b> This is an invite-only pilot. Things keep improving, and we are here for any question: 052-8738698 · elia@bencnaan.net'],
+    sheet_nano_t:'What is NanoClaw?',
+    sheet_nano:['<b>NanoClaw</b> is the agent infrastructure everything runs on. A personal agent that lives on a managed server, always on, and talks with you through Telegram in plain language.',
+      'The agent is yours, not a company’s. It learns what you need, performs tasks, and can connect to your systems when you want, always under your control.',
+      'This pilot is the simplest way to open such an agent, with no technical background and no settings.'],
+    sheet_close:'Got it'
+  }
+};
+
+/* ---------- brand SVGs (approved, from pilot_full_mock) ---------- */
+const SVG = {
+  gmail:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="2.4" fill="#fff"/><path d="M3 6.5l9 6.8 9-6.8" stroke="#EA4335" stroke-width="2.1" fill="none" stroke-linecap="round"/></svg>',
+  cal:'<svg width="22" height="22" viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="16.6" rx="2.4" fill="#fff"/><rect x="3.2" y="4.2" width="17.6" height="4.4" rx="2.4" fill="#4285F4"/><text x="12" y="18" font-size="9.2" font-weight="800" text-anchor="middle" fill="#1A73E8" font-family="Arial,sans-serif">31</text></svg>',
+  drive:'<svg width="22" height="22" viewBox="0 0 87.3 78"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.79 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>',
+  docs:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 2h7l5 5v13.2A1.8 1.8 0 0116.2 22H6a1.8 1.8 0 01-1.8-1.8V3.8A1.8 1.8 0 016 2z" fill="#4285F4"/><path d="M13 2l5 5h-5z" fill="#A1C2FA"/><g stroke="#fff" stroke-width="1.3" stroke-linecap="round"><path d="M8.4 11.5h7M8.4 14.3h7M8.4 17.1h4.4"/></g></svg>',
+  wa:'<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 2a9.8 9.8 0 00-8.4 14.9L2 22l5.3-1.5A9.8 9.8 0 1012 2z" fill="#25D366"/><path d="M8.6 7.4c-.2 0-.6.1-.9.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.3 4.6 2.6 1 2.6.7 3.1.6.5-.1 1.6-.6 1.8-1.3.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.7 1c-.1.2-.3.2-.5.1-.7-.3-1.6-.6-2.4-1.6-.6-.7-1-1.5-1.1-1.7-.1-.2 0-.4.1-.5l.5-.6c.1-.2.1-.3.2-.5 0-.2 0-.4-.1-.5l-.8-1.8c-.2-.5-.4-.5-.6-.5z" fill="#fff"/></svg>'
+};
+function svcRow(svg,name,desc,on){
+  return `<div class="svc"><div class="si">${svg}</div><div class="sn"><b>${name}</b><span>${desc}</span></div>`+
+    `<span class="pill ${on?'on':'off'}">${on?(L==='he'?'מחובר':'connected'):(L==='he'?'חברו':'connect')}</span></div>`;
+}
+
+function bubbles(arr){
+  return arr.map(b=>{
+    if(b[0]==='sys') return `<div class="sysmsg">${b[1]}</div>`;
+    return `<div class="bub${b[0]==='me'?' me':''}">${b[1]}<span class="tm">${b[2]}</span></div>`;
+  }).join('');
+}
+
+function esc(s){ return String(s).replace(/"/g,'&quot;'); }
+
+function screenHTML(t){
+  switch(i){
+    case 0: return `
+        <div class="glow"></div>
+        <img class="lockup" src="nanoshellano-lockup-trim.png" alt="NanoShellano">
+        <div class="hero-mascot"><img src="nanoshellano-mascot.png" alt="NanoShellano"></div>
+        <h2>${t.s1_title}</h2>
+        ${t.s1_p.map(p=>`<p class="prose">${p}</p>`).join('')}
+        <div class="spacer"></div>`;
+    case 1: return `
+        <div class="glow"></div>
+        <h2>${t.s2_title}</h2>
+        <p class="lead">${t.s2_lead}</p>
+        <div class="secband"><div class="sic">${t.s2_sic}</div><div class="stx"><b>${t.s2_sec_t}</b>${t.s2_sec}</div></div>
+        <div class="flist">
+          ${t.s2_f.map(f=>`<div class="fitem"><div class="fic">${f[0]}</div><div class="ftx"><b>${f[1]}</b>${f[2]}</div></div>`).join('')}
+          <div class="fitem"><div class="fic">🤖</div><div class="ftx"><b>${t.s2_nano_lbl}</b><a onclick="openSheet('nano')">${t.s2_nano_link}</a> ${t.s2_nano_tail}</div></div>
+        </div>
+        <div class="linkrow"><a onclick="openSheet('terms')">${t.s2_terms_link}</a></div>
+        <div class="spacer"></div>`;
+    case 2: return `
+        <div class="glow"></div>
+        <h2>${t.s3_title}</h2>
+        <p class="lead">${t.s3_lead}</p>
+        <label>${t.s3_name}</label>
+        <input class="inp" id="f_name" placeholder="${esc(t.s3_name_ph)}" value="${esc(reg.name)}" oninput="reg.name=this.value;refreshCta()">
+        <label>${t.s3_phone}</label>
+        <input class="inp" id="f_phone" type="tel" placeholder="${esc(t.s3_phone_ph)}" value="${esc(reg.phone)}" oninput="reg.phone=this.value;refreshCta()">
+        <label>${t.s3_email}</label>
+        <input class="inp" id="f_email" type="email" placeholder="${esc(t.s3_email_ph)}" value="${esc(reg.email)}" oninput="reg.email=this.value;refreshCta()">
+        <label>${t.s3_gender}</label>
+        <div class="seg-g"><button class="${reg.gender==='m'?'on':''}" onclick="setGender('m')">${t.s3_g_m}</button><button class="${reg.gender==='f'?'on':''}" onclick="setGender('f')">${t.s3_g_f}</button></div>
+        <div class="check${agree?' on':''}" onclick="toggleAgree()"><div class="box"><span>✓</span></div><div>${t.s3_check}</div></div>
+        <p class="note inbody">${t.s3_note}</p>
+        <div class="spacer"></div>`;
+    case 3: return `
+        <div class="glow"></div>
+        <div class="ho-ico">✈️</div>
+        <h2>${t.s4_title}</h2>
+        <p class="lead">${t.s4_lead}</p>
+        <div class="tg-peek"><div class="peek-av">נ</div><div class="peek-bub">${t.s4_peek}</div></div>
+        <div class="how${howOpen?' open':''}" id="how">${t.s4_how}</div>
+        <a class="dl" href="https://telegram.org/dl" target="_blank" rel="noopener">${t.s4_dl} <span>${t.s4_dl2}</span></a>
+        <p class="note inbody">${t.s4_note}</p>
+        <div class="spacer"></div>`;
+    case 4: return `
+        <div class="glow"></div>
+        <h2>${t.s5_title}</h2>
+        <p class="lead">${t.s5_lead}</p>
+        ${svcRow(SVG.gmail,'Gmail', L==='he'?'קריאה ומענה למיילים':'Read and reply to email', false)}
+        ${svcRow(SVG.cal,'Google Calendar', L==='he'?'זימון ותזכורות':'Scheduling and reminders', false)}
+        ${svcRow(SVG.drive,'Google Drive', L==='he'?'קבצים ומסמכים':'Files and documents', false)}
+        ${svcRow(SVG.docs,'Google Docs', L==='he'?'כתיבה ועריכת מסמכים':'Write and edit documents', false)}
+        ${svcRow(SVG.wa,'WhatsApp', L==='he'?'הודעות ותיאומים':'Messages and coordination', false)}
+        <div class="svc"><div class="si" style="font-size:20px;color:var(--teal);font-weight:800">＋</div><div class="sn"><b>${t.s5_more}</b><span>${t.s5_more_sub}</span></div><span class="pill off">${t.s5_more_pill}</span></div>
+        <p class="note inbody">${t.s5_note}</p>
+        <div class="spacer"></div>`;
+    case 5: return `
+        <div class="glow"></div>
+        <div class="tg">
+          <div class="tg-top"><div class="tg-av">נ</div><div><div class="tg-name">${t.s6_name}</div><div class="tg-on">online</div></div></div>
+          ${bubbles(t.s6)}
+          <div class="bub warn">${t.s6_warn}<br><span class="delbtn">${t.s6_del}</span></div>
+          <div class="tg-input">${t.type}</div>
+        </div>
+        <p class="note inbody">${t.s6_note}</p>`;
+  }
+}
+
+function validReg(){
+  return reg.name.trim().length>=2 &&
+    /^[\d+][\d\-\s()]{6,}$/.test(reg.phone.trim()) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reg.email.trim()) &&
+    (reg.gender==='m'||reg.gender==='f') &&
+    agree;
+}
+function refreshCta(){
+  const c=document.getElementById('regCta');
+  if(c) c.disabled = !validReg() || submitting;
+}
+
+function footHTML(t){
+  switch(i){
+    case 0: return `<button class="cta" onclick="go(1)">${t.s1_cta}</button><p class="note">${t.s1_note}</p><p class="byline">${t.s1_by}</p>`;
+    case 1: return `<button class="cta" onclick="go(1)">${t.s2_cta}</button><p class="note">${t.s2_note}</p>`;
+    case 2: return `<button class="cta" id="regCta" ${validReg()&&!submitting?'':'disabled'} onclick="submitReg()">${submitting?t.s3_cta_load:t.s3_cta}</button>`;
+    case 3: return `<button class="cta" onclick="telegramOpen()">${t.s4_cta}</button><button class="cta ghost" onclick="go(1)">${t.s4_next}</button><button class="howlink" onclick="toggleHow()">${t.s4_how_btn}</button>`;
+    case 4: return `<button class="cta" onclick="go(1)">${t.s5_cta}</button>`;
+    case 5: return `<button class="cta ghost" onclick="restart()">${t.s6_cta}</button>`;
+  }
+}
+
+function paintChrome(){
+  const t=T[L];
+  document.documentElement.lang=L;
+  document.documentElement.dir = L==='he'?'rtl':'ltr';
+  document.getElementById('lang').textContent = L==='he'?'EN':'עב';
+  let p='';
+  for(let k=0;k<N;k++) p+=`<div class="seg ${k<i?'done':''} ${k===i?'cur':''}"><i></i></div>`;
+  document.getElementById('prog').innerHTML=p;
+  document.getElementById('stepn').textContent=`${i+1}/${N}`;
+  document.getElementById('back').disabled = i===0 || submitting;
+  document.getElementById('foot').innerHTML=footHTML(t);
+}
+
+function init(){
+  const stage=document.getElementById('stage');
+  const div=document.createElement('div');
+  div.className='screen';
+  div.innerHTML=screenHTML(T[L]);
+  stage.appendChild(div);
+  paintChrome();
+}
+function repaint(){
+  const stage=document.getElementById('stage');
+  stage.innerHTML='';
+  const div=document.createElement('div');
+  div.className='screen';
+  div.innerHTML=screenHTML(T[L]);
+  stage.appendChild(div);
+  paintChrome();
+}
+function transition(dir){
+  if(animating) return;
+  animating=true;
+  const stage=document.getElementById('stage');
+  const old=stage.querySelector('.screen');
+  const nw=document.createElement('div');
+  nw.className='screen '+(dir>0?'in-fwd':'in-back');
+  nw.innerHTML=screenHTML(T[L]);
+  if(old){ old.classList.remove('in-fwd','in-back'); old.classList.add(dir>0?'out-fwd':'out-back'); }
+  stage.appendChild(nw);
+  paintChrome();
+  setTimeout(()=>{ if(old&&old.parentNode) old.parentNode.removeChild(old); animating=false; },380);
+}
+function go(d){
+  const ni=i+d;
+  if(ni<0||ni>=N||animating||submitting) return;
+  i=ni; howOpen=false; transition(d);
+}
+
+/* ---- registration submit: the real backend call ---- */
+async function submitReg(){
+  if(!validReg()||submitting||animating) return;
+  submitting=true; paintChrome();
+  const payload={ name:reg.name.trim(), phone:reg.phone.trim(), email:reg.email.trim(), gender:reg.gender, lang:L, src:SRC };
+  try{
+    const r=await fetch('/api/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await r.json().catch(()=>null);
+    deepLink=(data&&data.deepLink)?data.deepLink:BOT_FALLBACK;
+  }catch(e){
+    deepLink=BOT_FALLBACK;
+  }
+  submitting=false;
+  i=3; howOpen=false; transition(1);
+}
+
+/* ---- handoff: real Telegram deep link ---- */
+function telegramOpen(){
+  const t=T[L], sw=document.getElementById('switch');
+  const url=deepLink||BOT_FALLBACK;
+  sw.innerHTML=`<div class="ho-ico">✈️</div><h2>${t.sw_title}</h2><p>${t.sw_sub}</p>`;
+  sw.classList.add('on');
+  window.open(url,'_blank','noopener');
+  setTimeout(()=>{ sw.classList.remove('on'); },1600);
+}
+
+function openSheet(which){
+  const t=T[L], s=document.getElementById('sheet');
+  const title = which==='terms'?t.sheet_terms_t:t.sheet_nano_t;
+  const body  = (which==='terms'?t.sheet_terms:t.sheet_nano).map(p=>`<p>${p}</p>`).join('');
+  s.innerHTML=`<div class="sheet-card"><h3>${title}</h3>${body}<button class="cta ghost" onclick="closeSheet()">${t.sheet_close}</button></div>`;
+  s.classList.add('on');
+}
+function closeSheet(){ document.getElementById('sheet').classList.remove('on'); }
+
+function restart(){ i=0; agree=false; howOpen=false; submitting=false; deepLink=''; reg.name=''; reg.phone=''; reg.email=''; reg.gender='m'; repaint(); }
+function setGender(g){ reg.gender=g; repaint(); }
+function toggleAgree(){ agree=!agree; repaint(); }
+function toggleHow(){ howOpen=!howOpen; repaint(); }
+function setLang(l){ L=l; repaint(); }
+function toggleLang(){ L=(L==='he'?'en':'he'); repaint(); }
+
+init();
+</script>
+</body>
+</html>

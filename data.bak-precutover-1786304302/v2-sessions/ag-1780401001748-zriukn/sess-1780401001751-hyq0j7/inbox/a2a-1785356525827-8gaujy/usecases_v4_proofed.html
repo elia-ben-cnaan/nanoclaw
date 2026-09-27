@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מה הסוכן עושה בשבילך · Click2Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Baloo+2:wght@700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#000000; --surface:#101010; --surface-2:#181818; --surface-3:#202020;
+  --frame:#202020; --ink:#FFFFFF; --ink-muted:#C9C9C9; --ink-dim:#6F6F6F;
+  --teal:#56EDD6; --highlight:#E85D3A; --line:#242424; --on-teal:#04211D;
+  --chip:#181818; --link:#4A90D9;
+  --round:'Baloo 2','Heebo',sans-serif;
+  --sans:'Inter','Heebo',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Heebo',monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans);
+  font-size:15px; line-height:1.65; min-height:100vh; position:relative;
+}
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(120% 80% at 50% -10%, rgba(86,237,214,.12), transparent 60%);
+}
+a{color:var(--link); text-decoration:none}
+
+/* ===== context topbar (מחוץ לקומפוננטה הניידת) ===== */
+.topbar{
+  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
+  padding:14px 28px; border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.brand{display:flex; align-items:center; gap:0}
+.brand img.fulllogo{width:auto; height:46px; display:block; object-fit:contain}
+.lang{
+  margin-inline-start:auto; display:flex; align-items:center; gap:8px;
+  font-size:13px; font-weight:800; cursor:pointer; letter-spacing:.4px; font-family:var(--sans);
+  user-select:none;
+}
+.lang span{color:var(--ink-dim); transition:color .2s var(--ease)}
+.lang span.on{color:var(--teal)}
+.lang .sep{color:var(--line); font-weight:400}
+
+/* ===== הקומפוננטה הניידת ===== */
+#nc-scenarios{position:relative; z-index:1; max-width:880px; margin:0 auto; padding:64px 28px 96px}
+
+.sc-head{margin-bottom:14px}
+.sc-head h1{
+  font-family:var(--round); font-weight:800; font-size:42px; line-height:1.2; color:var(--ink);
+}
+.sc-head h1 .accent{color:var(--teal)}
+.sc-lead{color:var(--ink-muted); font-size:16px; max-width:620px; margin-top:14px}
+.sc-lead b{color:var(--ink); font-weight:700}
+.sc-sub{color:var(--ink-muted); font-size:16px; max-width:640px; margin-top:12px; line-height:1.6}
+.sc-sub b{color:var(--ink); font-weight:700}
+.sc-head .flow{margin-top:20px}
+
+/* ===== magic flow hero (top of everything) ===== */
+.magic{
+  border:1px solid rgba(86,237,214,.28); border-radius:18px;
+  background:linear-gradient(150deg, rgba(86,237,214,.07), rgba(86,237,214,.015) 60%, transparent);
+  padding:22px 24px; margin-bottom:34px;
+}
+.magic-eyebrow{
+  display:inline-block; font-family:var(--mono); font-size:11px; letter-spacing:.6px;
+  color:var(--teal); text-transform:uppercase; margin-bottom:14px;
+}
+.flow{list-style:none; display:flex; flex-wrap:wrap; align-items:center; gap:5px 0; margin:0; padding:0}
+.flow li{display:inline-flex; align-items:center; font-size:15px; font-weight:600; color:var(--ink); line-height:1.5}
+.flow li:not(:last-child)::after{
+  content:'←'; color:var(--teal); font-size:16px; font-weight:800; margin:0 11px; opacity:.9;
+}
+.magic-punch{
+  margin-top:15px; padding-top:14px; border-top:1px solid rgba(86,237,214,.14);
+  font-size:14.5px; color:var(--ink-muted); font-weight:500;
+}
+.magic-punch b{color:var(--teal); font-weight:700}
+@media (max-width:640px){
+  .flow li{font-size:14px}
+  .flow li:not(:last-child)::after{margin:0 8px; font-size:15px}
+}
+
+/* tabs — text + divider, no pills */
+.sc-tabs{display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:30px 0 22px; border-bottom:1px solid var(--line)}
+.sc-tab{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer; user-select:none;
+  font-family:var(--sans); font-weight:500; font-size:14px; color:var(--ink-muted);
+  padding:10px 18px; background:none; border:0; position:relative;
+  transition:color .2s var(--ease);
+}
+.sc-tab::after{
+  content:''; position:absolute; inset-inline-end:0; top:26%; bottom:26%; width:1px; background:var(--line);
+}
+.sc-tab:last-child::after{display:none}
+.sc-tab .cnt{font-family:var(--mono); font-size:11px; color:var(--ink-dim)}
+.sc-tab:hover{color:var(--ink)}
+.sc-tab.on{color:var(--teal); font-weight:700}
+.sc-tab.on .cnt{color:var(--teal); opacity:.7}
+.sc-tab.on::before{
+  content:''; position:absolute; inset-inline-start:14px; inset-inline-end:14px; bottom:-1px; height:2px;
+  background:var(--teal); border-radius:2px;
+}
+
+/* cards */
+.sc-grid{display:flex; flex-direction:column; gap:12px}
+.sc-card{
+  border:1px solid var(--line); border-radius:14px; background:var(--surface);
+  position:relative; overflow:hidden; transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.sc-card::before{
+  content:''; position:absolute; inset-inline-start:0; top:0; bottom:0; width:3px;
+  background:var(--teal); transform:scaleY(0); transform-origin:top; transition:transform .35s var(--ease);
+}
+.sc-card:hover{border-color:rgba(86,237,214,.5); transform:translateY(-2px)}
+.sc-card:hover::before{transform:scaleY(1)}
+.sc-card.open{border-color:rgba(86,237,214,.5); transform:none}
+.sc-card.open::before{transform:scaleY(1)}
+
+.sc-row{
+  display:flex; align-items:center; gap:16px; padding:18px 22px; cursor:pointer; user-select:none;
+}
+.sc-ic{flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  color:var(--teal); background:rgba(86,237,214,.09); border:1px solid rgba(86,237,214,.18); transition:background .25s var(--ease),border-color .25s var(--ease)}
+.sc-card.open .sc-ic{background:rgba(86,237,214,.15); border-color:rgba(86,237,214,.4)}
+.sc-row h3{font-family:var(--sans); font-weight:600; font-size:16px; color:var(--ink); white-space:nowrap}
+.sc-row .moment{
+  color:var(--ink-dim); font-size:13.5px; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .25s var(--ease);
+}
+.sc-card.open .sc-row .moment{opacity:0}
+.sc-row .chev{flex:none; color:var(--ink-dim); transition:transform .35s var(--ease); display:flex}
+.sc-card.open .chev{transform:rotate(180deg); color:var(--teal)}
+
+.sc-body{display:grid; grid-template-rows:0fr; transition:grid-template-rows .45s var(--ease)}
+.sc-card.open .sc-body{grid-template-rows:1fr}
+.sc-body-in{overflow:hidden}
+.sc-body-pad{padding:2px 22px 26px}
+
+.sc-moment-full{color:var(--ink-muted); font-size:14.5px; max-width:640px; margin-bottom:22px}
+
+/* micro steps */
+.micro{position:relative}
+.micro::before{
+  content:''; position:absolute; inset-inline-start:14px; top:14px; bottom:14px;
+  width:1px; background:var(--line);
+}
+.m-step{position:relative; display:flex; gap:16px; padding:0 0 22px}
+.m-step:last-child{padding-bottom:0}
+.m-num{
+  flex:none; width:28px; height:28px; border-radius:50%; background:var(--surface-3);
+  border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:12.5px; color:var(--teal); position:relative; z-index:1;
+}
+.m-content{flex:1; min-width:0; padding-top:3px}
+.m-title{font-weight:600; font-size:14.5px; color:var(--ink); margin-bottom:8px}
+.m-title .m-sub{font-weight:400; color:var(--ink-dim); font-size:13px; margin-inline-start:8px}
+
+/* teach panel */
+.teach{border:1px solid var(--line); border-radius:10px; background:var(--surface-2); overflow:hidden}
+.teach-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid var(--line); background:var(--surface-3);
+}
+.teach-bar .lbl{font-family:var(--mono); font-size:11px; color:var(--ink-dim)}
+.copy-btn{
+  background:var(--surface-3); border:1px solid var(--line); border-radius:7px;
+  padding:5px 10px; font-size:12px; color:var(--ink-muted); font-family:var(--sans);
+  cursor:pointer; transition:all .2s var(--ease);
+}
+.copy-btn:hover{background:var(--teal); border-color:var(--teal); color:var(--on-teal)}
+.copy-btn.copy-done{background:transparent; border-color:rgba(86,237,214,.4); color:var(--teal)}
+.teach-text{
+  padding:14px 16px; font-size:13.5px; line-height:1.75; color:var(--ink-muted);
+  white-space:pre-line; max-height:280px; overflow-y:auto;
+}
+.teach-text::-webkit-scrollbar{width:8px}
+.teach-text::-webkit-scrollbar-thumb{background:var(--surface-3); border-radius:4px}
+
+/* paste step */
+.paste-line{color:var(--ink-muted); font-size:13.5px}
+
+/* triggers */
+.trig{display:flex; flex-direction:column; gap:8px}
+.trig-row{
+  display:flex; gap:10px; align-items:baseline;
+  background:var(--chip); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  font-size:13.5px; color:var(--ink-muted);
+}
+.trig-row .q{color:var(--teal); font-family:var(--round); font-weight:800; font-size:16px; line-height:1; flex:none}
+
+/* use-case blocks (v3) */
+.uc-lbl{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.5px; color:var(--teal); text-transform:uppercase; margin-bottom:8px}
+.uc-lbl em{color:var(--ink-dim); font-style:normal; text-transform:none; letter-spacing:0; font-family:var(--sans); margin-inline-start:8px}
+.uc-why{border-inline-start:2px solid var(--teal); background:rgba(86,237,214,.05); border-radius:0 10px 10px 0; padding:12px 16px; margin-bottom:20px}
+.uc-why p{color:var(--ink); font-size:14.5px; line-height:1.6}
+.uc-use{margin-bottom:18px}
+
+.cat-desc{color:var(--ink-muted); font-size:14px; margin:-8px 0 22px; max-width:640px}
+
+/* setup (folded, de-emphasized) */
+details.setup{border:1px solid var(--line); border-radius:10px; background:var(--surface-2); overflow:hidden}
+details.setup summary{list-style:none; cursor:pointer; padding:12px 16px; font-size:13px; color:var(--ink-muted); user-select:none; display:flex; align-items:center; gap:8px}
+details.setup summary::-webkit-details-marker{display:none}
+details.setup summary em{color:var(--ink-dim); font-style:normal; font-size:12.5px}
+details.setup summary .s-ic{color:var(--teal); font-family:var(--mono); font-size:15px; transition:transform .25s var(--ease)}
+details.setup[open] summary .s-ic{transform:rotate(45deg)}
+details.setup[open] summary{border-bottom:1px solid var(--line)}
+.setup-in{padding:14px 16px}
+.setup-note{color:var(--ink-dim); font-size:12.5px; margin-bottom:12px}
+
+/* footnote */
+.checkpoint{
+  margin-top:26px; border:1.5px solid var(--teal); background:rgba(86,237,214,.06);
+  border-radius:12px; padding:14px 18px; display:flex; gap:12px; align-items:center;
+  font-size:13.5px; color:var(--ink-muted);
+}
+.checkpoint .dot{color:var(--teal); flex:none; display:flex}
+
+/* ===== mobile: match the app look ===== */
+@media (max-width:640px){
+  body{font-size:14.5px}
+  .topbar{padding:14px 16px}
+  .wordmark{font-size:17px}
+  .sc-head h1{font-size:28px; line-height:1.22}
+  .sc-lead{font-size:14.5px}
+  .sc-row{flex-wrap:wrap; gap:6px 12px; padding:16px 16px}
+  .sc-row h3{font-size:15px; white-space:normal; flex:1}
+  .sc-row .moment{flex-basis:100%; order:3}
+  .sc-ic{width:36px; height:36px; border-radius:10px}
+  #nc-scenarios{padding:26px 16px 64px}
+  .magic{padding:18px 16px; border-radius:16px}
+  .sc-tabs{display:grid; grid-template-columns:1fr 1fr; gap:9px; border-bottom:none; margin:22px 0 20px; overflow:visible}
+  .sc-tab{justify-content:center; text-align:center; padding:13px 10px; font-size:13.5px; white-space:normal; background:var(--surface); border:1px solid var(--line); border-radius:13px}
+  .sc-tab::after{display:none}
+  .sc-tab.on{background:rgba(86,237,214,.08); border-color:rgba(86,237,214,.5)}
+  .sc-tab.on::before{display:none}
+  .sc-tab .cnt{margin-inline-start:2px}
+  .sc-body-pad{padding:2px 16px 22px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><img class="fulllogo" src="c2a_logo_transparent.png" alt="Click2Agent"></div>
+  <div class="lang" id="lang" onclick="toggleLang()"><span data-l="en">EN</span><span class="sep">|</span><span data-l="he" class="on">HE</span></div>
+</header>
+
+<section id="nc-scenarios">
+
+  <div class="sc-head">
+    <h1>הוא לא רק עונה. <span class="accent">הוא עושה בשבילך.</span></h1>
+    <p class="sc-lead">רוב האנשים משתמשים בכלי AI כדי לקבל תשובה. הסוכן הוא משהו אחר: <b>שכבת הפעולה שמסביב לעבודה שלך</b>. הוא זוכר אותך, ולוקח את מה שעשית או ביקשת ומכין ממנו את הפעולה הבאה, מוכנה ללחיצה שלך, בלי שתתחבר לאף מערכת.</p>
+  </div>
+
+  <div class="sc-tabs">
+    <div class="sc-tab on" data-cat="last_mile">העוזר האישי <span class="cnt">4</span></div>
+    <div class="sc-tab" data-cat="memory">מנהל המשרד <span class="cnt">5</span></div>
+    <div class="sc-tab" data-cat="tools">הקריאייטיב <span class="cnt">4</span></div>
+    <div class="sc-tab" data-cat="personal">בן הבית <span class="cnt">2</span></div>
+  </div>
+
+  <p class="cat-desc" id="catDesc"></p>
+
+  <div class="sc-grid" id="scGrid"></div>
+
+  <div class="checkpoint">
+    <span class="dot">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <span id="cpTxt">כל התרחישים בקטגוריה הזו עובדים מיד, בלי לחבר אף כלי.</span>
+  </div>
+
+</section>
+
+<script>
+const CARDS = [{"id":1,"title":"המייל האחרון אחרי הצ'אט","category":"tools","moment_line":"ניסחת תשובה מעולה ב-ChatGPT, ועכשיו נשאר החלק המעצבן: להעתיק, לעצב ולשלוח אותה כמייל.","teach_block":"כשאני מדביק לך טקסט ואומר למי הוא מיועד, קח אותו הלאה למייל מוכן לשליחה. שמור על המשמעות ועל הנקודות המרכזיות, לטש לנימה טבעית בעברית, הוסף פתיחה שמתאימה ליחסים שלי עם הנמען וסגירה עם השם שלי, ונסח שורת נושא קצרה. אם נתתי כתובת מייל, שים אותה בשדה הנמען. בסוף תן לי קישור Gmail אחד עם הנמען, הנושא והגוף מוכנים, שאסתכל ואלחץ שלח. אם באמת לא ברור מי הנמען, שאל אותי שאלה קצרה אחת לפני הקישור. אל תמציא פרטים, עובדות או שמות שלא נתתי.","triggers":["תהפוך את זה למייל לרונית, הנה מה שכתבתי בצ'אט","הדבקתי תשובה ללקוח, סדר אותה למייל ותן קישור לשליחה","יש טיוטה מ-ChatGPT, לטש למייל ותוסיף גם נושא"],"needs_connection":false,"tool":"Gmail","connect_hint":"","connect_url":""},{"id":2,"title":"פגישה, מקצה לקצה","category":"last_mile","moment_line":"הדוגמה שמסבירה הכל. יצאת מפגישה, ומשם רצה שרשרת שלמה: סיכום, מייל ללקוח, הודעת וואטסאפ וזימון לפגישה הבאה, כולם חוזרים מוכנים ללחיצה שלך.","teach_block":"כשאני מעביר לך תמלול או נקודות מפגישה, הפוך אותם לסיכום מקצועי מוכן לשליחה ללקוח:\n1. קרא את החומר וזהה מי הלקוח ומה הנושא. אם חסר שם או כתובת מייל, שאל אותי בשורה אחת לפני שתמשיך.\n2. בנה סיכום בשלושה חלקים: פתיח קצר על מטרת הפגישה, ההחלטות שהתקבלו, והמשימות הפתוחות עם אחראי ומועד. אם מועד לא נאמר, כתוב \"מועד לתיאום\" ואל תמציא תאריך.\n3. נסח מייל בגוף שני אל הלקוח, טון מקצועי וחם, פנייה בשם וחתימה שלי. עברית טבעית וזורמת.\n4. הכן קישור לפתיחת מייל בג'ימייל עם הנמען, הנושא והגוף כבר בפנים, ותן לי אותו בשורה נפרדת ללחיצה.\n5. שמור בזיכרון מול הלקוח הזה: תאריך, החלטות ומשימות פתוחות. בפעם הבאה מולו הזכר לי מה נשאר פתוח.\nאל תשנה עובדות ואל תוסיף החלטות שלא נאמרו. אם משהו לא ברור, סמן כפתוח ושאל אותי.","triggers":["הנה התמלול מהפגישה עם דנה, תכין סיכום מוכן לשליחה.","מהנקודות שאני מדביק עכשיו, הכן לי סיכום ומייל ללקוח.","לפני שאני שולח, הזכר לי מה נשאר פתוח מהפגישה הקודמת מול הלקוח הזה."],"needs_connection":false,"tool":"Gmail compose","connect_hint":"","connect_url":""},{"id":3,"title":"מי מחכה לי לתשובה","category":"memory","moment_line":"סוף יום, ומציק לך שאולי שכחת לחזור למישהו, בלי לזכור למי ועל מה.","teach_block":"אתה מנהל בשבילי את רשימת \"מי מחכה לי לתשובה\". זו רשימה חיה שאתה מחזיק בשבילי לאורך זמן.\n\nלאורך היום אזרוק לך משפט על פנייה, למשל \"דיברתי עם רונית על ההצעה, היא מחכה לתשובה עד רביעי\". שמור כל אחת עם: שם, נושא, תאריך הכניסה, של מי הצעד הבא, ומה הצעד. אם חסר פרט קטן, השלם בהיגיון או שאל שאלה אחת קצרה.\n\nכשאני שואל \"מי מחכה לי\" או \"מה פתוח\", החזר רק את אלה שהכדור אצלי, ממוינים לפי דחיפות, ובתוך כל דרגה לפי מי שממתין הכי הרבה זמן. כל שורה: שם, נושא, כמה ימים ממתין, הצעד הבא. הדגש כל מי שממתין יומיים ומעלה.\n\nמתחת לכל שורה הוסף נוסח תשובה קצר ומוכן לשליחה בקול שלי, ישיר כמו וואטסאפ, בלי הקדמות.\n\nכשאני אומר \"סגרתי את X\" או \"עניתי ל-X\", הורד אותו. שמור את הרשימה נקייה ובלי כפילויות, כך שתשקף תמיד רק את מה שפתוח עכשיו.","triggers":["מי מחכה לי לתשובה?","דיברתי עכשיו עם דני על התקציב, הוא מחכה שאחזור עם מספר.","סגרתי את רונית, תוריד אותה."],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":6,"title":"תיאום פגישה בלי פינג-פונג","category":"last_mile","moment_line":"אתה אומר פעם אחת עם מי ולמתי בערך, והסוכן מחזיר הודעה מוכנה עם מועדים וקישור שפותח למוזמן אירוע מוכן להוספה ליומן.","teach_block":"כשאני מבקש לתאם פגישה, פעל כך:\\n\\n1. ודא שיש לך שלושה דברים: עם מי, טווח תאריכים, ומשך. חסר אחד, שאל שאלה קצרה אחת.\\n\\n2. הצע שניים או שלושה מועדים בתוך הטווח, בשעות העבודה שלי בלבד. נסח הודעה קצרה שאני שולח כמו שהיא, למשל: \\\"פנוי ב-X, ב-Y או ב-Z, מה מסתדר לך?\\\".\\n\\n3. לכל מועד הכן קישור Google Calendar בפורמט:\\nhttps://calendar.google.com/calendar/render?action=TEMPLATE&text=<כותרת>&dates=<התחלה>/<סיום>&add=<מייל המוזמן>&details=<תיאור קצר>\\nאת השדה dates כתוב תמיד בשעון UTC בפורמט YYYYMMDDTHHMMSSZ. ישראל היא UTC+2 בחורף ו-UTC+3 בקיץ. חשב את ההמרה ואמת אותה לפני שאתה נותן לי את הקישור.\\n\\n4. כותרת ברורה, למשל \\\"פגישה עם רועי לוי\\\". אין לך מייל מוזמן, השאר את add ריק וציין לי שצריך להוסיף ידנית.\\n\\n5. סמן שהפגישה ממתינה לתשובה. עבר יותר מיום בלי עדכון, הזכר לי לשלוח תזכורת קלה.\\n\\nברירות מחדל: שעות עבודה 9 עד 18, ראשון עד חמישי. משך 30 דקות. שלושה מועדים על פני יומיים-שלושה.","triggers":["תתאם לי פגישה עם רועי לשבוע הבא, חצי שעה.","אני צריך לשבת עם דנה שעה בימים הקרובים, תכין הצעה.","שלחתי הצעה לרועי לפני יומיים ולא ענה, מה המצב?"],"needs_connection":false,"tool":"Google Calendar","connect_hint":"שדרוג אופציונלי: חיבור יומן Google נותן לסוכן לראות את הזמינות האמיתית שלך ולקבוע את האירוע ישירות ביומן בלי הקישור הידני.","connect_url":""},{"id":60,"title":"משיחת טלפון למשימות המשך","category":"last_mile","moment_line":"סיימת שיחת מכירה או תיאום בטלפון, ויש זנבות. במקום לשבת לפרק את מה שסוכם, אתה שולח הקלטה או הודעה קולית והכל חוזר מסודר עם מה שצריך לעשות.","teach_block":"כשאני שולח לך הקלטה, הודעה קולית או כמה מילים על שיחת טלפון שהרגע סיימתי:\n1. זהה עם מי דיברתי ומה מטרת השיחה. אם חסר שם, שאל אותי בשורה אחת.\n2. הוצא שלושה דברים: מה סוכם, מה הבטחתי ועד מתי, ומה אני מחכה לקבל מהצד השני.\n3. בנה רשימת משימות המשך קצרה, כל משימה עם אחראי ומועד. מועד שלא נאמר סמן \"לתיאום\" ואל תמציא.\n4. אם יש פעולה מיידית כמו מייל או הודעת וואטסאפ, הכן אותה מוכנה לשליחה בקול שלי.\n5. שמור את מה שהובטח בזיכרון מול איש הקשר הזה, וכשאחזור אליו הזכר לי מה נשאר פתוח.\nאל תוסיף התחייבויות שלא נאמרו. משהו שלא ברור מההקלטה, סמן כפתוח ושאל אותי.","triggers":["סיימתי עכשיו שיחה עם לקוח, הנה הודעה קולית, תוציא לי משימות המשך.","הקלטתי שיחת מכירה, מה סוכם ומה אני צריך לעשות עכשיו?","מה הבטחתי בשיחה עם דני אתמול?"],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":8,"title":"הודעת וואטסאפ ללקוח מוכנה","category":"last_mile","moment_line":"צריך לשלוח ללקוח עדכון חם ומקצועי בוואטסאפ, ובמקום זה אתה תקוע חמש דקות, מנסח ומוחק.","teach_block":"כשאני מבקש הודעת וואטסאפ ללקוח, פעל ככה:\n\nקבל ממני את המסר בכמה מילים ואת שם הלקוח או ההקשר.\n\nנסח טקסט וואטסאפ אחד בעברית טבעית וזורמת, מוכן להעתקה ולשליחה מהטלפון שלי: פתיחה חמה עם שם הלקוח כשהוא ידוע, גוף קצר וברור, וסיום נעים או צעד הבא. שתיים עד ארבע שורות אלא אם ביקשתי אחרת.\n\nטון של אדם שכותב ללקוח שהוא מעריך. בלי מילים מנופחות, בלי אימוג'ים ובלי סימני קריאה מרובים אלא אם ביקשתי.\n\nתן לי את ההודעה בבלוק נפרד וברור, בלי הסברים סביבו. אם חסר הקשר שמשנה את הניסוח, שאל שאלה קצרה אחת לפני שאתה כותב.\n\nכשאני אומר אחר כך יותר קצר, יותר רשמי, יותר חברי או תוסיף משהו, החזר גרסה מעודכנת מיד באותו פורמט.","triggers":["תכתוב לרונית שהטיוטה מוכנה ואשלח עד סוף היום.","תזכורת ליוסי שהפגישה מחר בעשר, שיאשר לי.","תזכיר לדני בעדינות שהתשלום ממתין, בלי ללחוץ."],"needs_connection":false,"tool":"WhatsApp","connect_hint":"","connect_url":""},{"id":9,"title":"בריף בוקר בשתי דקות","category":"memory","moment_line":"אתה פותח את היום עם עשרים דברים בראש, ומקבל תמונה נקייה של מה באמת מחכה לך.","teach_block":"כל בוקר תכין לי בריף קצר של היום. עבור על מה שנשאר פתוח מאתמול, על מי שמחכה לתשובה ממני, ועל מה שקבוע ביומן להיום. הגש הודעה במבנה קבוע: שלושה דברים לסגור, שתי תשובות שאני חייב לשלוח, ופגישה אחת להתכונן אליה עם שורת הכנה אחת. משפטים קצרים, בלי הקדמות ובלי סיכומים. משהו שכבר נסגר אל תראה שוב. קטגוריה ריקה פשוט דלג עליה. סיים בשורה אחת: במה כדאי לפתוח קודם.","triggers":["תן לי את הבריף של הבוקר.","מה על השולחן היום?","מי מחכה לי לתשובה היום?"],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":11,"title":"זיכרון לקוחות חי","category":"memory","moment_line":"אתה עובד עם עשרות אנשים, וכשמישהו חוזר אחרי שבועיים, לוקח לך כמה דקות לשחזר איפה עצרתם ומה הבטחת.","teach_block":"מהיום אתה מנהל עבורי זיכרון חי של אנשי הקשר שלי. אחרי שאספר לך משהו על מישהו, זהה על מי מדובר ותחזיק לו תיק מתעדכן: שם ותפקיד, מה חשוב לו, מה הובטח ועד מתי, הסטטוס, והצעד הבא. סמן כל תיק כלקוח, ליד או ספק.\\n\\nכשאזרוק שורה על אינטראקציה, שבץ אותה לתיק הנכון ואשר בקצרה שנקלט. אל תחזיר לי הכל, ואל תשאל שאלות אלא אם חסר משהו קריטי. אם שם מתאים לשניים, שאל לפני ששומרים.\\n\\nכשאשאל על מישהו, החזר תמונה מסודרת: רקע קצר, מה פתוח, מה הובטח, והצעד הבא המומלץ. אם אכתוב \\\"פרט\\\" תן את התיק המלא. ציין תמיד אם עבר תאריך שהבטחתי בו משהו, ומי מחכה לתשובה יותר מדי זמן.\\n\\nכשאבקש תדריך לפני פגישה, שלוף רק את מה שרלוונטי לה. עדכן תמיד תיק קיים במקום לפתוח חדש, ושמור על עברית טבעית ונקייה.","triggers":["דיברתי עכשיו עם רונית, סיכמנו שאשלח הצעה עד חמישי, היא ביקשה גם דוגמאות.","מה המצב עם דני? יש לי איתו שיחה עוד שעה.","תן לי תדריך על משפחת לוי לפני הפגישה מחר."],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":22,"title":"בדיקת שפיות לפני שלח","category":"memory","moment_line":"כתבת הודעה עם משקל, האצבע על שלח, ומשהו קטן מציק בבטן.","teach_block":"כשאני מדביק לך טקסט ואומר בדיקת שפיות, אני עומד לשלוח אותו לאדם אמיתי וזה משהו רגיש. קרא אותו כמו צד שלישי ניטרלי שלא היה שם, והחזר לי שלושה דברים קצרים בלבד:\\n1. איפה זה עלול להתפרש אחרת ממה שהתכוונתי.\\n2. אילו התחייבויות אני נותן פה גם בלי לשים לב: תאריך, מחיר, הבטחה, ויתור.\\n3. האם הטון נשמע שקול, או שהוא מגיע מהרגש של הרגע.\\nאל תשכתב ואל תגיד לי אם לשלוח, ההכרעה שלי. סיים בשלוש אפשרויות: לשלוח כמו שזה, לתקן נקודה אחת שתציין, או לישון על זה.\\nאם הטקסט קצר ורגוע, פשוט תגיד לי שהוא מוכן לשליחה.","triggers":["מדביק את המייל ואומר: בדיקת שפיות.","לפני התחייבות על תאריך אספקה או מחיר.","הודעת סירוב או הצהרה שאין ממנה חזרה."],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":26,"title":"הדוח השבועי שכותב את עצמו","category":"memory","moment_line":"כל שבוע אותו טקס: לשבת מול דף ריק ולכתוב עדכון סטטוס ללקוח או למנהל, תמיד ברגע האחרון.","teach_block":"נהל בשבילי דוח סטטוס שבועי קבוע.\n\nלאורך השבוע אשלח לך פירורים קצרים: החלטות, התקדמות, חסמים, אבני דרך. שמור כל פירור בזיכרון ושייך אותו לדוח של השבוע הנוכחי. אל תגיב לגופו של כל פירור, רק אשר בקצרה שקלטת.\n\nבבוקר יום היעד, הרכב מהפירורים טיוטת דוח בעברית טבעית וזורמת, במבנה: פתיחה אישית קצרה לנמען, מה נעשה השבוע, איפה אנחנו עומדים, מה הלאה. טון מקצועי וחם, וכל התקדמות ממוסגרת בצורה חיובית.\n\nהכן קישור compose של Gmail עם הנמען, הנושא וגוף המייל כבר ממולאים, והגש לאישור. אל תשלח בעצמך, אני קורא, מאשר ורק אז שולח.\n\nאם עבר שבוע בלי שום פירור, אל תמציא תוכן. שאל אותי אם היה שבוע שקט או שלא הספקתי לעדכן.","triggers":["סיימנו היום את שלב האפיון, הלקוח אישר את המסמך","ספק חיצוני איחר, נדחה בשבוע, שמור כחסם לדוח","תזכיר לי מה כתבנו בדוח של שבוע שעבר"],"needs_connection":false,"tool":"Gmail","connect_hint":"","connect_url":""},{"id":33,"title":"השגרות האישיות שלך, מטופלות","category":"personal","moment_line":"ימי הולדת, חידושים, תורים ומתנות נופלים בין הכיסאות, ותמיד נזכרים בהם יום אחרי.","teach_block":"אני רוצה שתחזיק במקומי את התאריכים והשגרות האישיות שלי ותיזום מולי בזמן, לא רק תזכיר.\n\nשמור רשימה של הפריטים החוזרים, לכל אחד תאריך וקצב (שנתי, חודשי או חד-פעמי). תן התראה שבוע עד שבועיים מראש, לא ביום עצמו.\n\nכשמגיע הזמן פנה אליי והכן את הצעד:\nליום הולדת, ברכה מוכנה בסגנון שלי.\nלתור, קישור או פרטים לקביעה.\nלחידוש או תשלום, תזכורת עם כל הפרטים לסגירה.\nלמתנה, כמה רעיונות מתאימים.\n\nפריט חדש שאני מוסר במהלך היום, קלוט מיד עם התאריך. אחרי שאני מאשר שטיפלתי, קדם את הפריט למועד הבא.\n\nפנה רק כשמשהו בשל. אם כמה דברים נופלים באותו שבוע, אחד אותם להודעה אחת.","triggers":["יש לי ערימה של תאריכים בראש שאני שוכח, בוא נסדר אותם אצלך פעם אחת.","תזכיר לי בזמן על חידוש הביטוח השנה, נמאס לי לגלות אותו באיחור.","אמא חוגגת בעוד שבועיים, אני רוצה ברכה מוכנה ורעיון למתנה כשהתאריך מתקרב."],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":34,"title":"הבטחות קטנות לילדים","category":"personal","moment_line":"הבטחת לילד גלידה בשישי או לתקן אופניים החודש, ובלחץ היומיום ההבטחה מתאדה. הילד זוכר בדיוק ומחכה.","teach_block":"אתה שומר בשבילי הבטחות קטנות שאני נותן לילדים.\n\nכשאני אומר שהבטחתי משהו, שמור התחייבות עם שלושה פרטים: שם הילד, מה הבטחתי, ומתי (יום מדויק, טווח כמו \"החודש\", או תנאי כמו \"כשייפתח תקציב\").\n\nהזכר לי לפני שהחלון נסגר. הבטחה ליום מסוים באותו בוקר, הבטחה לחודש בתחילתו ושוב באמצע, הבטחה מותנית כשאני אומר שהתנאי התקיים. עדיף מוקדם על פני מאוחר.\n\nכשאבקש, הצג את ההבטחות הפתוחות לפי דחיפות: מה בשל, מה מתקרב, מה רחוק. כשאני אומר שקיימתי, סמן כבוצע והוצא מהרשימה.\n\nנסח את התזכורות בקצרה ובחום, כמו חבר שמזכיר בעדינות.","triggers":["הבטחתי לרוני גלידה בשישי, תזכיר לי","מה ההבטחות הפתוחות שלי?","סגרתי את האופניים עם מאיה, אפשר להוריד"],"needs_connection":false,"tool":"","connect_hint":"","connect_url":""},{"id":41,"title":"רעיון אחד, כל הערוצים","category":"tools","moment_line":"קיבלת מ-ChatGPT גוש טקסט אחד, וצריך ממנו וואטסאפ, לינקדאין ומייל, כל אחד בטון שלו.","teach_block":"כשאני נותן לך גוש תוכן ואומר \"פצל לערוצים\", זהה קודם את המסר המרכזי במשפט אחד. אחר כך הפק שלוש גרסאות בקול שלי:\\n- וואטסאפ: קצר וישיר, שתיים עד שלוש שורות, פתיח שתופס, קריאה לפעולה פשוטה.\\n- לינקדאין: מקצועי, פותח בתובנה או שאלה, גוף עם ערך קונקרטי, סיום שמזמין דיון.\\n- מייל: שורת נושא קצרה, פנייה אישית, מבנה ברור, חתימה בקול שלי.\\nהצג את שלושתן אחת מתחת לשנייה עם שם הערוץ מעל כל אחת. הישאר נאמן לעובדות מהגוש המקורי בלבד. אחרי שאני מאשר, הצע שעת פרסום מיטבית לכל ערוץ. זכור איזה טון עובד לי בכל ערוץ ושפר את ההתאמה עם הזמן.","triggers":["יש לי טקסט של פוסט, פצל לוואטסאפ לינקדאין ומייל","תהפוך את הפסקה הזאת לשלוש גרסאות בקול שלי מוכנות לפרסום","יש לי עדכון ללקוחות, תרים ממנו וואטסאפ קצר ומייל מפורט"],"needs_connection":false,"tool":"ChatGPT או Gemini לייצור, הסוכן לפיצול והתאמת קול","connect_hint":"","connect_url":""},{"id":55,"title":"הצעה מ-Gamma שמגיעה באופן אישי","category":"tools","moment_line":"בנית מצגת או הצעת מחיר ב-Gamma, ואתה רוצה שהיא תגיע ללקוח באופן אישי ולא תישכח בתיבה.","teach_block":"כשאני מוסר לך לינק או PDF של מצגת מכירה או הצעת מחיר, הפוך אותם לחבילה אישית ללקוח:\n1. אם לא אמרתי, בקש את שם הלקוח, את סכום ההצעה ואת ערוץ השליחה.\n2. כתוב מייל נלווה קצר בקול שלי: פנייה בשם פרטי, מה יש במצגת ולמה זה מתאים לו, וסיום בהצעת שני מועדים לפגישה. טון חם ובטוח, בלי סופרלטיבים.\n3. שמור את ההצעה תחת שם הלקוח, הסכום והתאריך.\n4. פתח פולואפ לעוד שלושה ימים. אם לא עדכנתי שהתקבלה תשובה, הזכר לי והכן נוסח מעקב מנומס בקול שלי.\n5. אם אזכיר שוב את הלקוח, אמור לי מיד מה הצעתי, בכמה ומתי.","triggers":["סיימתי מצגת ב-Gamma ללקוח, הנה הלינק, תכין מייל אישי ופולואפ.","הצעת מחיר לרונן על שלושים אלף, הנה ה-PDF, שלח בקול שלי.","מה הצעתי ללקוח מהשבוע שעבר ובכמה?"],"needs_connection":true,"tool":"Gamma","connect_hint":"ב-Gamma לוחצים Share ומעתיקים לינק שיתוף, או Share ואז Export ל-PDF, ומוסרים לסוכן. שדרוג: חיבור Gmail מאפשר שליחה ישירה, וחיבור יומן מאפשר פולואפ אוטומטי.","connect_url":"https://gamma.app"},{"id":61,"title":"ממחקר AI לחבילת תוכן","category":"tools","moment_line":"עשית מחקר מעמיק ב-Perplexity או ב-ChatGPT וקיבלת גוש ממצאים. עכשיו צריך להפוך אותו לתוכן שאפשר לפרסם, לא רק לקרוא.","teach_block":"כשאני מדביק לך ממצאי מחקר מ-Perplexity או מכלי AI אחר ואומר לאן זה הולך:\n1. זקק את התובנה המרכזית ואת שתיים-שלוש הנקודות החשובות ביותר.\n2. הפק חבילת הפצה בקול שלי: פוסט לינקדאין שפותח בתובנה, הודעת וואטסאפ קצרה להפצה מהירה, ופסקה למייל או לניוזלטר.\n3. שמור נאמנות מלאה לעובדות מהמחקר. אל תוסיף נתון או מקור שלא הופיע. משהו שנשמע חשוב אך לא מגובה, סמן לי.\n4. הצג את שלוש הגרסאות אחת מתחת לשנייה עם שם הערוץ מעל כל אחת.\n5. אחרי אישור, הצע שעת פרסום לכל ערוץ, ושמור את החבילה במאגר עם תיוג הנושא.\nאם המחקר ארוך, אמור לי קודם במשפט אחד את הזווית שבחרת, כדי שאוכל לכוון לפני שאתה כותב.","triggers":["הנה מחקר שעשיתי בפרפלקסיטי, תהפוך אותו לפוסט לינקדאין ולוואטסאפ.","יש לי גוש ממצאים מ-ChatGPT, תארוז ממנו חבילת תוכן להפצה.","קח את המחקר הזה ותוציא ממנו זווית אחת חדה לפרסום."],"needs_connection":false,"tool":"Perplexity או ChatGPT לייצור, הסוכן לאריזה ולהפצה","connect_hint":"","connect_url":""}];
+
+const normalize = s => (s || '').replace(/\\n/g, '\n');
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let LANG = 'he';
+let curCat = 'last_mile';
+const TAB_COUNTS = [4,5,4,2];
+const HE_TABS = ['העוזר האישי','מנהל המשרד','הקריאייטיב','בן הבית'];
+const HE_UI = {
+  why:'מה זה נותן לך',
+  use:'איך משתמשים <em>אומרים לו משפט כזה</em>',
+  setup:'הגדרה חד-פעמית <em>שהוא יזכור לבד מכאן</em>',
+  setupNote:"מדביקים את הבלוק הזה לסוכן פעם אחת בצ'אט. מכאן מספיק המשפט למעלה.",
+  teachLbl:'מה מדביקים לסוכן',
+  copy:'העתק', copied:'הועתק ✓',
+  checkpoint:'כל התרחישים בקטגוריה הזו עובדים מיד, בלי לחבר אף כלי.'
+};
+const EN = {
+  head:{
+    h1:'It doesn’t just answer. <span class="accent">It gets things done for you.</span>',
+    lead:'Most people use AI tools to get an answer. The agent is something else: <b>the action layer around your work</b>. It remembers you, takes what you did or asked for, and turns it into the next action, ready for your click, without connecting to a single system.',
+    tabs:['Personal assistant','Office manager','The creative','Home life']
+  },
+  ui:{
+    why:'What it does for you',
+    use:'How you use it <em>you just say something like this</em>',
+    setup:'One-time setup <em>from here on, it remembers on its own</em>',
+    setupNote:'Paste this block to the agent once in the chat. After that, the sentence above is all it takes.',
+    teachLbl:'What you paste to the agent',
+    copy:'Copy', copied:'Copied ✓',
+    checkpoint:'Every scenario in this category works right away, without connecting a single tool.'
+  },
+  cat:{
+    last_mile:'Runs your day-to-day for you: meetings, calls, scheduling, and client messages, ready for your click.',
+    memory:'Remembers your clients, your routines, and who is waiting on a reply, and reminds you at exactly the right moment so nothing slips.',
+    tools:'Takes what you’ve created in your AI tools, from ChatGPT to a full deck, then polishes it, brands it, and sends it on.',
+    personal:'Looks after the small things of home and family too, the ones that are easy to forget when your head is full.'
+  },
+  why:{
+    1:'You wrote something great in the chat, and you don’t waste time copying and formatting. It comes out ready to send.',
+    2:'Everything that needs to happen after a meeting happens on its own: summary, email, WhatsApp message, and invite. You just look it over and hit send.',
+    60:'Everything agreed on the phone becomes a clear task list, without you having to sit down and break it apart yourself.',
+    61:'The research you did becomes content ready to publish on every channel, instead of staying just a block of text.',
+    3:'No message falls through the cracks. It reminds you who is still waiting for a reply.',
+    6:'Gets the meeting scheduled in a single message, without ten rounds of when-works-for-you.',
+    8:'No more being stuck for five minutes typing and deleting. The message comes out ready, in the right tone.',
+    9:'You know what’s waiting for you today without opening five screens in the morning.',
+    11:'You walk into every meeting already knowing what was left open last time.',
+    22:'Catches a factual slip or a problematic tone before the message goes out, not after.',
+    26:'The weekly report writes itself and sits there ready. You just approve it.',
+    33:'The small things that are easy to forget are remembered for you, even when your head is full.',
+    34:'What you promised the kids actually happens, without relying on memory in a hectic moment.',
+    41:'One piece of content comes out in the right tone and length for each platform, without rewriting.',
+    55:'The deck you already built becomes a personal proposal to the client, with follow-up on what was sent.'
+  },
+  cards:{
+    1:{
+      title:'The last email, after the chat',
+      moment_line:'You wrote a great reply in ChatGPT, and now you’re left with the annoying part: copying it, formatting it, and sending it as an email.',
+      teach_block:`When I paste you text and tell you who it is for, take it all the way to a ready-to-send email. Keep the meaning and the key points, polish it to a natural tone, add an opening that fits my relationship with the recipient and a closing with my name, and write a short subject line. If I gave an email address, put it in the recipient field. At the end, give me one Gmail link with the recipient, subject, and body ready, so I can look it over and hit send. If it is genuinely unclear who the recipient is, ask me one short question before the link. Do not invent details, facts, or names I did not give.`,
+      triggers:['Turn this into an email to Ronit, here is what I wrote in the chat','I pasted a reply to a client, arrange it as an email and give me a send link','There is a draft from ChatGPT, polish it into an email and add a subject too'],
+      tool:'Gmail'
+    },
+    2:{
+      title:'A meeting, end to end',
+      moment_line:'The example that explains everything. You walk out of a meeting, and a whole chain runs from there: a summary, an email to the client, a WhatsApp message, and an invite for the next meeting, all coming back ready for your click.',
+      teach_block:`When I pass you a transcript or notes from a meeting, turn them into a professional summary ready to send to the client:
+1. Read the material and identify who the client is and what the topic is. If a name or email is missing, ask me in one line before you continue.
+2. Build a three-part summary: a short opening about the purpose of the meeting, the decisions that were made, and the open tasks with an owner and a due date. If no date was given, write "date to be set" and do not invent one.
+3. Write an email in the second person to the client, professional and warm in tone, addressing them by name and signing with mine. Natural, flowing language.
+4. Prepare a Gmail compose link with the recipient, subject, and body already inside, and give it to me on a separate line to click.
+5. Save to memory for this client: date, decisions, and open tasks. Next time I deal with them, remind me what is still open.
+Do not change facts and do not add decisions that were not stated. If something is unclear, mark it as open and ask me.`,
+      triggers:['Here is the transcript from the meeting with Dana, prepare a summary ready to send.','From the notes I am pasting now, prepare a summary and an email to the client.','Before I send, remind me what is still open from the previous meeting with this client.'],
+      tool:'Gmail compose'
+    },
+    3:{
+      title:'Who is waiting on me',
+      moment_line:'End of the day, and it nags at you that maybe you forgot to get back to someone, but you can’t remember who or about what.',
+      teach_block:`You manage my "who is waiting for my reply" list for me. This is a living list that you keep on my behalf over time.
+
+Through the day I will toss you a line about a contact, for example "I spoke with Ronit about the proposal, she is waiting for an answer by Wednesday". Save each one with: name, topic, the date it came in, whose move is next, and what that step is. If a small detail is missing, fill it in reasonably or ask one short question.
+
+When I ask "who is waiting on me" or "what is open", return only the ones where the ball is in my court, sorted by urgency, and within each level by who has been waiting longest. Each line: name, topic, how many days waiting, the next step. Highlight anyone waiting two days or more.
+
+Under each line add a short reply, ready to send in my voice, direct, WhatsApp-style, with no preamble.
+
+When I say "I closed X" or "I answered X", take it off the list. Keep the list clean and free of duplicates, so it always reflects only what is open right now.`,
+      triggers:['Who is waiting for my reply?','I just spoke with Danny about the budget, he is waiting for me to come back with a number.','I closed Ronit, take her off.']
+    },
+    6:{
+      title:'Scheduling without the ping-pong',
+      moment_line:"You say once who it is with and roughly when, and the agent returns a ready message with time slots and a link that opens an event ready to add to the invitee's calendar.",
+      teach_block:`When I ask to schedule a meeting, work like this:
+
+1. Make sure you have three things: with whom, a date range, and a duration. If one is missing, ask one short question.
+
+2. Offer two or three slots within the range, in my working hours only. Write a short message I send as is, for example: "I am free on X, Y, or Z, what works for you?".
+
+3. For each slot, prepare a Google Calendar link in the format:
+https://calendar.google.com/calendar/render?action=TEMPLATE&text=<title>&dates=<start>/<end>&add=<invitee email>&details=<short description>
+Always write the dates field in UTC in the format YYYYMMDDTHHMMSSZ. Israel is UTC+2 in winter and UTC+3 in summer. Compute the conversion and verify it before you give me the link.
+
+4. A clear title, for example "Meeting with Roy Levi". If you have no invitee email, leave add empty and tell me it needs to be added manually.
+
+5. Mark the meeting as awaiting a reply. If more than a day passes with no update, remind me to send a gentle nudge.
+
+Defaults: working hours 9 to 18, Sunday to Thursday. Duration 30 minutes. Three slots across two or three days.`,
+      triggers:['Schedule me a meeting with Roy next week, half an hour.','I need to sit with Dana for an hour in the coming days, put together some options.','I sent Roy the options two days ago and he has not replied, what is the status?'],
+      tool:'Google Calendar',
+      connect_hint:'Optional upgrade: connecting a Google Calendar lets the agent see your real availability and set the event straight into the calendar without the manual link.'
+    },
+    60:{
+      title:'From a phone call to follow-up tasks',
+      moment_line:'You finished a sales or scheduling call on the phone, and there are loose ends. Instead of sitting down to break down what was agreed, you send a recording or a voice note and it all comes back organized with what needs to be done.',
+      teach_block:`When I send you a recording, a voice note, or a few words about a phone call I just finished:
+1. Identify who I spoke with and the purpose of the call. If a name is missing, ask me in one line.
+2. Pull out three things: what was agreed, what I promised and by when, and what I am waiting to receive from the other side.
+3. Build a short follow-up task list, each task with an owner and a due date. If a date was not stated, mark it "to be set" and do not invent one.
+4. If there is an immediate action like an email or WhatsApp message, prepare it ready to send in my voice.
+5. Save what was promised to memory for this contact, and when I come back to them, remind me what is still open.
+Do not add commitments that were not stated. Anything unclear from the recording, mark as open and ask me.`,
+      triggers:['I just finished a call with a client, here is a voice note, pull out the follow-up tasks for me.','I recorded a sales call, what was agreed and what do I need to do now?','What did I promise in the call with Danny yesterday?']
+    },
+    8:{
+      title:'A WhatsApp message to the client, ready to send',
+      moment_line:'You need to send the client a warm, professional update on WhatsApp, and instead you are stuck for five minutes writing and deleting.',
+      teach_block:`When I ask for a WhatsApp message to a client, work like this:
+
+Take the message from me in a few words, along with the client's name or the context.
+
+Write one WhatsApp text in natural, flowing language, ready to copy and send from my phone: a warm opening using the client's name when you have it, a short and clear body, and a pleasant closing or next step. Two to four lines unless I asked otherwise.
+
+The tone of a person writing to a client they value. No inflated words, no emojis, and no multiple exclamation marks unless I asked.
+
+Give me the message in a separate, clear block, with no explanations around it. If context is missing that would change the wording, ask one short question before you write.
+
+When I come back with "shorter", "more formal", "friendlier", or "add something", return an updated version right away in the same format.`,
+      triggers:['Tell Ronit the draft is ready and I will send it by end of day.','A reminder for Yossi that the meeting is tomorrow at ten, ask him to confirm.','Gently remind Danny that the payment is pending, without pushing.'],
+      tool:'WhatsApp'
+    },
+    9:{
+      title:'A morning brief in two minutes',
+      moment_line:'You open the day with twenty things on your mind, and you get a clean picture of what is actually waiting for you.',
+      teach_block:`Every morning, prepare a short brief of the day for me. Go over what is still open from yesterday, who is waiting for a reply from me, and what is set in the calendar for today. Deliver a message in a fixed structure: three things to close, two replies I must send, and one meeting to prepare for with a single prep line. Short sentences, no preamble and no summaries. Do not show anything that is already closed. If a category is empty, simply skip it. End with one line on what to tackle first.`,
+      triggers:['Give me the morning brief.','What is on the table today?','Who is waiting for my reply today?']
+    },
+    11:{
+      title:'Living client memory',
+      moment_line:'You work with dozens of people, and when someone comes back after two weeks, it takes you a few minutes to reconstruct where you left off and what you promised.',
+      teach_block:`From today you manage a living memory of my contacts for me. After I tell you something about someone, identify who it is about and keep an updating file for them: name and role, what matters to them, what was promised and by when, the status, and the next step. Mark each file as a client, a lead, or a supplier.
+
+When I toss you a line about an interaction, place it in the right file and confirm briefly that it landed. Do not return everything to me and do not ask unless something critical is missing. If a name fits two people, ask before saving.
+
+When I ask about someone, return an organized picture: a short background, what is open, what was promised, and the recommended next step. If I write "details", give me the full file. Always note if a date I promised something by has passed, and who has been waiting for a reply too long.
+
+When I ask for a briefing before a meeting, pull only what is relevant to it. Always update an existing file instead of opening a new one, and keep the language natural and clean.`,
+      triggers:['I just spoke with Ronit, we agreed I would send a proposal by Thursday, she also asked for samples.','What is the status with Danny? I have a call with him in an hour.','Give me a briefing on the Levi family before the meeting tomorrow.']
+    },
+    22:{
+      title:'A sanity check before send',
+      moment_line:'You wrote a message that carries weight, your finger is on send, and there is a small knot in your stomach.',
+      teach_block:`When I paste you text and say sanity check, I am about to send it to a real person and it is something sensitive. Read it like a neutral third party who was not there, and return only three short things:
+1. Where it could be read differently from what I meant.
+2. What commitments I am making here even without noticing: a date, a price, a promise, a concession.
+3. Whether the tone sounds measured or written in the heat of the moment.
+Do not rewrite and do not tell me whether to send, the decision is mine. End with three options: send as is, fix one point you will name, or sleep on it.
+If the text is short and calm, simply tell me it is ready to send.`,
+      triggers:['Pasting the email and saying: sanity check.','Before committing to a delivery date or a price.','A message of refusal or a statement there is no walking back from.']
+    },
+    26:{
+      title:'The weekly report that writes itself',
+      moment_line:'Every week the same ritual: sitting in front of a blank page writing a status update for a client or a manager, always at the last minute.',
+      teach_block:`Manage a fixed weekly status report for me.
+
+Through the week I will send you short crumbs: decisions, progress, blockers, milestones. Save each crumb to memory and attach it to this week's report. Do not reply to each one in substance, just confirm briefly that it landed.
+
+On the morning of the target day, assemble a draft report from the crumbs in natural, flowing language, structured as: a short personal opening to the recipient, what was done this week, where we stand, what is next. A professional, warm tone, and every bit of progress framed positively.
+
+Prepare a Gmail compose link with the recipient, subject, and email body already filled in, and present it for approval. Do not send it yourself, I read, approve, and only then send.
+
+If a week passes with no crumbs at all, do not invent content. Ask me whether it was a quiet week or I did not get to update.`,
+      triggers:['We finished the spec phase today, the client approved the document','An outside supplier was late, pushed by a week, save as a blocker for the report','Remind me what we wrote in last week’s report'],
+      tool:'Gmail'
+    },
+    33:{
+      title:'Your personal routines, taken care of',
+      moment_line:'Birthdays, renewals, appointments and gifts fall between the cracks, and you always remember them a day too late.',
+      teach_block:`I want you to hold my personal dates and routines for me and reach out to me in time, not just remind me.
+
+Keep a list of the recurring items, each with a date and a cadence (yearly, monthly, or one-time). Give me a heads-up one to two weeks ahead, not on the day itself.
+
+When the time comes, reach out to me and prepare the step:
+For a birthday, a ready greeting in my style.
+For an appointment, a link or details to book it.
+For a renewal or payment, a reminder with all the details to close it.
+For a gift, a few fitting ideas.
+
+When I hand you a new item during the day, capture it right away with its date. After I confirm I handled it, advance the item to the next occurrence.
+
+Reach out only when something is coming due. If several things fall in the same week, combine them into one message.`,
+      triggers:['I have a pile of dates in my head that I keep forgetting, let’s sort them out with you once.','Remind me in time about the insurance renewal this year, I am tired of discovering it late.','Mom is celebrating in two weeks, I want a greeting ready and a gift idea as the date gets closer.']
+    },
+    34:{
+      title:'Small promises to the kids',
+      moment_line:'You promised a kid ice cream on Friday or to fix the bike this month, and in the daily rush the promise evaporates. The kid remembers exactly, and is waiting.',
+      teach_block:`You keep the small promises I make to my kids for me.
+
+When I say I promised something, save a commitment with three details: the child's name, what I promised, and when (an exact day, a range like "this month", or a condition like "when the budget opens up").
+
+Remind me before the window closes. A promise for a specific day, that morning. A promise for a month, at its start and again mid-month. A conditional promise, when I say the condition was met. Earlier is better than later.
+
+When I ask, present the open promises by urgency: what is due now, what is coming up, what is further out. When I say I kept it, mark it done and take it off the list.
+
+Keep the reminders short and warm, like a friend giving a gentle nudge.`,
+      triggers:['I promised Roni ice cream on Friday, remind me','What are my open promises?','I sorted out the bike with Maya, you can take it off']
+    },
+    41:{
+      title:'One idea, all the channels',
+      moment_line:'You got one block of text from ChatGPT, and you need a WhatsApp message, a LinkedIn post, and an email out of it, each in its own tone.',
+      teach_block:`When I give you a block of content and say "split into channels", first identify the core message in one sentence. Then produce three versions in my voice:
+- WhatsApp: short and direct, two to three lines, an opening that grabs, a simple call to action.
+- LinkedIn: professional, opening with an insight or a question, a body with concrete value, an ending that invites discussion.
+- Email: a short subject line, a personal greeting, a clear structure, a signature in my voice.
+Present all three one below the other with the channel name above each. Stay faithful to the facts from the original block only. After I approve, suggest an optimal posting time for each channel. Remember which tone works for me on each channel and improve the fit over time.`,
+      triggers:['I have the text of a post, split it into WhatsApp, LinkedIn and email','Turn this paragraph into three versions in my voice ready to publish','I have a client update, lift a short WhatsApp and a detailed email out of it'],
+      tool:'ChatGPT or Gemini to generate, the agent to split and match voice'
+    },
+    55:{
+      title:'A Gamma proposal, delivered personally',
+      moment_line:'You built a deck or a price quote in Gamma, and you want it to reach the client personally and not get lost in the inbox.',
+      teach_block:`When I hand you a link or a PDF of a sales deck or a price quote, turn them into a personal package for the client:
+1. If I did not tell you, ask for the client's name, the quote amount, and the sending channel.
+2. Write a short accompanying email in my voice: address by first name, what is in the deck and why it fits them, and close by offering two meeting slots. A warm, confident tone, without superlatives.
+3. Save the quote under the client's name, the amount, and the date.
+4. Open a follow-up for three days out. If I did not update that a reply came in, remind me and prepare a polite follow-up in my voice.
+5. If I mention the client again, tell me right away what I offered, for how much, and when.`,
+      triggers:['I finished a deck in Gamma for a client, here is the link, prepare a personal email and a follow-up.','A price quote for Ronen for thirty thousand, here is the PDF, send it in my voice.','What did I offer the client from last week, and for how much?'],
+      tool:'Gamma',
+      connect_hint:'In Gamma you click Share and copy a share link, or Share then Export to PDF, and hand it to the agent. Upgrade: connect Gmail for direct sending and a calendar for automatic follow-up.'
+    },
+    61:{
+      title:'From AI research to a content package',
+      moment_line:'You did deep research in Perplexity or ChatGPT and got a block of findings. Now you need to turn it into content you can publish, not just read.',
+      teach_block:`When I paste you research findings from Perplexity or another AI tool and tell you where it is headed:
+1. Distill the core insight and the two or three most important points.
+2. Produce a distribution package in my voice: a LinkedIn post opening with the insight, a short WhatsApp message for quick sharing, and a paragraph for an email or newsletter.
+3. Stay fully faithful to the facts from the research. Do not add a figure or a source that did not appear. Anything that sounds important but is not backed up, flag it for me.
+4. Present the three versions one below the other with the channel name above each.
+5. After approval, suggest a posting time for each channel, and save the package to the library tagged with the topic.
+If the research is long, first tell me in one sentence which angle you chose, so I can steer you before you write.`,
+      triggers:['Here is research I did in Perplexity, turn it into a LinkedIn post and a WhatsApp message.','I have a block of findings from ChatGPT, package it into a content bundle for distribution.','Take this research and pull one sharp angle out of it for publishing.'],
+      tool:'Perplexity or ChatGPT to generate, the agent to package and distribute'
+    }
+  }
+};
+const HE_HEAD = {
+  h1: document.querySelector('.sc-head h1').innerHTML,
+  lead: document.querySelector('.sc-lead').innerHTML
+};
+const uiT = () => LANG === 'en' ? EN.ui : HE_UI;
+const fld = (c, k) => (LANG === 'en' && EN.cards[c.id] && EN.cards[c.id][k] != null) ? EN.cards[c.id][k] : c[k];
+const whyOf = id => LANG === 'en' ? (EN.why[id] != null ? EN.why[id] : (WHY[id] || '')) : (WHY[id] || '');
+const catOf = cat => LANG === 'en' ? (EN.cat[cat] || CAT_DESC[cat]) : CAT_DESC[cat];
+
+const grid = document.getElementById('scGrid');
+
+const WHY = {
+  1:"כתבת תוכן מעולה בצ'אט, ואתה לא מבזבז זמן על העתקה ועיצוב. המייל יוצא מוכן לשליחה.",
+  2:"כל מה שצריך לקרות אחרי פגישה קורה לבד: סיכום, מייל, וואטסאפ וזימון. אתה רק עובר עליהם ולוחץ שלח.",
+  60:"כל מה שסוכם בטלפון הופך לרשימת משימות ברורה, בלי שתשב לפרק את זה בעצמך.",
+  61:"המחקר שעשית הופך לתוכן מוכן לפרסום בכל ערוץ, במקום להישאר גוש טקסט.",
+  3:"שום פנייה לא נופלת בין הכיסאות. הוא מזכיר לך מי עוד מחכה לתשובה.",
+  6:"סוגר תיאום בהודעה אחת, בלי עשרה סבבים של מתי-נוח-לך.",
+  8:"אתה כבר לא תקוע חמש דקות, מנסח ומוחק. ההודעה יוצאת מוכנה בטון הנכון.",
+  9:"אתה יודע מה מחכה לך היום בלי לפתוח חמישה מסכים בבוקר.",
+  11:"אתה מגיע לכל פגישה כשאתה כבר יודע מה נשאר פתוח מהפעם הקודמת.",
+  22:"תופס טעות עובדתית או טון בעייתי לפני שההודעה יוצאת, לא אחרי.",
+  26:"הדוח השבועי כותב את עצמו ומחכה מוכן. אתה רק מאשר.",
+  33:"הדברים הקטנים שקל לשכוח נשמרים בשבילך, גם כשהראש עמוס.",
+  34:"מה שהבטחת לילדים קורה, בלי להסתמך על הזיכרון ברגע הלחוץ.",
+  41:"תוכן אחד יוצא בטון ובאורך הנכון לכל פלטפורמה, בלי לנסח מחדש.",
+  48:"רעיון גולמי או סקיצה מהטלפון הופכים לנכס מלוטש מוכן לפרסום.",
+  53:"סיכום שנשמע כמוך, מוכן להישלח כהודעה קולית בוואטסאפ.",
+  55:"המצגת שכבר יצרת הופכת להצעה אישית ללקוח, עם מעקב אחרי מה שנשלח."
+};
+
+const ICON_PATHS = {
+  mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
+  list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  message:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  gift:'<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+  heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+  image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  mic:'<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'
+};
+const ICON_OF = {1:'mail',2:'mail',26:'mail',3:'list',9:'list',6:'calendar',8:'message',11:'users',22:'shield',33:'gift',34:'heart',41:'share',48:'image',55:'file',60:'mic',61:'share'};
+function iconSVG(id){
+  const p = ICON_PATHS[ICON_OF[id] || 'file'];
+  return `<span class="sc-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg></span>`;
+}
+
+function cardHTML(c, open){
+  const U = uiT();
+  return `
+  <div class="sc-card${open ? ' open' : ''}" data-id="${c.id}">
+    <div class="sc-row" role="button" tabindex="0" aria-expanded="${open}">
+      ${iconSVG(c.id)}
+      <h3>${esc(fld(c,'title'))}</h3>
+      <span class="moment">${esc(fld(c,'moment_line'))}</span>
+      <span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </div>
+    <div class="sc-body"><div class="sc-body-in"><div class="sc-body-pad">
+      <p class="sc-moment-full">${esc(fld(c,'moment_line'))}</p>
+
+      <div class="uc-why">
+        <span class="uc-lbl">${U.why}</span>
+        <p>${esc(whyOf(c.id))}</p>
+      </div>
+
+      <div class="uc-use">
+        <span class="uc-lbl">${U.use}</span>
+        <div class="trig">
+          ${fld(c,'triggers').map(t => `<div class="trig-row"><span class="q">"</span><span>${esc(t)}</span></div>`).join('')}
+        </div>
+      </div>
+
+      <details class="setup">
+        <summary><span class="s-ic">＋</span> ${U.setup}</summary>
+        <div class="setup-in">
+          <p class="setup-note">${U.setupNote}</p>
+          <div class="teach">
+            <div class="teach-bar">
+              <span class="lbl">${U.teachLbl}</span>
+              <button class="copy-btn" data-copy="${c.id}">${U.copy}</button>
+            </div>
+            <div class="teach-text" id="teach-${c.id}">${esc(normalize(fld(c,'teach_block')))}</div>
+          </div>
+        </div>
+      </details>
+    </div></div></div>
+  </div>`;
+}
+
+const CAT_DESC = {
+  last_mile:"מנהל לך את היום השוטף: פגישות, שיחות, תיאומים והודעות ללקוח, מוכנים ללחיצה שלך.",
+  memory:"זוכר את הלקוחות, השגרות ומי מחכה לתשובה, ומזכיר לך בדיוק בזמן, כדי ששום דבר לא ייפול.",
+  tools:"לוקח מה שיצרת בכלי ה-AI שלך, מ-ChatGPT ועד מצגת, ומלטש, ממתג ומפיץ הלאה.",
+  personal:"מחזיק גם את הדברים הקטנים של הבית והמשפחה, אלה שקל לשכוח כשהראש עמוס."
+};
+const catDesc = document.getElementById('catDesc');
+
+function renderCat(cat){
+  curCat = cat;
+  const list = CARDS.filter(c => c.category === cat);
+  catDesc.textContent = catOf(cat) || '';
+  grid.innerHTML = list.map(c => cardHTML(c, false)).join('');
+}
+renderCat('last_mile');
+
+function applyLang(){
+  const en = LANG === 'en';
+  const el = document.documentElement;
+  el.setAttribute('dir', en ? 'ltr' : 'rtl');
+  el.setAttribute('lang', en ? 'en' : 'he');
+  document.querySelector('.lang [data-l="en"]').classList.toggle('on', en);
+  document.querySelector('.lang [data-l="he"]').classList.toggle('on', !en);
+  document.querySelector('.sc-head h1').innerHTML = en ? EN.head.h1 : HE_HEAD.h1;
+  document.querySelector('.sc-lead').innerHTML = en ? EN.head.lead : HE_HEAD.lead;
+  const labels = en ? EN.head.tabs : HE_TABS;
+  document.querySelectorAll('.sc-tab').forEach((t, i) => {
+    t.innerHTML = labels[i] + ' <span class="cnt">' + TAB_COUNTS[i] + '</span>';
+  });
+  const cp = document.getElementById('cpTxt');
+  if (cp) cp.textContent = uiT().checkpoint;
+  renderCat(curCat);
+}
+function toggleLang(){
+  LANG = LANG === 'he' ? 'en' : 'he';
+  applyLang();
+}
+
+const tabs = document.querySelectorAll('.sc-tab');
+tabs.forEach(tab => tab.addEventListener('click', () => {
+  tabs.forEach(t => t.classList.remove('on'));
+  tab.classList.add('on');
+  renderCat(tab.dataset.cat);
+}));
+
+grid.addEventListener('click', e => {
+  const btn = e.target.closest('.copy-btn');
+  if (btn){ doCopy(btn); return; }
+  const row = e.target.closest('.sc-row');
+  if (!row) return;
+  const card = row.closest('.sc-card');
+  const wasOpen = card.classList.contains('open');
+  grid.querySelectorAll('.sc-card.open').forEach(c => {
+    c.classList.remove('open');
+    c.querySelector('.sc-row').setAttribute('aria-expanded','false');
+  });
+  if (!wasOpen){
+    card.classList.add('open');
+    row.setAttribute('aria-expanded','true');
+  }
+});
+grid.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sc-row')){
+    e.preventDefault(); e.target.click();
+  }
+});
+
+function doCopy(btn){
+  const txt = document.getElementById('teach-' + btn.dataset.copy).textContent;
+  const done = () => {
+    btn.textContent = uiT().copied;
+    btn.classList.add('copy-done');
+    setTimeout(() => { btn.textContent = uiT().copy; btn.classList.remove('copy-done'); }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(() => fallbackCopy(txt, done));
+  } else {
+    fallbackCopy(txt, done);
+  }
+}
+function fallbackCopy(txt, done){
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch(e){}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>

@@ -178,17 +178,139 @@ async function sendJoniText(token: string, platformId: string, text: string): Pr
   log.error('Joni text send gave up after retries', { chatId });
 }
 
+/** A Telegram-native rendering of an Agent4Job `send_card` URL action. */
+function actionEmojiForUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const kind = parsed.searchParams.get('t')?.toLowerCase();
+    if (kind === 'email') return '📧';
+    if (kind === 'outlook') return '📨';
+    if (kind === 'wa' || kind === 'whatsapp') return '🟢';
+    if (kind === 'cal' || kind === 'calendar') return '📅';
+    if (kind === 'teams' || kind === 'sms') return '💬';
+    if (kind === 'meet' || kind === 'video') return '🎥';
+    if (kind === 'phone' || kind === 'call') return '📞';
+    if (kind === 'drive' || kind === 'navigate') return '🚗';
+    if (kind === 'maps' || kind === 'trip' || kind === 'plan' || kind === 'schedule') return '⏰';
+    if (parsed.hostname === 'wa.me' || parsed.hostname.endsWith('.whatsapp.com')) return '🟢';
+    if (parsed.hostname.includes('calendar.google')) return '📅';
+    if (parsed.hostname === 'meet.google.com' || parsed.hostname.endsWith('.zoom.us')) return '🎥';
+    if (parsed.hostname === 'waze.com' || parsed.hostname.endsWith('.waze.com')) {
+      return parsed.searchParams.get('navigate') === 'yes' ? '🚗' : '⏰';
+    }
+    if (parsed.hostname.includes('maps.google')) return parsed.pathname.includes('/dir/') ? '🚗' : '⏰';
+  } catch {
+    // The caller already rejects invalid action URLs.
+  }
+  return '🔗';
+}
+
+function decorateActionText(value: string, emoji: string): string {
+  return value.startsWith(emoji) ? value : `${emoji} ${value}`;
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value.replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[char]!);
+}
+
+function compactCardBody(value: string): string {
+  const compact = value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+  return compact.length > 180 ? `${compact.slice(0, 179).trimEnd()}…` : compact;
+}
+
+function buildTelegramInlineCard(content: unknown): {
+  text: string;
+  inline_keyboard: Array<Array<{ text: string; url: string }>>;
+} | null {
+  if (!content || typeof content !== 'object') return null;
+  const envelope = content as Record<string, unknown>;
+  if (envelope.type !== 'card' || !envelope.card || typeof envelope.card !== 'object') return null;
+
+  const card = envelope.card as Record<string, unknown>;
+  const title = typeof card.title === 'string' ? card.title.trim() : '';
+  const description = typeof card.description === 'string' ? card.description.trim() : '';
+  const children = Array.isArray(card.children)
+    ? card.children
+        .map((child) => {
+          if (typeof child === 'string') return child.trim();
+          if (child && typeof child === 'object' && typeof (child as Record<string, unknown>).text === 'string') {
+            return ((child as Record<string, unknown>).text as string).trim();
+          }
+          return '';
+        })
+        .filter(Boolean)
+    : [];
+  const actions = Array.isArray(card.actions)
+    ? card.actions
+        .map((action) => {
+          const a = action as Record<string, unknown>;
+          const label = typeof a.label === 'string' ? a.label.trim() : '';
+          const url = typeof a.url === 'string' ? a.url.trim() : '';
+          return label && /^https:\/\//i.test(url)
+            ? { text: decorateActionText(label, actionEmojiForUrl(url)).slice(0, 64), url }
+            : null;
+        })
+        .filter((action): action is { text: string; url: string } => action !== null)
+    : [];
+  if (actions.length === 0) return null;
+
+  const fallback = typeof envelope.fallbackText === 'string' ? envelope.fallbackText.trim() : '';
+  const titleWithEmoji = decorateActionText(title || 'פעולה', actionEmojiForUrl(actions[0].url));
+  const body = compactCardBody([description, ...children].filter(Boolean).join('\n') || fallback);
+  const text =
+    [`<b>${escapeTelegramHtml(titleWithEmoji)}</b>`, body]
+      .filter(Boolean)
+      .map((part, index) => (index === 0 ? part : escapeTelegramHtml(part)))
+      .join('\n') || escapeTelegramHtml(fallback || actions[0].text);
+  return { text: text.slice(0, 4096), inline_keyboard: actions.map((action) => [action]) };
+}
+
+/** Send URL cards through Telegram's Bot API so they always become inline buttons. */
+async function sendJoniInlineCard(token: string, platformId: string, content: unknown): Promise<string | undefined> {
+  const card = buildTelegramInlineCard(content);
+  if (!card) return undefined;
+  const chatId = platformId.split(':').slice(1).join(':');
+  if (!chatId) return undefined;
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: card.text,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+      reply_markup: { inline_keyboard: card.inline_keyboard },
+    }),
+  });
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; result?: { message_id?: number } } | null;
+  if (!res.ok || !body?.ok) throw new Error(`Telegram inline card send failed (${res.status})`);
+  return body.result?.message_id ? String(body.result.message_id) : undefined;
+}
+
 /**
  * Johnny's opening line — message 1 of the approved v2 onboarding script
  * (Elia #16256). Fixed identity: he always introduces himself as ג'וני. The
  * agent (loaded with the full script) carries the conversation from here.
  */
-async function sendJohnnyGreeting(token: string, platformId: string, lang: PilotLang): Promise<void> {
+async function sendJohnnyGreeting(
+  token: string,
+  platformId: string,
+  lang: PilotLang,
+  isAgent4Job = false,
+): Promise<void> {
   // Short single opening, no "world is moving to agents" pitch — mirrors the
   // master template's own line (pilot_agent_script_v2.md, "הפתיחה והזרימה").
   // Replaces the old 3-part pitch per pending_after_wa_e2e.md item 1.
-  const text =
-    lang === 'en'
+  const text = isAgent4Job
+    ? lang === 'en'
+      ? "Hi, I'm Johnny, your personal job-search partner. To tailor relevant roles, send me one real job that caught your eye (a link or text), and your CV if you have it."
+      : "היי, אני ג'וני, השותף האישי שלך לחיפוש עבודה. כדי לדייק לך משרות טובות, שלח/י לי דוגמה אחת למשרה שכבר עניינה אותך (קישור או טקסט), ואם יש לך — גם את קורות החיים שהתאמת אליה."
+    : lang === 'en'
       ? `Hi, I'm Johnny. Elia developed me just for you. 👋 What's on your mind today — anything we can work on together?`
       : `היי, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋 מה הכי מעסיק אותך היום, יש משהו שנעבוד עליו יחד?`;
   await sendJoniText(token, platformId, text);
@@ -241,7 +363,9 @@ export function wireJoniChat(
       platform_id: platformId,
       name: userName,
       is_group: 0,
-      unknown_sender_policy: 'strict',
+      // The first post-/start user message must enter the freshly-created
+      // session. `strict` rejects it before the new membership is observed.
+      unknown_sender_policy: 'public',
       created_at: now,
     });
     mg = getMessagingGroupByPlatform(channelType, platformId)!;
@@ -258,14 +382,22 @@ export function wireJoniChat(
 function buildActivationHooks(token: string): ActivationHooks {
   return {
     async activate(consumed: PilotActivation, ctx: ActivationContext): Promise<string> {
-      const prov = await provisionPilotAtPress({ activation: consumed, fallbackName: ctx.displayName });
+      const isAgent4Job = activationSource(consumed) === 'agent4job';
+      const prov = await provisionPilotAtPress({
+        activation: consumed,
+        fallbackName: ctx.displayName,
+        // A Telegram-only user has no phone captured by a web form. Their
+        // stable Telegram id is the board identity in that case; form phone
+        // metadata still takes precedence for cross-channel activations.
+        boardUserId: ctx.userId,
+      });
       // Send the fixed greeting BEFORE wiring the chat to the agent. Wiring is
       // what lets the agent receive and answer messages; doing it last means a
       // message that arrives immediately after activation (the app handoff can
       // fire one within the provisioning window) can't reach the agent until
       // the greeting has gone out. This guarantees the greeting is the first
       // message on every new agent, deep-link (app) or bare /start alike.
-      await sendJohnnyGreeting(token, ctx.platformId, prov.lang);
+      await sendJohnnyGreeting(token, ctx.platformId, prov.lang, isAgent4Job);
       wireJoniChat(ctx.platformId, prov.agentGroupId, ctx.userId, prov.userName);
       return prov.agentGroupId;
     },
@@ -291,12 +423,33 @@ function isBareStart(text: string): boolean {
   return /^\/start(\s|$)/i.test(trimmed) && extractPilotCode(text) === null;
 }
 
+/** The public Agent4Job deep link carries a source tag, not an activation code. */
+function agent4JobStartSource(text: string): 'agent4job' | null {
+  const m = text.trim().match(/^\/start(?:@[A-Za-z0-9_]+)?\s+(\S+)$/i);
+  return m?.[1].toLowerCase() === 'agent4job' ? 'agent4job' : null;
+}
+
+/** Read the source without trusting malformed legacy metadata. */
+function activationSource(activation: PilotActivation): string | null {
+  try {
+    const metadata = activation.metadata ? (JSON.parse(activation.metadata) as Record<string, unknown>) : null;
+    return typeof metadata?.src === 'string' ? metadata.src : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Bare `/start` with no deep-link code — mint an activation on the fly so a
  * walk-up user (opened the bot directly) still gets a Johnny agent bound to
  * their Telegram identity, with the "one active agent per user" guarantee.
  */
-async function provisionBareStart(ctx: ActivationContext, hooks: ActivationHooks, token: string): Promise<void> {
+async function provisionBareStart(
+  ctx: ActivationContext,
+  hooks: ActivationHooks,
+  token: string,
+  source: 'agent4job' | null = null,
+): Promise<void> {
   // Returning user with a live pilot → rewire to the existing agent, no dup.
   const existing = findActivePilotByUser(ctx.userId);
   if (existing?.agent_group_id) {
@@ -305,7 +458,7 @@ async function provisionBareStart(ctx: ActivationContext, hooks: ActivationHooks
   }
   const activation = createActivation({
     lang: 'he',
-    metadata: { name: ctx.displayName ?? null, gender: 'm' },
+    metadata: { name: ctx.displayName ?? null, gender: 'm', src: source },
   });
   const consumed = consumeActivation(activation.code, {
     userId: ctx.userId,
@@ -374,8 +527,9 @@ function createJoniInterceptor(
       if (activated) return;
 
       // 2. Bare /start (no code) — every Start button press provisions Johnny.
-      if (!isGroup && userId && isBareStart(text)) {
-        await provisionBareStart({ platformId, userId, displayName: senderName }, hooks, token);
+      const source = agent4JobStartSource(text);
+      if (!isGroup && userId && (isBareStart(text) || source)) {
+        await provisionBareStart({ platformId, userId, displayName: senderName }, hooks, token, source);
         return;
       }
 
@@ -396,6 +550,12 @@ function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
     try {
       return await fn();
     } catch (err) {
+      // A revoked/incorrect token cannot recover through retry.  Failing
+      // immediately lets the registry continue booting the independent
+      // WhatsApp Cloud adapter instead of blocking all provisioning.
+      if (err instanceof Error && (err.name === 'AuthenticationError' || /unauthorized/i.test(err.message))) {
+        throw err;
+      }
       if (i >= DELAYS.length) throw err;
       log.warn(`${label} failed, retrying`, { attempt: i + 1, delayMs: DELAYS[i], err });
       await new Promise((r) => setTimeout(r, DELAYS[i]));
@@ -437,7 +597,14 @@ registerChannelAdapter(CHANNEL_TYPE, {
       ...bridge,
       channelType: CHANNEL_TYPE,
       async deliver(platformId: string, threadId: string | null, message: OutboundMessage) {
-        const result = await bridge.deliver(platformId, threadId, message);
+        const content = message.content as Record<string, unknown>;
+        // The Chat SDK's Telegram renderer may flatten link cards to text.
+        // URL actions from send_card are sent directly as Bot API inline
+        // keyboards; any unsupported card shape keeps the SDK fallback.
+        const nativeCard = buildTelegramInlineCard(content);
+        const result = nativeCard
+          ? await sendJoniInlineCard(token, platformId, content)
+          : await bridge.deliver(platformId, threadId, message);
         try {
           const text = outboundMirrorText(message);
           if (text) {

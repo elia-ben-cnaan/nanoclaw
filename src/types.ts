@@ -132,7 +132,7 @@ export interface MessagingGroupAgent {
   engage_pattern: string | null;
   sender_scope: SenderScope;
   ignored_message_policy: IgnoredMessagePolicy;
-  session_mode: 'shared' | 'per-thread' | 'agent-shared';
+  session_mode: 'shared' | 'per-thread' | 'per-user' | 'agent-shared';
   priority: number;
   created_at: string;
 }

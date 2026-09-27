@@ -1,0 +1,904 @@
+{
+  "pairings": [
+    {
+      "code": "1351",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:04.879Z",
+      "status": "invalidated"
+    },
+    {
+      "code": "6243",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:37.536Z",
+      "status": "invalidated"
+    },
+    {
+      "code": "6358",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:37.537Z",
+      "status": "invalidated"
+    },
+    {
+      "code": "2094",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:37.538Z",
+      "status": "invalidated"
+    },
+    {
+      "code": "7965",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:37.539Z",
+      "status": "invalidated"
+    },
+    {
+      "code": "7918",
+      "intent": "main",
+      "createdAt": "2026-06-02T11:34:37.539Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": null,
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-02T11:46:55.989Z"
+      },
+      "attempts": [
+        {
+          "candidate": "7918",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-02T11:46:55.989Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "4209",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-c079b6"
+      },
+      "createdAt": "2026-06-22T20:24:42.662Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "6585",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-eefb64"
+      },
+      "createdAt": "2026-06-22T20:24:46.992Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "4275",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-adc43b"
+      },
+      "createdAt": "2026-06-22T20:25:55.242Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "3940",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-e01299"
+      },
+      "createdAt": "2026-06-22T20:36:31.688Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "9060",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-d90425"
+      },
+      "createdAt": "2026-06-22T20:41:00.983Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "4526",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-00ce8b"
+      },
+      "createdAt": "2026-06-22T20:46:53.623Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "9052",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-d3dc1c"
+      },
+      "createdAt": "2026-06-22T20:48:57.754Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "9558",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-4e5222"
+      },
+      "createdAt": "2026-06-23T07:40:07.203Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "2892",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-5fa9fa"
+      },
+      "createdAt": "2026-06-23T08:40:29.984Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5046",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-61d65a"
+      },
+      "createdAt": "2026-06-23T08:57:26.074Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": null,
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-23T08:57:36.726Z"
+      },
+      "attempts": [
+        {
+          "candidate": "5046",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-23T08:57:36.726Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "4911",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-5bffbc"
+      },
+      "createdAt": "2026-06-23T10:21:40.590Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "7570",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-e52603"
+      },
+      "createdAt": "2026-06-23T11:52:26.757Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "1329",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-db636b"
+      },
+      "createdAt": "2026-06-23T13:50:50.131Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "3763",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-b0c810"
+      },
+      "createdAt": "2026-06-23T18:01:46.862Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": null,
+        "adminUserId": "",
+        "consumedAt": "2026-06-23T18:02:01.176Z"
+      },
+      "attempts": [
+        {
+          "candidate": "3763",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-23T18:02:01.176Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "6859",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-6a9f19"
+      },
+      "createdAt": "2026-06-23T19:51:17.705Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "8948",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-41989b"
+      },
+      "createdAt": "2026-06-23T19:54:17.964Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-23T19:54:23.030Z"
+      },
+      "attempts": [
+        {
+          "candidate": "8948",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-23T19:54:23.030Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "0185",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-93d566"
+      },
+      "createdAt": "2026-06-24T05:38:51.024Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5896",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-097c28"
+      },
+      "createdAt": "2026-06-24T05:39:12.190Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-24T05:41:09.232Z"
+      },
+      "attempts": [
+        {
+          "candidate": "5896",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-24T05:41:09.232Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "6984",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-54b7e0"
+      },
+      "createdAt": "2026-06-24T12:43:07.126Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "0999",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-921e1d"
+      },
+      "createdAt": "2026-06-24T12:43:38.886Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5924",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-867125"
+      },
+      "createdAt": "2026-06-24T12:49:47.175Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-24T12:49:56.468Z"
+      },
+      "attempts": [
+        {
+          "candidate": "5924",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-24T12:49:56.468Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "7606",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-b1bc92",
+        "lang": "he",
+        "userName": "אורן"
+      },
+      "createdAt": "2026-06-24T13:54:38.550Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5297",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-6487ce",
+        "lang": "he",
+        "userName": "Daniela QA"
+      },
+      "createdAt": "2026-06-24T14:03:38.238Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "2572",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-06b07b",
+        "lang": "he",
+        "userName": "Daniela QA"
+      },
+      "createdAt": "2026-06-24T14:10:10.985Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "1107",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-b36bd3",
+        "lang": "he",
+        "userName": "עדי לוסקי"
+      },
+      "createdAt": "2026-06-24T14:14:41.067Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-24T14:14:46.119Z"
+      },
+      "attempts": [
+        {
+          "candidate": "1107",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-24T14:14:46.119Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "2722",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-3ed3f9",
+        "lang": "he",
+        "userName": "עדי לוסקי"
+      },
+      "createdAt": "2026-06-24T14:25:37.556Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "8553",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-0987ee",
+        "lang": "he",
+        "userName": "שלנו משלנו"
+      },
+      "createdAt": "2026-06-24T14:28:58.702Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-24T14:29:02.504Z"
+      },
+      "attempts": [
+        {
+          "candidate": "8553",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-24T14:29:02.504Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "5229",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-e2df82",
+        "lang": "he",
+        "userName": "אליה בן כנען"
+      },
+      "createdAt": "2026-06-24T14:29:45.566Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-24T14:29:49.240Z"
+      },
+      "attempts": [
+        {
+          "candidate": "5229",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-24T14:29:49.240Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "2798",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-532a76",
+        "lang": "he",
+        "userName": "Daniela QA"
+      },
+      "createdAt": "2026-06-25T05:45:11.131Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-25T05:48:51.008Z"
+      },
+      "attempts": [
+        {
+          "candidate": "2798",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-25T05:48:51.008Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "1924",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-9e3fb4",
+        "lang": "he",
+        "userName": "Test-Alpha"
+      },
+      "createdAt": "2026-06-25T06:34:46.701Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "6675",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-778a96",
+        "lang": "he",
+        "userName": "Test-Beta"
+      },
+      "createdAt": "2026-06-25T06:34:46.724Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "4878",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-80dabc",
+        "lang": "he",
+        "userName": "Dash-Smoke"
+      },
+      "createdAt": "2026-06-25T08:34:44.876Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "0916",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-1cf94b",
+        "lang": "he",
+        "userName": "Meter-Smoke"
+      },
+      "createdAt": "2026-06-25T10:08:17.539Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5494",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-89d75a",
+        "lang": "he",
+        "userName": "Hist-Smoke"
+      },
+      "createdAt": "2026-06-25T14:18:17.050Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "0598",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-63a662",
+        "lang": "he",
+        "userName": "x"
+      },
+      "createdAt": "2026-06-25T14:23:54.567Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "0441",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-b16400",
+        "lang": "he",
+        "userName": "Haiku-Test"
+      },
+      "createdAt": "2026-06-25T14:47:36.037Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "5196",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-6b07c2",
+        "lang": "he",
+        "userName": "x"
+      },
+      "createdAt": "2026-06-25T14:52:14.747Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "3643",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-f654d9",
+        "lang": "he",
+        "userName": "בדיקה דניאלה"
+      },
+      "createdAt": "2026-06-28T10:20:09.032Z",
+      "status": "invalidated",
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:18:19.736Z",
+          "matched": false
+        }
+      ]
+    },
+    {
+      "code": "9177",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-8c7df8",
+        "lang": "he",
+        "userName": "בדיקה"
+      },
+      "createdAt": "2026-06-28T16:06:16.212Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-29T07:12:25.696Z"
+      },
+      "attempts": [
+        {
+          "candidate": "9177",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T07:12:25.696Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "8375",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-93d2d9",
+        "lang": "he",
+        "userName": "בדיקה ג"
+      },
+      "createdAt": "2026-06-29T08:16:00.916Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-29T08:32:40.926Z"
+      },
+      "attempts": [
+        {
+          "candidate": "8375",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T08:32:40.926Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "2608",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-6d6003",
+        "lang": "he",
+        "userName": "אליה"
+      },
+      "createdAt": "2026-06-29T14:11:42.148Z",
+      "expiresAt": "2026-06-29T14:26:42.148Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-06-29T14:11:46.277Z"
+      },
+      "attempts": [
+        {
+          "candidate": "2608",
+          "platformId": "telegram:8785317775",
+          "at": "2026-06-29T14:11:46.277Z",
+          "matched": true
+        }
+      ]
+    },
+    {
+      "code": "5742",
+      "intent": {
+        "kind": "new-agent",
+        "folder": "pilot-bdf74b",
+        "lang": "he",
+        "userName": "אליה נסיון"
+      },
+      "createdAt": "2026-07-01T14:35:22.742Z",
+      "expiresAt": "2026-07-01T14:50:22.742Z",
+      "status": "consumed",
+      "consumed": {
+        "platformId": "telegram:8785317775",
+        "isGroup": false,
+        "name": "Elia Ben Cnaan",
+        "adminUserId": "8785317775",
+        "consumedAt": "2026-07-01T14:35:36.238Z"
+      },
+      "attempts": [
+        {
+          "candidate": "5742",
+          "platformId": "telegram:8785317775",
+          "at": "2026-07-01T14:35:36.238Z",
+          "matched": true
+        }
+      ]
+    }
+  ]
+}

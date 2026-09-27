@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תרחישי עבודה · NanoShellano · מוקאפ שלב 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Baloo+2:wght@700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#000000; --surface:#101010; --surface-2:#181818; --surface-3:#202020;
+  --frame:#202020; --ink:#FFFFFF; --ink-muted:#C9C9C9; --ink-dim:#6F6F6F;
+  --teal:#56EDD6; --highlight:#E85D3A; --line:#242424; --on-teal:#04211D;
+  --chip:#181818; --link:#4A90D9;
+  --round:'Baloo 2','Heebo',sans-serif;
+  --sans:'Inter','Heebo',system-ui,sans-serif;
+  --mono:'JetBrains Mono','Heebo',monospace;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans);
+  font-size:15px; line-height:1.65; min-height:100vh; position:relative;
+}
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(120% 80% at 50% -10%, rgba(86,237,214,.12), transparent 60%);
+}
+a{color:var(--link); text-decoration:none}
+
+/* ===== context topbar (מחוץ לקומפוננטה הניידת) ===== */
+.topbar{
+  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
+  padding:14px 28px; border-bottom:1px solid var(--line);
+  background:rgba(0,0,0,.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.wordmark{font-family:var(--round); font-weight:800; font-size:19px; letter-spacing:.2px}
+.wm-n{color:var(--ink)} .wm-s{color:var(--teal)}
+.crumbs{font-family:var(--mono); font-size:12px; color:var(--ink-dim)}
+.crumbs b{color:var(--ink-muted); font-weight:500}
+.mock-chip{
+  margin-inline-start:auto; font-family:var(--mono); font-size:11px; color:var(--ink-dim);
+  border:1px solid var(--line); border-radius:100px; padding:4px 12px; background:var(--chip);
+}
+
+/* ===== הקומפוננטה הניידת ===== */
+#nc-scenarios{position:relative; z-index:1; max-width:880px; margin:0 auto; padding:64px 28px 96px}
+
+.sc-head{margin-bottom:14px}
+.sc-head h1{
+  font-family:var(--round); font-weight:800; font-size:42px; line-height:1.2; color:var(--ink);
+}
+.sc-head h1 .accent{color:var(--teal)}
+.sc-lead{color:var(--ink-muted); font-size:16px; max-width:620px; margin-top:10px}
+
+/* tabs */
+.sc-tabs{display:flex; flex-wrap:wrap; gap:10px; margin:34px 0 26px}
+.sc-tab{
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+  font-family:var(--sans); font-weight:500; font-size:13.5px; color:var(--ink-muted);
+  border:1px solid var(--line); border-radius:100px; padding:8px 16px; background:var(--chip);
+  transition:all .25s var(--ease);
+}
+.sc-tab .cnt{font-family:var(--mono); font-size:11px; color:var(--ink-dim)}
+.sc-tab.on{background:var(--teal); border-color:var(--teal); color:var(--on-teal); font-weight:600}
+.sc-tab.on .cnt{color:var(--on-teal); opacity:.75}
+.sc-tab.off{opacity:.5; cursor:default}
+.sc-tab.off:hover{opacity:.65}
+
+/* cards */
+.sc-grid{display:flex; flex-direction:column; gap:12px}
+.sc-card{
+  border:1px solid var(--line); border-radius:14px; background:var(--surface);
+  position:relative; overflow:hidden; transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.sc-card::before{
+  content:''; position:absolute; inset-inline-start:0; top:0; bottom:0; width:3px;
+  background:var(--teal); transform:scaleY(0); transform-origin:top; transition:transform .35s var(--ease);
+}
+.sc-card:hover{border-color:rgba(86,237,214,.5); transform:translateY(-2px)}
+.sc-card:hover::before{transform:scaleY(1)}
+.sc-card.open{border-color:rgba(86,237,214,.5); transform:none}
+.sc-card.open::before{transform:scaleY(1)}
+
+.sc-row{
+  display:flex; align-items:center; gap:16px; padding:18px 22px; cursor:pointer; user-select:none;
+}
+.sc-row h3{font-family:var(--sans); font-weight:600; font-size:16px; color:var(--ink); white-space:nowrap}
+.sc-row .moment{
+  color:var(--ink-dim); font-size:13.5px; flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .25s var(--ease);
+}
+.sc-card.open .sc-row .moment{opacity:0}
+.sc-row .chev{flex:none; color:var(--ink-dim); transition:transform .35s var(--ease); display:flex}
+.sc-card.open .chev{transform:rotate(180deg); color:var(--teal)}
+
+.sc-body{display:grid; grid-template-rows:0fr; transition:grid-template-rows .45s var(--ease)}
+.sc-card.open .sc-body{grid-template-rows:1fr}
+.sc-body-in{overflow:hidden}
+.sc-body-pad{padding:2px 22px 26px}
+
+.sc-moment-full{color:var(--ink-muted); font-size:14.5px; max-width:640px; margin-bottom:22px}
+
+/* micro steps */
+.micro{position:relative}
+.micro::before{
+  content:''; position:absolute; inset-inline-start:14px; top:14px; bottom:14px;
+  width:1px; background:var(--line);
+}
+.m-step{position:relative; display:flex; gap:16px; padding:0 0 22px}
+.m-step:last-child{padding-bottom:0}
+.m-num{
+  flex:none; width:28px; height:28px; border-radius:50%; background:var(--surface-3);
+  border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:12.5px; color:var(--teal); position:relative; z-index:1;
+}
+.m-content{flex:1; min-width:0; padding-top:3px}
+.m-title{font-weight:600; font-size:14.5px; color:var(--ink); margin-bottom:8px}
+.m-title .m-sub{font-weight:400; color:var(--ink-dim); font-size:13px; margin-inline-start:8px}
+
+/* teach panel */
+.teach{border:1px solid var(--line); border-radius:10px; background:var(--surface-2); overflow:hidden}
+.teach-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 14px; border-bottom:1px solid var(--line); background:var(--surface-3);
+}
+.teach-bar .lbl{font-family:var(--mono); font-size:11px; color:var(--ink-dim)}
+.copy-btn{
+  background:var(--surface-3); border:1px solid var(--line); border-radius:7px;
+  padding:5px 10px; font-size:12px; color:var(--ink-muted); font-family:var(--sans);
+  cursor:pointer; transition:all .2s var(--ease);
+}
+.copy-btn:hover{background:var(--teal); border-color:var(--teal); color:var(--on-teal)}
+.copy-btn.copy-done{background:transparent; border-color:rgba(86,237,214,.4); color:var(--teal)}
+.teach-text{
+  padding:14px 16px; font-size:13.5px; line-height:1.75; color:var(--ink-muted);
+  white-space:pre-line; max-height:280px; overflow-y:auto;
+}
+.teach-text::-webkit-scrollbar{width:8px}
+.teach-text::-webkit-scrollbar-thumb{background:var(--surface-3); border-radius:4px}
+
+/* paste step */
+.paste-line{color:var(--ink-muted); font-size:13.5px}
+
+/* triggers */
+.trig{display:flex; flex-direction:column; gap:8px}
+.trig-row{
+  display:flex; gap:10px; align-items:baseline;
+  background:var(--chip); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  font-size:13.5px; color:var(--ink-muted);
+}
+.trig-row .q{color:var(--teal); font-family:var(--round); font-weight:800; font-size:16px; line-height:1; flex:none}
+
+/* footnote */
+.checkpoint{
+  margin-top:26px; border:1.5px solid var(--teal); background:rgba(86,237,214,.06);
+  border-radius:12px; padding:14px 18px; display:flex; gap:12px; align-items:center;
+  font-size:13.5px; color:var(--ink-muted);
+}
+.checkpoint .dot{color:var(--teal); flex:none; display:flex}
+
+@media (max-width:640px){
+  .sc-head h1{font-size:32px}
+  .sc-row{flex-wrap:wrap; gap:6px 12px}
+  .sc-row .moment{flex-basis:100%; order:3}
+  #nc-scenarios{padding:40px 18px 72px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark"><span class="wm-n">Nano</span><span class="wm-s">Shellano</span></div>
+  <div class="crumbs">המדריך · <b>תרחישי עבודה</b></div>
+  <div class="mock-chip">מוקאפ · שלב 1 · קטגוריה אחת</div>
+</header>
+
+<section id="nc-scenarios">
+
+  <div class="sc-head">
+    <h1>העתק. הדבק. <span class="accent">אמור.</span></h1>
+    <p class="sc-lead">תרחישי עבודה שמלמדים את הסוכן איך לעבוד איתך. מדביקים פעם אחת בצ'אט, ומאותו רגע מספיק משפט אחד.</p>
+  </div>
+
+  <div class="sc-tabs">
+    <div class="sc-tab on">המייל האחרון <span class="cnt">4</span></div>
+    <div class="sc-tab off" title="בשלב הבא של המוקאפ">זיכרון ושגרות <span class="cnt">5</span></div>
+    <div class="sc-tab off" title="בשלב הבא של המוקאפ">מעל הכלים <span class="cnt">4</span></div>
+    <div class="sc-tab off" title="בשלב הבא של המוקאפ">חיים אישיים <span class="cnt">2</span></div>
+  </div>
+
+  <div class="sc-grid" id="scGrid"></div>
+
+  <div class="checkpoint">
+    <span class="dot">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    כל התרחישים בקטגוריה הזו עובדים מיד, בלי לחבר אף כלי.
+  </div>
+
+</section>
+
+<script>
+const CARDS = [
+  {"id":1,"title":"המייל האחרון אחרי הצ'אט","category":"last_mile","moment_line":"ניסחת תשובה מעולה ב-ChatGPT, ועכשיו נשאר החלק המעצבן: להעתיק, לעצב ולשלוח אותה כמייל.","teach_block":"כשאני מדביק לך טקסט ואומר למי הוא מיועד, קח אותו הלאה למייל מוכן לשליחה. שמור על המשמעות והנקודות, לטש לנימה טבעית בעברית, הוסף פתיחה שמתאימה ליחסים שלי עם הנמען וסגירה עם השם שלי, ונסח שורת נושא קצרה. אם נתתי כתובת מייל, שים אותה בשדה הנמען. בסוף תן לי קישור Gmail אחד עם הנמען, הנושא והגוף מוכנים, שאסתכל ואלחץ שלח. אם באמת לא ברור מי הנמען, שאל אותי שאלה קצרה אחת לפני הקישור. אל תמציא פרטים, עובדות או שמות שלא נתתי.","triggers":["תהפוך את זה למייל לרונית, הנה מה שכתבתי בצ'אט","הדבקתי תשובה ללקוח, סדר אותה למייל ותן קישור לשליחה","יש טיוטה מ-ChatGPT, לטש למייל ותוסיף גם נושא"],"needs_connection":false,"tool":"Gmail","connect_hint":"","connect_url":""},
+  {"id":2,"title":"מפגישה למייל שנשלח","category":"last_mile","moment_line":"יצאת מפגישה עם תמלול או נקודות מפוזרות. במקום לשבת לנסח מייל מאפס, אתה מעביר לסוכן והסיכום חוזר מוכן לשליחה.","teach_block":"כשאני מעביר לך תמלול או נקודות מפגישה, הפוך אותם לסיכום מקצועי מוכן לשליחה ללקוח:\n1. קרא את החומר וזהה מי הלקוח ומה הנושא. אם חסר שם או כתובת מייל, שאל אותי בשורה אחת לפני שתמשיך.\n2. בנה סיכום בשלושה חלקים: פתיח קצר על מטרת הפגישה, ההחלטות שהתקבלו, והמשימות הפתוחות עם אחראי ומועד. אם מועד לא נאמר, כתוב \"מועד לתיאום\" ואל תמציא תאריך.\n3. נסח מייל בגוף שני אל הלקוח, טון מקצועי וחם, פנייה בשם וחתימה שלי. עברית טבעית וזורמת.\n4. הכן קישור לפתיחת מייל בג'ימייל עם הנמען, הנושא והגוף כבר בפנים, ותן לי אותו בשורה נפרדת ללחיצה.\n5. שמור בזיכרון מול הלקוח הזה: תאריך, החלטות ומשימות פתוחות. בפעם הבאה מולו הזכר לי מה נשאר פתוח.\nאל תשנה עובדות ואל תוסיף החלטות שלא נאמרו. אם משהו לא ברור, סמן כפתוח ושאל אותי.","triggers":["הנה התמלול מהפגישה עם דנה, תכין סיכום מוכן לשליחה.","מהנקודות שאני מדביק עכשיו, הכן לי סיכום ומייל ללקוח.","לפני שאני שולח, הזכר לי מה נשאר פתוח מהפגישה הקודמת מול הלקוח הזה."],"needs_connection":false,"tool":"Gmail compose","connect_hint":"","connect_url":""},
+  {"id":8,"title":"הודעת וואטסאפ ללקוח מוכנה","category":"last_mile","moment_line":"צריך לשלוח ללקוח עדכון חם ומקצועי בוואטסאפ, ובמקום זה אתה תקוע חמש דקות מנסח ומוחק.","teach_block":"כשאני מבקש הודעת וואטסאפ ללקוח, פעל ככה:\n\nקבל ממני את המסר בכמה מילים ואת שם הלקוח או ההקשר.\n\nנסח טקסט וואטסאפ אחד בעברית טבעית וזורמת, מוכן להעתקה ולשליחה מהטלפון שלי: פתיחה חמה בשם כשיש שם, גוף קצר וברור, וסיום נעים או צעד הבא. שתיים עד ארבע שורות אלא אם ביקשתי אחרת.\n\nטון של אדם שכותב ללקוח שהוא מעריך. בלי מילים מנופחות, בלי אימוג'ים ובלי סימני קריאה מרובים אלא אם ביקשתי.\n\nתן לי את ההודעה בבלוק נפרד וברור, בלי הסברים סביבו. אם חסר הקשר שמשנה את הניסוח, שאל שאלה קצרה אחת לפני שאתה כותב.\n\nכשאני אומר אחר כך יותר קצר, יותר רשמי, יותר חברי או תוסיף משהו, החזר גרסה מעודכנת מיד באותו פורמט.","triggers":["תכתוב לרונית שהטיוטה מוכנה ואשלח עד סוף היום.","תזכורת ליוסי שהפגישה מחר בעשר, שיאשר לי.","תזכיר לדני בעדינות שהתשלום ממתין, בלי ללחוץ."],"needs_connection":false,"tool":"WhatsApp","connect_hint":"","connect_url":""},
+  {"id":41,"title":"רעיון אחד, כל הערוצים","category":"last_mile","moment_line":"קיבלת מ-ChatGPT גוש טקסט אחד, וצריך ממנו וואטסאפ, לינקדאין ומייל, כל אחד בטון שלו.","teach_block":"כשאני נותן לך גוש תוכן ואומר \"פצל לערוצים\", זהה קודם את המסר המרכזי במשפט אחד. אחר כך הפק שלוש גרסאות בקול שלי:\n- וואטסאפ: קצר וישיר, שתיים עד שלוש שורות, פתיח שתופס, קריאה לפעולה פשוטה.\n- לינקדאין: מקצועי, פותח בתובנה או שאלה, גוף עם ערך קונקרטי, סיום שמזמין דיון.\n- מייל: שורת נושא קצרה, פנייה אישית, מבנה ברור, חתימה בקול שלי.\nהצג את שלושתן אחת מתחת לשנייה עם שם הערוץ מעל כל אחת. הישאר נאמן לעובדות מהגוש המקורי בלבד. אחרי שאני מאשר, הצע שעת פרסום מיטבית לכל ערוץ. זכור איזה טון עובד לי בכל ערוץ ושפר את ההתאמה עם הזמן.","triggers":["יש לי טקסט של פוסט, פצל לוואטסאפ לינקדאין ומייל","תהפוך את הפסקה הזאת לשלוש גרסאות בקול שלי מוכנות לפרסום","יש לי עדכון ללקוחות, תרים ממנו וואטסאפ קצר ומייל מפורט"],"needs_connection":false,"tool":"ChatGPT או Gemini לייצור, הסוכן לפיצול והתאמת קול","connect_hint":"","connect_url":""}
+];
+
+const normalize = s => (s || '').replace(/\\n/g, '\n');
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+const grid = document.getElementById('scGrid');
+
+function cardHTML(c, open){
+  return `
+  <div class="sc-card${open ? ' open' : ''}" data-id="${c.id}">
+    <div class="sc-row" role="button" tabindex="0" aria-expanded="${open}">
+      <h3>${esc(c.title)}</h3>
+      <span class="moment">${esc(c.moment_line)}</span>
+      <span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </div>
+    <div class="sc-body"><div class="sc-body-in"><div class="sc-body-pad">
+      <p class="sc-moment-full">${esc(c.moment_line)}</p>
+      <div class="micro">
+        <div class="m-step">
+          <div class="m-num">1</div>
+          <div class="m-content">
+            <div class="m-title">העתק <span class="m-sub">את הבלוק שמלמד את הסוכן</span></div>
+            <div class="teach">
+              <div class="teach-bar">
+                <span class="lbl">מה מדביקים לסוכן</span>
+                <button class="copy-btn" data-copy="${c.id}">העתק</button>
+              </div>
+              <div class="teach-text" id="teach-${c.id}">${esc(normalize(c.teach_block))}</div>
+            </div>
+          </div>
+        </div>
+        <div class="m-step">
+          <div class="m-num">2</div>
+          <div class="m-content">
+            <div class="m-title">הדבק <span class="m-sub">פעם אחת</span></div>
+            <p class="paste-line">שולחים לסוכן בצ'אט, כמו כל הודעה. מכאן הוא זוכר.</p>
+          </div>
+        </div>
+        <div class="m-step">
+          <div class="m-num">3</div>
+          <div class="m-content">
+            <div class="m-title">אמור <span class="m-sub">ומעכשיו זה כל מה שצריך</span></div>
+            <div class="trig">
+              ${c.triggers.map(t => `<div class="trig-row"><span class="q">"</span><span>${esc(t)}</span></div>`).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div></div>
+  </div>`;
+}
+
+grid.innerHTML = CARDS.map((c, i) => cardHTML(c, i === 0)).join('');
+
+grid.addEventListener('click', e => {
+  const btn = e.target.closest('.copy-btn');
+  if (btn){ doCopy(btn); return; }
+  const row = e.target.closest('.sc-row');
+  if (!row) return;
+  const card = row.closest('.sc-card');
+  const wasOpen = card.classList.contains('open');
+  grid.querySelectorAll('.sc-card.open').forEach(c => {
+    c.classList.remove('open');
+    c.querySelector('.sc-row').setAttribute('aria-expanded','false');
+  });
+  if (!wasOpen){
+    card.classList.add('open');
+    row.setAttribute('aria-expanded','true');
+  }
+});
+grid.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('sc-row')){
+    e.preventDefault(); e.target.click();
+  }
+});
+
+function doCopy(btn){
+  const txt = document.getElementById('teach-' + btn.dataset.copy).textContent;
+  const done = () => {
+    btn.textContent = 'הועתק ✓';
+    btn.classList.add('copy-done');
+    setTimeout(() => { btn.textContent = 'העתק'; btn.classList.remove('copy-done'); }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(() => fallbackCopy(txt, done));
+  } else {
+    fallbackCopy(txt, done);
+  }
+}
+function fallbackCopy(txt, done){
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch(e){}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>

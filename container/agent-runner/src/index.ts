@@ -40,9 +40,48 @@ function log(msg: string): void {
 }
 
 const CWD = '/workspace/agent';
+const RUNTIME_STATE_PATH = '/workspace/agent/runtime-state.json';
+
+/** Per-group runtime facts stay authoritative across provider/thread changes. */
+function loadRuntimeStateAddendum(): string {
+  try {
+    const state = JSON.parse(fs.readFileSync(RUNTIME_STATE_PATH, 'utf8')) as Record<string, unknown>;
+    const get = (key: string) => (typeof state[key] === 'string' ? state[key] : undefined);
+    const facts: Array<[string, string | undefined]> = [
+      ['Agent identity', get('agentIdentity')],
+      ['Active runtime', get('activeRuntime')],
+      ['Provider policy', get('providerPolicy')],
+      ['Migration status', get('migrationStatus')],
+      ['Last verified', get('lastVerified')],
+    ];
+    const lines = [
+      '## Canonical operating state (runtime-authoritative)',
+      '',
+      'These are live deployment facts, not conversation history. Do not present a recap or old memory as current state.',
+    ];
+    for (const [label, value] of facts) if (value) lines.push(`- ${label}: ${value}`);
+    lines.push(
+      '',
+      'When asked about your own status, lead with only these facts. Do not claim a migration, server health, deployment, or task completion unless verified with an available tool in this same turn. Otherwise say it is unverified.',
+    );
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  // These two operator agents keep independently authorized credentials away
+  // from the host's legacy auth.json copy-on-wake. Other groups are unchanged.
+  if (['ag-1780401001748-zriukn', 'ag-1778670984219-665dop'].includes(config.agentGroupId)
+      && (fs.existsSync('/workspace/codex-linked/auth.json') || fs.existsSync('/workspace/codex-linked/external-auth.json'))) {
+    process.env.CODEX_HOME = '/workspace/codex-linked';
+    process.env.NANOCLAW_CODEX_AUTH = 'chatgpt';
+    if (fs.existsSync('/workspace/codex-linked/external-auth.json')) {
+      process.env.NANOCLAW_CODEX_EXTERNAL_AUTH_FILE = '/workspace/codex-linked/external-auth.json';
+    }
+  }
   const providerName = config.provider.toLowerCase() as ProviderName;
 
   log(`Starting v2 agent-runner (provider: ${providerName})`);
@@ -57,7 +96,9 @@ async function main(): Promise<void> {
   // /workspace/agent/CLAUDE.md — the composed entry imports the shared
   // base (/app/CLAUDE.md) and each enabled module's fragment. Memory is
   // supplied separately by each provider's native lifecycle hook.
-  const instructions = buildSystemPromptAddendum(config.assistantName || undefined);
+  const instructions = [buildSystemPromptAddendum(config.assistantName || undefined), loadRuntimeStateAddendum()]
+    .filter(Boolean)
+    .join('\n\n');
 
   // Discover additional directories mounted at /workspace/extra/*
   const additionalDirectories: string[] = [];
@@ -150,6 +191,7 @@ async function main(): Promise<void> {
   await runPollLoop({
     provider,
     providerName,
+    agentGroupId: config.agentGroupId,
     cwd: CWD,
     systemContext: { instructions },
     fallback,

@@ -29,6 +29,7 @@ import { getLatestMembershipByUser } from '../modules/permissions/db/agent-group
 import { provisionPilotAtPress } from '../provision-handler.js';
 import { mirrorToSupervisor, outboundMirrorText, wireJoniChat } from './telegram-joni.js';
 import type { ChannelAdapter, ChannelSetup, InboundMessage, OutboundMessage } from './adapter.js';
+import { spokenText, synthesizeSpeech, voiceRepliesEnabled } from './voice-replies.js';
 
 const INSTANCE = 'whatsapp-cloud';
 const CHANNEL_TYPE = 'whatsapp';
@@ -253,6 +254,39 @@ async function sendDocumentViaCloudApi(toNumber: string, file: { filename: strin
   }
 }
 
+async function sendVoiceViaCloudApi(toNumber: string, audio: Buffer): Promise<void> {
+  const env = readEnvFile(['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID']);
+  const token = env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneId) throw new Error('WhatsApp Cloud credentials missing for voice send');
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', 'audio/mpeg');
+  form.append('file', new Blob([audio], { type: 'audio/mpeg' }), 'agent-reply.mp3');
+  const uploadRes = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const upload = (await uploadRes.json()) as { id?: string; error?: { message?: string } };
+  if (!uploadRes.ok || !upload.id)
+    throw new Error(`WhatsApp voice upload failed: ${upload.error?.message ?? uploadRes.status}`);
+
+  const sendRes = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: toNumber,
+      type: 'audio',
+      audio: { id: upload.id },
+    }),
+  });
+  if (!sendRes.ok) throw new Error(`WhatsApp voice send failed (${sendRes.status})`);
+}
+
 /** Delivery resolves adapters by mg.instance — make sure ours is stamped. */
 function stampInstance(platformId: string): void {
   getDb()
@@ -273,6 +307,46 @@ interface CtaUrlSpec {
   header: string | null;
   displayText: string;
   url: string;
+}
+
+function actionEmojiForUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const kind = parsed.searchParams.get('t')?.toLowerCase();
+    if (kind === 'email') return '📧';
+    if (kind === 'outlook') return '📨';
+    if (kind === 'wa' || kind === 'whatsapp') return '🟢';
+    if (kind === 'cal' || kind === 'calendar') return '📅';
+    if (kind === 'teams' || kind === 'sms') return '💬';
+    if (kind === 'meet' || kind === 'video') return '🎥';
+    if (kind === 'phone' || kind === 'call') return '📞';
+    if (kind === 'drive' || kind === 'navigate') return '🚗';
+    if (kind === 'maps' || kind === 'trip' || kind === 'plan' || kind === 'schedule') return '⏰';
+    if (parsed.hostname === 'wa.me' || parsed.hostname.endsWith('.whatsapp.com')) return '🟢';
+    if (parsed.hostname.includes('calendar.google')) return '📅';
+    if (parsed.hostname === 'meet.google.com' || parsed.hostname.endsWith('.zoom.us')) return '🎥';
+    if (parsed.hostname === 'waze.com' || parsed.hostname.endsWith('.waze.com')) {
+      return parsed.searchParams.get('navigate') === 'yes' ? '🚗' : '⏰';
+    }
+    if (parsed.hostname.includes('maps.google')) return parsed.pathname.includes('/dir/') ? '🚗' : '⏰';
+  } catch {
+    // The caller validates the URL before delivery.
+  }
+  return '🔗';
+}
+
+function decorateActionText(value: string, emoji: string): string {
+  return value.startsWith(emoji) ? value : `${emoji} ${value}`;
+}
+
+function compactCardBody(value: string): string {
+  const compact = value
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('\n');
+  return compact.length > 180 ? `${compact.slice(0, 179).trimEnd()}…` : compact;
 }
 
 function ctaUrlFromCardContent(content: unknown): CtaUrlSpec | null {
@@ -299,10 +373,12 @@ function ctaUrlFromCardContent(content: unknown): CtaUrlSpec | null {
   let body = parts.join('\n\n').trim();
   if (!body) body = typeof c.fallbackText === 'string' && c.fallbackText ? c.fallbackText : title;
   if (!body) body = title || label;
+  body = compactCardBody(body);
+  const emoji = actionEmojiForUrl(url);
   return {
-    body: body.slice(0, 1024),
-    header: title ? title.slice(0, 60) : null,
-    displayText: label.slice(0, 20),
+    body,
+    header: decorateActionText(title || 'פעולה', emoji).slice(0, 60),
+    displayText: decorateActionText(label || 'פתח', emoji).slice(0, 20),
     url,
   };
 }
@@ -499,6 +575,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   const prov = await provisionPilotAtPress({
                     activation: consumed,
                     fallbackName: attr.name || senderName || null,
+                    boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
                   });
                   wireJoniChat(platformId, prov.agentGroupId, userId, senderName || prov.userName, CHANNEL_TYPE);
@@ -566,7 +643,24 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
         const c = message.content as Record<string, unknown>;
         if (!c.text && !c.markdown) return undefined;
       }
-      const result = await bridge.deliver(platformId, threadId, message);
+      let result: string | undefined;
+      let deliveredVoice = false;
+      if (voiceRepliesEnabled()) {
+        const toNumber = senderNumberFromPlatformId(platformId);
+        const text = spokenText(message);
+        if (toNumber && text) {
+          const audio = await synthesizeSpeech(text);
+          if (audio) {
+            try {
+              await sendVoiceViaCloudApi(toNumber, audio);
+              deliveredVoice = true;
+            } catch (err) {
+              log.warn('WhatsApp Cloud voice reply failed; falling back to text', { platformId, err });
+            }
+          }
+        }
+      }
+      if (!deliveredVoice) result = await bridge.deliver(platformId, threadId, message);
       try {
         const slug = resolvePilotSlug(platformId);
         if (slug) {

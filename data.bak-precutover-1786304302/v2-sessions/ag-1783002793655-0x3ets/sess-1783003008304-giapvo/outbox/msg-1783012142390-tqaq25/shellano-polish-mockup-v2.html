@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NanoShellano · מוקאפ ליטוש · nova</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Hebrew:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#000000; --bg-2:#101010; --bg-3:#181818;
+    --text:#FFFFFF; --text-2:#B0B0B0; --text-3:#6E6E6E;
+    --teal:#56EDD6; --teal-action:#0F756D; --orange:#E85D3A;
+    --border:#3A3A3A; --border-soft:rgba(255,255,255,.08);
+    --radius:16px;
+    --font:'Inter','Noto Sans Hebrew',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* עומק שקט מאחורי המכשיר, במקום חלל שחור ריק */
+  .ambient{
+    position:fixed; inset:0; pointer-events:none;
+    background:
+      radial-gradient(560px 720px at 50% 42%, rgba(86,237,214,.055), transparent 70%),
+      radial-gradient(900px 500px at 50% 110%, rgba(15,117,109,.10), transparent 70%);
+  }
+
+  /* ===== מסגרת הטלפון ===== */
+  .phone{
+    position:relative; width:min(410px,100vw);
+    height:min(860px,calc(100dvh - 56px));
+    background:linear-gradient(180deg,#0b0b0b,#070707);
+    border:1px solid var(--border-soft); border-radius:34px;
+    box-shadow:0 40px 120px rgba(0,0,0,.8), 0 0 0 1px rgba(0,0,0,.6), 0 0 80px rgba(86,237,214,.04);
+    overflow:hidden; display:flex; flex-direction:column;
+  }
+  @media (max-width:480px){
+    .phone{width:100vw;height:100dvh;border-radius:0;border:none}
+  }
+  @media (max-height:700px) and (min-width:481px){
+    .phone{height:calc(100dvh - 36px)}
+  }
+
+  /* ===== כותרת עליונה ===== */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px 10px; flex:none;
+  }
+  .logo{font-weight:700; font-size:15px; letter-spacing:.2px}
+  .logo b{color:var(--teal); font-weight:700}
+  .header-side{display:flex; align-items:center; gap:14px}
+  .lang{display:flex; gap:6px; font-size:11.5px; color:var(--text-3); font-weight:600}
+  .lang .on{color:var(--text)}
+  .skip{
+    font-size:12px; color:var(--text-2); text-decoration:none; cursor:pointer;
+    border:1px solid var(--border); border-radius:999px; padding:4px 12px;
+    transition:color .2s,border-color .2s; background:none; font-family:var(--font);
+  }
+  .skip:hover{color:var(--teal); border-color:var(--teal)}
+  .back-btn{
+    width:34px;height:34px;border-radius:50%;flex:none;
+    background:none;border:1px solid var(--border);color:var(--text-2);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:all .2s;
+  }
+  .back-btn:hover:not(:disabled){color:var(--teal);border-color:var(--teal)}
+  .back-btn:disabled{opacity:.25;cursor:default}
+
+  /* ===== נקודות התקדמות ===== */
+  .dots{display:flex; justify-content:center; gap:7px; padding:0 0 12px; flex:none}
+  .dot{
+    width:6px;height:6px;border-radius:999px;background:#2c2c2c;border:none;cursor:pointer;
+    transition:all .35s ease; padding:0;
+  }
+  .dot.active{width:22px;background:var(--teal)}
+  .dot.seen{background:#3f6f68}
+
+  /* ===== במת המסכים ===== */
+  .stage{position:relative; flex:1; min-height:0}
+  .slide{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    padding:8px 24px 0; opacity:0; pointer-events:none;
+    transform:translateX(-18px); transition:opacity .45s ease,transform .45s ease;
+    overflow:hidden;
+  }
+  .slide.active{opacity:1; pointer-events:auto; transform:none}
+  .slide.leaving{transform:translateX(18px)}
+  .slide-body{flex:1; min-height:0; display:flex; flex-direction:column}
+
+  /* ===== טיפוגרפיה ===== */
+  .kicker{
+    font-size:11.5px; font-weight:700; letter-spacing:.14em; color:var(--teal);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  h1{font-size:40px; font-weight:800; line-height:1.12; letter-spacing:-.5px}
+  h2{font-size:26px; font-weight:800; line-height:1.18; letter-spacing:-.3px}
+  .sub{color:var(--teal); font-size:19px; font-weight:700; margin-top:8px}
+  .para{color:var(--text-2); font-size:14.5px; line-height:1.65; margin-top:14px}
+
+  /* ===== CTA תחתון ===== */
+  .cta-zone{flex:none; padding:12px 24px calc(18px + env(safe-area-inset-bottom))}
+  .cta{
+    width:100%; border:none; border-radius:14px; padding:16px;
+    background:var(--teal); color:#04211c; font-size:16px; font-weight:700;
+    font-family:var(--font); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:transform .15s ease, box-shadow .2s;
+  }
+  .cta:hover{transform:translateY(-1px); box-shadow:0 8px 30px rgba(86,237,214,.25)}
+  .cta:active{transform:translateY(0)}
+  .cta.secondary{
+    background:var(--bg-3); color:var(--text); border:1px solid var(--border);
+  }
+  .cta.secondary:hover{box-shadow:none; border-color:#565656}
+  .cta svg{flex:none}
+  .swipe-hint{
+    text-align:center; color:var(--text-3); font-size:11.5px; margin-top:10px;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+
+  /* ===== מסך 1: Hero ===== */
+  .hero{justify-content:center; text-align:center; align-items:center}
+  .mascot{
+    width:88px;height:88px;border-radius:26px; margin-bottom:26px;
+    background:radial-gradient(circle at 32% 28%, rgba(86,237,214,.28), rgba(15,117,109,.12) 60%, transparent);
+    border:1px solid rgba(86,237,214,.25);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 50px rgba(86,237,214,.12);
+  }
+  /* בפרודקשן: הקמע הקיים של Shellano נכנס כאן */
+  .chips{display:flex; gap:8px; justify-content:center; margin-top:22px; flex-wrap:wrap}
+  .chip{
+    font-size:12px; color:var(--text-2); border:1px solid var(--border);
+    border-radius:999px; padding:6px 13px; display:flex; align-items:center; gap:6px;
+  }
+  .chip svg{color:var(--teal)}
+
+  /* ===== מסכי צ'אט ===== */
+  .demo-head{flex:none; padding-bottom:12px}
+  .demo-head .para{margin-top:6px; font-size:13.5px; line-height:1.5}
+  .chat-card{
+    flex:1; min-height:0; display:flex; flex-direction:column;
+    background:var(--bg-2); border:1px solid var(--border-soft);
+    border-radius:var(--radius); overflow:hidden;
+  }
+  .chat-top{
+    flex:none; display:flex; align-items:center; gap:11px;
+    padding:12px 16px; border-bottom:1px solid var(--border-soft); background:#151515;
+  }
+  .avatar{
+    width:38px;height:38px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #2ab5a0, var(--teal-action));
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800; font-size:16px; color:#032420; flex:none;
+  }
+  .chat-name{font-weight:700; font-size:14.5px}
+  .chat-status{font-size:11.5px; color:var(--text-2); display:flex; align-items:center; gap:5px}
+  .chat-status .st-dot{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  .chat-status.typing{color:var(--teal)}
+  .chat-log{
+    flex:1; min-height:0; overflow-y:auto; padding:16px 14px 18px;
+    display:flex; flex-direction:column; gap:10px; scroll-behavior:smooth;
+  }
+  .chat-log::-webkit-scrollbar{width:0}
+  .msg{
+    max-width:82%; padding:10px 14px; border-radius:16px;
+    font-size:13.5px; line-height:1.55; opacity:0; transform:translateY(8px);
+    animation:msgIn .35s ease forwards;
+  }
+  @keyframes msgIn{to{opacity:1;transform:none}}
+  .msg.user{
+    align-self:flex-start; /* RTL: המשתמש בצד ימין ויזואלית = flex-start בכיוון rtl */
+    background:var(--teal-action); color:#eafffb; border-bottom-right-radius:6px;
+  }
+  .msg.agent{
+    align-self:flex-end;
+    background:var(--bg-3); border:1px solid var(--border-soft); color:var(--text);
+    border-bottom-left-radius:6px;
+  }
+  .typing-bubble{
+    align-self:flex-end; background:var(--bg-3); border:1px solid var(--border-soft);
+    border-radius:16px; border-bottom-left-radius:6px; padding:13px 16px;
+    display:flex; gap:5px; opacity:0; animation:msgIn .25s ease forwards;
+  }
+  .typing-bubble i{
+    width:6px;height:6px;border-radius:50%;background:var(--text-3);
+    animation:blink 1.1s infinite;
+  }
+  .typing-bubble i:nth-child(2){animation-delay:.18s}
+  .typing-bubble i:nth-child(3){animation-delay:.36s}
+  @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+  /* קבלה: שרשרת הפעולות שבוצעו. הלב של הסיפור. */
+  .receipt{
+    align-self:flex-end; width:88%;
+    background:#131b1a; border:1px solid #1f413b;
+    border-radius:14px; padding:12px 14px;
+    opacity:0; transform:translateY(8px); animation:msgIn .4s ease forwards;
+  }
+  .receipt-title{font-size:11px; font-weight:700; letter-spacing:.1em; color:var(--teal); margin-bottom:8px}
+  .receipt-row{
+    display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-2);
+    padding:4px 0; opacity:0; transform:translateX(6px); animation:msgIn .3s ease forwards;
+  }
+  .receipt-row svg{color:var(--teal); flex:none}
+  .receipt-row b{color:var(--text); font-weight:600}
+
+  /* ===== מניפסט ===== */
+  .manifesto{justify-content:center}
+  .manifesto h2{font-size:30px; line-height:1.3}
+  .manifesto .accent{color:var(--orange)}
+  .principles{display:flex; gap:10px; margin-top:26px}
+  .principle{
+    flex:1; border:1px solid var(--border); border-radius:12px; padding:14px 8px;
+    text-align:center; font-weight:700; font-size:14px;
+  }
+  .principle small{display:block; margin-top:4px; font-weight:400; font-size:11.5px; color:var(--text-3)}
+
+  /* ===== יכולות ===== */
+  .caps{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px}
+  .cap{
+    background:var(--bg-2); border:1px solid var(--border-soft); border-radius:14px;
+    padding:14px; display:flex; flex-direction:column; gap:8px;
+  }
+  .cap svg{color:var(--teal)}
+  .cap b{font-size:13.5px; font-weight:600}
+  .cap span{font-size:11.5px; color:var(--text-3); line-height:1.45}
+
+  /* ===== אמון / מנוע ===== */
+  .trust-list{display:flex; flex-direction:column; gap:12px; margin-top:20px}
+  .trust{
+    display:flex; gap:13px; align-items:flex-start;
+    background:var(--bg-2); border:1px solid var(--border-soft); border-radius:14px; padding:14px 15px;
+  }
+  .trust svg{color:var(--teal); flex:none; margin-top:2px}
+  .trust b{font-size:14px; font-weight:600; display:block; margin-bottom:3px}
+  .trust span{font-size:12.5px; color:var(--text-2); line-height:1.55}
+  .engine-note{
+    margin-top:18px; text-align:center; font-size:11.5px; color:var(--text-3);
+  }
+  .engine-note b{color:var(--text-2); font-weight:600}
+
+  /* ===== הרשמה ===== */
+  .signup{justify-content:center}
+  .field{margin-top:12px}
+  .field label{display:block; font-size:12px; color:var(--text-2); margin-bottom:6px; font-weight:600}
+  .field input,.field select{
+    width:100%; background:var(--bg-2); border:1px solid var(--border); border-radius:12px;
+    color:var(--text); font-family:var(--font); font-size:14.5px; padding:13px 14px; outline:none;
+    transition:border-color .2s; -webkit-appearance:none; appearance:none;
+  }
+  .field input:focus,.field select:focus{border-color:var(--teal)}
+  .field input::placeholder{color:var(--text-3)}
+  .signup-meta{
+    display:flex; justify-content:center; gap:14px; margin-top:14px;
+    font-size:11.5px; color:var(--text-3);
+  }
+  .success{
+    display:none; text-align:center; padding:30px 0;
+  }
+  .success .check{
+    width:64px;height:64px;border-radius:50%;margin:0 auto 18px;
+    border:1.5px solid var(--teal); display:flex;align-items:center;justify-content:center;
+    color:var(--teal); box-shadow:0 0 40px rgba(86,237,214,.15);
+  }
+
+  /* חיצי ניווט צד (דסקטופ) */
+  .arrow{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:40px;height:40px;border-radius:50%;
+    background:rgba(24,24,24,.85); border:1px solid var(--border);
+    color:var(--text-2); cursor:pointer; display:flex;align-items:center;justify-content:center;
+    transition:all .2s; z-index:5;
+  }
+  .arrow:hover{color:var(--teal); border-color:var(--teal)}
+  .arrow.next{left:10px}
+  .arrow.prev{right:10px}
+  .arrow[hidden]{display:none}
+  @media (max-width:480px){.arrow{display:none}}
+
+  .frame-caption{
+    position:fixed; bottom:22px; left:0; right:0; text-align:center;
+    color:var(--text-3); font-size:12px; pointer-events:none;
+  }
+  @media (max-width:900px){.frame-caption{display:none}}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important; transition-duration:.01ms !important}
+  }
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+
+<div class="phone" id="phone">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="back-btn" id="backBtn" aria-label="חזרה" disabled>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+      <div class="logo">Nano<b>Shellano</b></div>
+    </div>
+    <div class="header-side">
+      <button class="skip" onclick="goTo(7)">הרשמה</button>
+      <div class="lang"><span class="on">HE</span><span>/</span><span>EN</span></div>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+
+    <!-- ══ 1 · Hero ══ -->
+    <section class="slide active" data-cta="החלק לראות אותו בפעולה">
+      <div class="slide-body hero">
+        <div class="mascot" title="כאן נכנס הקמע הקיים">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#56EDD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 14a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h13a2 2 0 012 2z" opacity=".55"/>
+            <path d="M12 7.5l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1z" fill="#56EDD6" stroke="none"/>
+          </svg>
+        </div>
+        <h1>התקבל עובד חדש</h1>
+        <div class="sub">הסוכן האישי שלך מתחיל היום</div>
+        <p class="para" style="max-width:300px">
+          ה‑AI כבר משנה את עולם העבודה, והסוכנים בדרך לכל תפקיד.
+          כאן תפגשו סוכן משלכם ותלמדו לנהל אותו. בלי ידע טכני, ולפני כולם.
+        </p>
+        <div class="chips">
+          <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>חינם להתנסות</span>
+          <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2.5"/></svg>קליק אחד מהנייד</span>
+          <span class="chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>מאובטח מהיסוד</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 2 · צ'אט: משימות רוחביות ══ -->
+    <section class="slide" data-cta="והוא יודע גם לייצר" data-chat="0">
+      <div class="slide-body">
+        <div class="demo-head">
+          <div class="kicker">ככה נעבוד יחד · 1/3</div>
+          <h2>משפט אחד. שרשרת פעולות.</h2>
+          <p class="para">בקשה אחת הופכת לפעולות בכמה מערכות, וחוזרת אליך גמורה.</p>
+        </div>
+        <div class="chat-card">
+          <div class="chat-top">
+            <div class="avatar">ג׳</div>
+            <div>
+              <div class="chat-name">ג׳וני</div>
+              <div class="chat-status"><span class="st-dot"></span><span class="st-text">מחובר</span></div>
+            </div>
+          </div>
+          <div class="chat-log"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 3 · צ'אט: יצירת תוצרים ══ -->
+    <section class="slide" data-cta="והוא גם קולגה" data-chat="1">
+      <div class="slide-body">
+        <div class="demo-head">
+          <div class="kicker">ככה נעבוד יחד · 2/3</div>
+          <h2>צריך מצגת? יש מצגת.</h2>
+          <p class="para">מבקשים דוח, מסמך או מצגת, ומקבלים קובץ שמוכן לשליחה.</p>
+        </div>
+        <div class="chat-card">
+          <div class="chat-top">
+            <div class="avatar">ג׳</div>
+            <div>
+              <div class="chat-name">ג׳וני</div>
+              <div class="chat-status"><span class="st-dot"></span><span class="st-text">מחובר</span></div>
+            </div>
+          </div>
+          <div class="chat-log"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 4 · צ'אט: קולגה לאונבורדינג ══ -->
+    <section class="slide" data-cta="עכשיו, ההבטחה שלנו" data-chat="2">
+      <div class="slide-body">
+        <div class="demo-head">
+          <div class="kicker">ככה נעבוד יחד · 3/3</div>
+          <h2>הקולגה שיודע את התשובות.</h2>
+          <p class="para">מהיום הראשון בתפקיד יש לך מישהו שמכיר את הנהלים, את האנשים ואת הלו״ז.</p>
+        </div>
+        <div class="chat-card">
+          <div class="chat-top">
+            <div class="avatar">ג׳</div>
+            <div>
+              <div class="chat-name">ג׳וני</div>
+              <div class="chat-status"><span class="st-dot"></span><span class="st-text">מחובר</span></div>
+            </div>
+          </div>
+          <div class="chat-log"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 5 · מניפסט ══ -->
+    <section class="slide" data-cta="מה מחכה לך בפנים">
+      <div class="slide-body manifesto">
+        <div class="kicker">ההבטחה שלנו</div>
+        <h2>סוכנים נכנסים לעולם העבודה.<br>מי שיידע לנהל אותם, <span class="accent">יוביל.</span></h2>
+        <p class="para">
+          אנחנו מכינים אנשים לעולם העבודה החדש. והדרך הכי טובה להבין סוכנים
+          היא פשוט לעבוד עם אחד, בסביבה בטוחה ובקצב שלך.
+        </p>
+        <div class="principles">
+          <div class="principle">פשוט<small>בלי ידע טכני</small></div>
+          <div class="principle">בטוח<small>סביבה מבודדת</small></div>
+          <div class="principle">שלך<small>לומד אותך</small></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 6 · יכולות ══ -->
+    <section class="slide" data-cta="ורגע, כמה זה בטוח?">
+      <div class="slide-body" style="justify-content:center">
+        <div class="kicker">טעימה ראשונה</div>
+        <h2>מה הוא כבר עושה בשבילך</h2>
+        <div class="caps">
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><b>טיוטות מייל</b><span>מנוסחות בטון שלך, מוכנות לשליחה</span></div>
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg><b>מסמכים ומצגות</b><span>תוצרים שלמים מבקשה אחת</span></div>
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><b>מחקר והשוואות</b><span>סריקה, סינון ושורה תחתונה</span></div>
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><b>תזכורות ומעקבים</b><span>שום דבר לא נופל בין הכיסאות</span></div>
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><b>סיכומים ותקצירים</b><span>מפגישות, מסמכים ושרשורים</span></div>
+          <div class="cap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2-6.3-4.5-6.3 4.5L8 13.8 2 9.2h7.6z"/></svg><b>ידע פנימי</b><span>עונה לפי הנהלים והחומרים שלך</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 7 · אמון ══ -->
+    <section class="slide" data-cta="אני רוצה סוכן משלי">
+      <div class="slide-body" style="justify-content:center">
+        <div class="kicker">מתחת למכסה המנוע</div>
+        <h2>בטוח מהיסוד.</h2>
+        <div class="trust-list">
+          <div class="trust">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>
+            <div><b>סביבה מבודדת משלך</b><span>הסוכן שלך רץ בסביבה נפרדת, שאף אחד אחר לא נוגע בה.</span></div>
+          </div>
+          <div class="trust">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+            <div><b>המפתחות בכספת</b><span>סיסמאות וחיבורים שמורים בכספת נפרדת. הסוכן אף פעם לא רואה אותם.</span></div>
+          </div>
+          <div class="trust">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+            <div><b>אתה קובע מה מותר</b><span>הסוכן מבקש אישור לפני פעולות, וההרשאות מתרחבות רק כשאתה מחליט.</span></div>
+          </div>
+        </div>
+        <div class="engine-note">פועל על מנוע <b>NanoClaw</b>, קוד פתוח שכל אחד יכול לבדוק</div>
+      </div>
+    </section>
+
+    <!-- ══ 8 · הרשמה ══ -->
+    <section class="slide" data-cta="פתחו לי סוכן" data-signup="1">
+      <div class="slide-body signup">
+        <div id="signupForm">
+          <div class="kicker">שלב אחרון</div>
+          <h2>הסוכן שלך מחכה.</h2>
+          <p class="para" style="margin-top:8px">משאירים פרטים ונפגשים בטלגרם. ההקמה לוקחת דקה.</p>
+          <div class="field"><label>שם מלא</label><input type="text" placeholder="ישראל ישראלי"></div>
+          <div class="field"><label>טלפון</label><input type="tel" placeholder="050-0000000" dir="ltr" style="text-align:right"></div>
+          <div class="field"><label>אימייל</label><input type="email" placeholder="you@company.com" dir="ltr" style="text-align:right"></div>
+          <div class="signup-meta"><span>ניפגש בטלגרם</span><span>·</span><span>דקה אחת</span><span>·</span><span>חינם</span></div>
+        </div>
+        <div class="success" id="successBox">
+          <div class="check">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h2>מעולה. תבדקו את הטלגרם.</h2>
+          <p class="para">שלחנו לכם קישור. לחיצה אחת, והסוכן שלכם מתעורר.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="cta-zone">
+    <nav class="dots" id="dots" aria-label="התקדמות"></nav>
+    <button class="cta" id="mainCta"></button>
+    <div class="swipe-hint" id="swipeHint">
+      או החליקו
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </div>
+  </div>
+
+  <button class="arrow next" id="nextArrow" aria-label="הבא"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <button class="arrow prev" id="prevArrow" hidden aria-label="הקודם"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+</div>
+
+<div class="frame-caption">מוקאפ · החליקו, לחצו על החצים או השתמשו במקלדת</div>
+
+<script>
+/* ── תסריטי הצ'אטים ── */
+const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+const SCRIPTS = [
+  [
+    {t:'user', text:'עדכן את הלקוח ב‑CRM, תכין הצעת מחיר ותשלח לו במייל'},
+    {t:'agent', text:'על איזה סכום ההצעה?'},
+    {t:'user', text:'48 אלף ₪, תוקף לסוף החודש'},
+    {t:'receipt', title:'בוצע · 3 פעולות', rows:[
+      'הלקוח עודכן ב‑<b>CRM</b>',
+      'הצעת מחיר נוצרה <b>(PDF)</b>',
+      'המייל נשלח ללקוח'
+    ]},
+    {t:'agent', text:'סגור. שלחתי לך עותק, ואזכיר לך לעקוב ביום חמישי.'}
+  ],
+  [
+    {t:'user', text:'צריך מצגת שמסבירה לצוות את הנוהל החדש, לישיבה מחר בבוקר'},
+    {t:'agent', text:'על בסיס המסמך ששיתפת. אבנה 8 שקפים: רקע, מה משתנה, ומה עושים מחר.'},
+    {t:'user', text:'מעולה, ותוסיף שקף שאלות נפוצות'},
+    {t:'receipt', title:'בוצע · מצגת מוכנה', rows:[
+      'נבנתה מצגת · <b>9 שקפים</b>',
+      'הותאמה לתבנית של החברה',
+      'נשלחה אליך לעיון'
+    ]},
+    {t:'agent', text:'מוכנה. רוצה שאכין גם דף מקוצר להדפסה?'}
+  ],
+  [
+    {t:'user', text:'התחלתי היום. מאיפה בכלל מתחילים?'},
+    {t:'agent', text:'ברוך הבא 🙂 הכנתי לך תוכנית לשבוע הראשון. נתחיל בשלושה אנשים שכדאי להכיר, ובנוהל אחד שחשוב לקרוא עוד היום.'},
+    {t:'user', text:'מי מאשר לי חופשות?'},
+    {t:'agent', text:'דנה, מנהלת הצוות שלך. אגב, ב‑15:00 יש לך פגישת היכרות איתה.'},
+    {t:'agent', text:'אכין לך נקודות לשיחה?'}
+  ]
+];
+
+const slides = [...document.querySelectorAll('.slide')];
+const dotsEl = document.getElementById('dots');
+const cta = document.getElementById('mainCta');
+const hint = document.getElementById('swipeHint');
+const nextArrow = document.getElementById('nextArrow');
+const prevArrow = document.getElementById('prevArrow');
+let current = 0;
+const played = new Set();
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+slides.forEach((_,i)=>{
+  const d = document.createElement('button');
+  d.className = 'dot'+(i===0?' active':'');
+  d.setAttribute('aria-label','מסך '+(i+1));
+  d.onclick = ()=>goTo(i);
+  dotsEl.appendChild(d);
+});
+const dots = [...dotsEl.children];
+
+function goTo(i){
+  if(i<0||i>=slides.length||i===current) return;
+  const prev = current;
+  slides[prev].classList.remove('active');
+  slides[prev].classList.add('leaving');
+  setTimeout(()=>slides[prev].classList.remove('leaving'),460);
+  current = i;
+  slides[i].classList.add('active');
+  dots.forEach((d,j)=>{
+    d.classList.toggle('active', j===i);
+    d.classList.toggle('seen', j<i && j!==i);
+  });
+  render();
+  const chat = slides[i].dataset.chat;
+  if(chat!==undefined && !played.has(chat)){ played.add(chat); playChat(slides[i], SCRIPTS[+chat]); }
+}
+const next = ()=>goTo(current+1);
+
+function render(){
+  const s = slides[current];
+  cta.textContent = s.dataset.cta;
+  cta.classList.toggle('secondary', false);
+  hint.style.visibility = current===0 ? 'visible' : 'hidden';
+  backBtn.disabled = current===0;
+  prevArrow.hidden = current===0;
+  nextArrow.hidden = current===slides.length-1;
+  cta.onclick = s.dataset.signup ? submitForm : next;
+}
+
+function submitForm(){
+  document.getElementById('signupForm').style.display='none';
+  document.getElementById('successBox').style.display='block';
+  cta.textContent='נתראה שם ✓';
+  cta.onclick=null;
+}
+
+/* ── ניגון צ'אט ── */
+const wait = ms => new Promise(r=>setTimeout(r, reduceMotion?0:ms));
+async function playChat(slide, script){
+  const log = slide.querySelector('.chat-log');
+  const statusText = slide.querySelector('.st-text');
+  const status = slide.querySelector('.chat-status');
+  await wait(500);
+  for(const step of script){
+    if(step.t==='user'){
+      const m=document.createElement('div'); m.className='msg user'; m.textContent=step.text;
+      log.appendChild(m); scrollLog(log); await wait(1100);
+    } else if(step.t==='agent'){
+      await showTyping(log,status,statusText,900);
+      const m=document.createElement('div'); m.className='msg agent'; m.textContent=step.text;
+      log.appendChild(m); scrollLog(log); await wait(1200);
+    } else if(step.t==='receipt'){
+      await showTyping(log,status,statusText,1300);
+      const r=document.createElement('div'); r.className='receipt';
+      r.innerHTML='<div class="receipt-title">'+step.title+'</div>';
+      log.appendChild(r); scrollLog(log);
+      for(let k=0;k<step.rows.length;k++){
+        await wait(420);
+        const row=document.createElement('div'); row.className='receipt-row';
+        row.innerHTML=CHECK+'<span>'+step.rows[k]+'</span>';
+        r.appendChild(row); scrollLog(log);
+      }
+      await wait(600);
+    }
+  }
+}
+async function showTyping(log,status,statusText,ms){
+  statusText.textContent='מקליד…'; status.classList.add('typing');
+  const t=document.createElement('div'); t.className='typing-bubble'; t.innerHTML='<i></i><i></i><i></i>';
+  log.appendChild(t); scrollLog(log);
+  await wait(ms); t.remove();
+  statusText.textContent='מחובר'; status.classList.remove('typing');
+}
+function scrollLog(log){ log.scrollTop = log.scrollHeight; }
+
+/* ── ניווט: חיצים, מקלדת, מגע ── */
+nextArrow.onclick = next;
+prevArrow.onclick = ()=>goTo(current-1);
+const backBtn = document.getElementById('backBtn');
+backBtn.onclick = ()=>goTo(current-1);
+addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') next();            /* RTL: קדימה = שמאלה */
+  if(e.key==='ArrowRight') goTo(current-1);
+});
+let touchX=null;
+addEventListener('touchstart', e=>{ touchX=e.touches[0].clientX; }, {passive:true});
+addEventListener('touchend', e=>{
+  if(touchX===null) return;
+  const dx = e.changedTouches[0].clientX - touchX; touchX=null;
+  if(Math.abs(dx)<48) return;
+  if(dx<0) next(); else goTo(current-1);
+}, {passive:true});
+
+render();
+</script>
+</body>
+</html>

@@ -62,12 +62,17 @@ function seedAgentAndChannel(): void {
   });
 }
 
-function insertOutbound(agentGroupId: string, sessionId: string, msgId: string): void {
+function insertOutbound(
+  agentGroupId: string,
+  sessionId: string,
+  msgId: string,
+  content: Record<string, unknown> = { text: 'hello' },
+): void {
   const db = new Database(outboundDbPath(agentGroupId, sessionId));
   db.prepare(
     `INSERT INTO messages_out (id, timestamp, kind, platform_id, channel_type, content)
      VALUES (?, datetime('now'), 'chat', 'telegram:123', 'telegram', ?)`,
-  ).run(msgId, JSON.stringify({ text: 'hello' }));
+  ).run(msgId, JSON.stringify(content));
   db.close();
 }
 
@@ -153,6 +158,31 @@ describe('deliverSessionMessages — concurrent invocations', () => {
     await deliverSessionMessages(session);
 
     expect(callCount).toBe(1);
+  });
+});
+
+describe('deliverSessionMessages — action link guard', () => {
+  it('promotes a raw calendar action URL to a card before it reaches the channel', async () => {
+    seedAgentAndChannel();
+    const { session } = resolveSession('ag-1', 'mg-1', null, 'shared');
+    insertOutbound('ag-1', session.id, 'out-calendar-link', {
+      text: 'הזימון מוכן https://calendar.google.com/calendar/render?action=TEMPLATE&text=test',
+    });
+
+    const delivered: Record<string, unknown>[] = [];
+    setDeliveryAdapter({
+      async deliver(_channelType, _platformId, _threadId, _kind, content) {
+        delivered.push(JSON.parse(content) as Record<string, unknown>);
+        return 'platform-card-id';
+      },
+    });
+
+    await deliverSessionMessages(session);
+
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0].type).toBe('card');
+    expect(JSON.stringify(delivered[0])).not.toContain('זימון מוכן https://');
+    expect(delivered[0].fallbackText).not.toContain('calendar.google.com');
   });
 });
 

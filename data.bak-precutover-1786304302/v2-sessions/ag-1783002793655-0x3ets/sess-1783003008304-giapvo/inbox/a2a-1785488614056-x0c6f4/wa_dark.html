@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
+body{background:#000;display:flex;justify-content:center}
+.phone{width:412px;min-height:880px;background:#0B141A;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.hdr{display:flex;align-items:center;gap:10px;background:#1F2C34;padding:11px 14px;z-index:3}
+.back{color:#E9EDEF;font-size:23px;margin-left:2px;opacity:.9}
+.av{width:46px;height:46px;border-radius:50%;overflow:hidden;background:#0F756D;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(255,255,255,.14) inset}
+.av img{width:100%;height:100%;object-fit:cover;transform:scale(1.07);display:block}
+.who{display:flex;flex-direction:column;line-height:1.25}
+.who .nm{color:#E9EDEF;font-weight:600;font-size:15.5px}
+.who .st{color:#8FA3AD;font-size:12px}
+.hdr .icons{margin-right:auto;display:flex;gap:18px;color:#E9EDEF;font-size:18px;opacity:.92}
+.chat{flex:1;position:relative;padding:16px 12px 88px;display:flex;flex-direction:column;gap:8px;background:#0B141A}
+.wall{position:absolute;inset:0;z-index:0;background-image:url('wa_doodle_dark.png');background-size:412px auto;background-repeat:repeat}
+.row{display:flex;max-width:82%;z-index:1;position:relative}
+.row.in{align-self:flex-start}
+.row.out{align-self:flex-end}
+.bub{padding:7px 10px 6px;border-radius:12px;font-size:14.5px;line-height:1.45;position:relative;box-shadow:0 1px .5px rgba(0,0,0,.2)}
+.in .bub{background:#202C33;color:#E9EDEF;border-top-right-radius:3px}
+.out .bub{background:#005C4B;color:#E9EDEF;border-top-left-radius:3px}
+.meta{display:block;text-align:left;font-size:10.5px;margin-top:3px}
+.in .meta{color:#8696A0}
+.out .meta{color:#A7C5BC}
+.tick{color:#53BDEB;font-weight:700}
+.li{margin:2px 0}
+.dot{color:#00A884}
+.cta{display:block;margin-top:7px;background:#111B21;color:#53BDEB;border:1px solid #00A884;border-radius:9px;padding:8px 12px;font-size:13.5px;font-weight:600;text-align:center}
+.inp{position:absolute;bottom:0;left:0;right:0;background:#1F2C34;padding:8px 12px;display:flex;align-items:center;gap:9px;z-index:3}
+.boxw{flex:1;background:#2A3942;border-radius:22px;padding:11px 15px;color:#8696A0;font-size:14px}
+.mic{width:44px;height:44px;border-radius:50%;background:#00A884;display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px}
+.ic{color:#8696A0;font-size:19px}
+</style></head><body>
+<div class="phone">
+  <div class="hdr"><span class="back">‹</span><div class="av"><img src="joni_avatar_wa.png" alt="ג'וני"></div><div class="who"><span class="nm">ג'וני</span><span class="st">מחובר</span></div><div class="icons"><span>📹</span><span>📞</span><span>⋮</span></div></div>
+  <div class="chat"><div class="wall"></div>
+    <div class="row out"><div class="bub">מה אתה יודע לעשות?<span class="meta">9:41 <span class="tick">✓✓</span></span></div></div>
+    <div class="row in"><div class="bub">כמה דברים שאני הכי טוב בהם:
+      <div class="li"><span class="dot">•</span> לסדר לך לו״ז לבוקר</div>
+      <div class="li"><span class="dot">•</span> לכתוב מייל מוכן לשליחה</div>
+      <div class="li"><span class="dot">•</span> לסכם פגישה מתמלול</div>
+      רוצה שננסה אחד עכשיו?<span class="meta">9:41</span></div></div>
+    <div class="row out"><div class="bub">תכתוב מייל לדנה שנדחה למחר<span class="meta">9:42 <span class="tick">✓✓</span></span></div></div>
+    <div class="row in"><div class="bub">הכנתי, זה מה שיוצא:
+      <div class="li">איש קשר: דנה</div>
+      <div class="li">נושא: דחיית הפגישה</div>
+      <div class="li">תוכן: היי דנה, ניאלץ לדחות למחר, נעדכן שעה. תודה</div>
+      לוחץ, בודק, שולח:
+      <span class="cta">פתיחת המייל ב-Gmail</span>
+      <span class="meta">9:42</span></div></div></div>
+  <div class="inp"><span class="boxw">הודעה</span><span class="ic">📎</span><span class="ic">📷</span><span class="mic">🎙</span></div>
+</div></body></html>

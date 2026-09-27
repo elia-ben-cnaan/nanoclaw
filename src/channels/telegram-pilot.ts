@@ -407,6 +407,11 @@ function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
     try {
       return await fn();
     } catch (err) {
+      // A bad bot token is a permanent configuration error, not a transient
+      // outage.  Do not block the independent WhatsApp provisioning channel.
+      if (err instanceof Error && (err.name === 'AuthenticationError' || /unauthorized/i.test(err.message))) {
+        throw err;
+      }
       if (i >= DELAYS.length) throw err;
       log.warn(`${label} failed, retrying`, { attempt: i + 1, delayMs: DELAYS[i], err });
       await new Promise((r) => setTimeout(r, DELAYS[i]));

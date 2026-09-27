@@ -53,7 +53,7 @@ function generateId(): string {
  * telegram-pilot.ts (wireMessagingGroupToAgentExclusive); this set makes the
  * 1:1 guarantee hold at route time even against stale data.
  */
-const EXCLUSIVE_SINGLE_AGENT_CHANNELS = new Set<string>(['telegram-pilot']);
+const EXCLUSIVE_SINGLE_AGENT_CHANNELS = new Set<string>(['telegram-pilot', 'telegram-agent4job']);
 
 // Cheapest model a pilot is downgraded to on its first day over the daily cap.
 const PILOT_CHEAPEST_MODEL = 'claude-haiku-4-5';
@@ -584,7 +584,12 @@ async function deliverToAgent(
   // a cross-channel directive the adapter doesn't know about). DMs collapse
   // sub-threads to one session (is_group=0 short-circuit).
   let effectiveSessionMode = agent.session_mode;
-  if (adapterSupportsThreads && effectiveSessionMode !== 'agent-shared' && mg.is_group !== 0) {
+  if (
+    adapterSupportsThreads &&
+    effectiveSessionMode !== 'agent-shared' &&
+    effectiveSessionMode !== 'per-user' &&
+    mg.is_group !== 0
+  ) {
     effectiveSessionMode = 'per-thread';
   }
 

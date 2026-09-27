@@ -10,6 +10,7 @@ import './cli.js';
 import './telegram.js';
 import './telegram-pilot.js';
 import './telegram-joni.js';
+import './telegram-agent4job.js';
 import './telegram-elia.js';
 import './whatsapp.js';
 import './whatsapp-cloud.js';

@@ -1,0 +1,593 @@
+/**
+ * POST /provision — pilot registration (activation v2, deep-link codes).
+ *
+ * Receives a registration payload from the signup app, mints a one-time
+ * 20-char activation code (24h TTL) and returns the Telegram deep-link.
+ * NOTHING is created at registration time: the agent is provisioned when
+ * the user actually presses START (provisionPilotAtPress below), and binds
+ * to the Telegram identity of whoever pressed — never to the phone/email
+ * from the form, which stay contact metadata on the activation row. This
+ * also kills the orphan-agent problem (registrations that never press).
+ *
+ * Expected body (JSON):
+ *   { name, phone, email, gender, lang, ts }
+ *
+ * Optional header:
+ *   Authorization: Bearer <HOST_PROVISION_TOKEN>
+ *
+ * Returns:
+ *   200  { "deepLink": "https://telegram.me/<pilot-bot>?start=<code>",
+ *          "fallbackLink": "tg://resolve?domain=<pilot-bot>&start=<code>" }
+ *
+ * telegram.me (not t.me): t.me went NXDOMAIN globally on 2026-07-14; both
+ * domains are official Telegram entry points, telegram.me is the workaround.
+ * fallbackLink is the native-app scheme — it bypasses web DNS entirely, for
+ * the case where telegram.me drops too. Clients that only read deepLink are
+ * unaffected (additive field).
+ *   401  { "error": "Unauthorized" }
+ *   400  { "error": "Bad request" }
+ *   500  { "error": "Internal error" }
+ */
+import crypto from 'crypto';
+import fs from 'fs';
+import http from 'http';
+import path from 'path';
+
+import { GROUPS_DIR } from './config.js';
+import { createAgentGroup, getAgentGroup, getAgentGroupByFolder } from './db/agent-groups.js';
+import {
+  ensureContainerConfig,
+  updateContainerConfigJson,
+  updateContainerConfigScalars,
+} from './db/container-configs.js';
+import { setCostCapUsd } from './db/usage-metering.js';
+import { findSessionByAgentGroup } from './db/sessions.js';
+import { readEnvFile } from './env.js';
+import { initGroupFilesystem } from './group-init.js';
+import { createProfileFirstPilot } from './job-profile-first.js';
+import { log } from './log.js';
+import { createActivation, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
+import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
+import { writeDestinations } from './modules/agent-to-agent/write-destinations.js';
+
+/**
+ * Daniela — the supervisor agent group. Every pilot agent provisioned here is
+ * wired bidirectionally to her so she can (a) read the user↔agent conversation
+ * (via the mirror in telegram-pilot.ts) and (b) reach any specific pilot if a
+ * problem comes up. Same install / same central DB as the pilots, so this is a
+ * plain shared-backbone destination wiring — identical to what `create_agent`
+ * does for parent↔child.
+ */
+const SUPERVISOR_AGENT_GROUP_ID = 'ag-1780401001748-zriukn';
+
+/**
+ * Wire a freshly-provisioned pilot agent bidirectionally to Daniela.
+ *   Daniela → pilot : local_name = slug   (lets Daniela message this agent)
+ *   pilot   → Daniela: local_name = parent (lets the pilot escalate upward)
+ *
+ * Mirrors the create_agent destination convention. Best-effort: a wiring
+ * failure must never break provisioning, so everything is wrapped and logged.
+ */
+function wirePilotToSupervisor(pilotGroupId: string, slug: string): void {
+  try {
+    const supervisor = getAgentGroup(SUPERVISOR_AGENT_GROUP_ID);
+    if (!supervisor) {
+      log.warn('Provision: supervisor agent group not found, skipping wiring', {
+        supervisor: SUPERVISOR_AGENT_GROUP_ID,
+        slug,
+      });
+      return;
+    }
+    const now = new Date().toISOString();
+
+    // Daniela → pilot
+    if (!getDestinationByName(SUPERVISOR_AGENT_GROUP_ID, slug)) {
+      createDestination({
+        agent_group_id: SUPERVISOR_AGENT_GROUP_ID,
+        local_name: slug,
+        target_type: 'agent',
+        target_id: pilotGroupId,
+        created_at: now,
+      });
+    }
+
+    // pilot → Daniela (canonical "parent", deduped just like create_agent)
+    let parentName = 'parent';
+    let suffix = 2;
+    while (getDestinationByName(pilotGroupId, parentName)) {
+      parentName = `parent-${suffix}`;
+      suffix++;
+    }
+    createDestination({
+      agent_group_id: pilotGroupId,
+      local_name: parentName,
+      target_type: 'agent',
+      target_id: SUPERVISOR_AGENT_GROUP_ID,
+      created_at: now,
+    });
+
+    // Project the new destination into Daniela's RUNNING container so she can
+    // message the pilot immediately (destination-projection invariant — see
+    // agent-destinations.ts). The pilot's own projection is written on its
+    // first container wake, so it needs no refresh here.
+    const supSession = findSessionByAgentGroup(SUPERVISOR_AGENT_GROUP_ID);
+    if (supSession) writeDestinations(SUPERVISOR_AGENT_GROUP_ID, supSession.id);
+
+    log.info('Provision: wired pilot to supervisor', { slug, pilotGroupId, parentName });
+  } catch (err) {
+    log.warn('Provision: failed to wire pilot to supervisor', { err, slug, pilotGroupId });
+  }
+}
+
+const PROVISION_TOKEN: string | undefined = (() => {
+  const fromEnv = readEnvFile(['HOST_PROVISION_TOKEN']);
+  return fromEnv['HOST_PROVISION_TOKEN'] || process.env['HOST_PROVISION_TOKEN'] || undefined;
+})();
+
+// Johnny (ג'וני) is the active pilot agent as of 2026-07-06: every provisioned
+// agent is born from this approved v2 script (Elia #16256). Replaces the older
+// hosted_agent_template.md (ג'ני). Existing Jenny agents keep their own files.
+const TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'pilot_agent_script_v2.md');
+
+// ── Agent4Job (Path A) — job-search pilot wiring ────────────────────────────
+const CENTRAL_BASE = process.env.CENTRAL_BASE ?? 'http://159.195.200.224:8080';
+const FEED_TOKEN = process.env.FEED_TOKEN ?? ''; // server-side admin token; NEVER given to the agent
+const MINT_TIMEOUT_MS = 4000;
+const JOB_TEMPLATE_PATH = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'joni_onboarding_script_v1.md');
+
+/** Job-search pilot? Gate on the src flag already parsed off activation metadata. */
+function isJobPilot(meta: ActivationMetadata): boolean {
+  return meta.src === 'agent4job' || meta.src === 'jobs';
+}
+
+/**
+ * Mint the user's own scoped, revocable board token from the central engine.
+ * SOFT-FAIL: returns null on any error/timeout — caller MUST still provision.
+ * provisionPilotAtPress is idempotent, so a later re-provision re-mints.
+ */
+async function mintBoardToken(userId: string, ttlDays = 90): Promise<{ token: string; boardUrl: string } | null> {
+  if (!FEED_TOKEN || !userId) {
+    log.warn('Provision: cannot mint board token', { hasToken: !!FEED_TOKEN, userId });
+    return null;
+  }
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), MINT_TIMEOUT_MS);
+  try {
+    const r = await fetch(`${CENTRAL_BASE}/onboard-issue`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${FEED_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ttlDays }),
+      signal: ctl.signal,
+    });
+    if (!r.ok) {
+      log.warn('Provision: onboard-issue failed', { status: r.status, userId });
+      return null;
+    }
+    const j = (await r.json()) as { token: string; boardUrl: string };
+    return { token: j.token, boardUrl: j.boardUrl };
+  } catch (err) {
+    log.warn('Provision: onboard-issue error', { userId, err: (err as Error)?.message });
+    return null; // never throw — provisioning must complete
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Job-search brain — reads the locked profile-first persona VERBATIM, then
+ *  appends a runtime-wiring footer (boardUrl + scoped token + ingest contract).
+ *  The persona file has no placeholders; replaceAll stays as a forward-compat
+ *  no-op in case placeholders are re-introduced. FEED_TOKEN is NEVER injected. */
+function buildJobInstructions(a: { userName: string; userId: string; boardToken: string; boardUrl: string }): string {
+  const persona = fs.readFileSync(JOB_TEMPLATE_PATH, 'utf8')
+    .replaceAll('{{USER_NAME}}', a.userName)
+    .replaceAll('{{USER_ID}}', a.userId)
+    .replaceAll('{{BOARD_TOKEN}}', a.boardToken)
+    .replaceAll('{{BOARD_URL}}', a.boardUrl)
+    .replaceAll('{{CENTRAL_BASE}}', CENTRAL_BASE);
+  const ready = a.boardToken
+    ? [
+        `- board token (scoped, this user only): ${a.boardToken}`,
+        `- board URL (send ONLY after the profile gate passes): ${a.boardUrl}`,
+      ].join('\n')
+    : '- board token NOT yet minted. Say "רק מתחבר/ת" and do NOT push the profile or send a board link yet — a re-provision will mint it.';
+  const footer = [
+    '',
+    '---',
+    '## Runtime wiring (system — do not recite to the user)',
+    `- central base: ${CENTRAL_BASE}`,
+    `- userId (board key = phone digits): ${a.userId}`,
+    ready,
+    '- Push PROFILE ONLY (never ranked jobs) once the profile gate passes:',
+    `  POST ${CENTRAL_BASE}/ingest/profile`,
+    "  Authorization: Bearer <this user's board token above>",
+    '  body: { "userId": "<userId>", "profile": { ...schema-valid profile... } }',
+    '- The center ranks + writes Hebrew summaries + fills the board. Then send the board URL.',
+    '- NEVER expose the raw token in chat beyond the board link itself.',
+  ].join('\n');
+  return persona + '\n' + footer;
+}
+
+/**
+ * Fixed name every pilot agent introduces itself with (per the pilot spec:
+ * a single, consistent identity — no rename invitation in the greeting).
+ * This is the user-facing display name + the agent's own name
+ * (`assistant_name`) — NOT the slug. The slug (`generateSlug()`) stays an
+ * internal id only: it's the folder, the supervisor-wiring local_name, and
+ * the log key, and is never surfaced to the user.
+ */
+const DEFAULT_ASSISTANT_NAME = "ג'וני";
+
+/**
+ * Pilot cost config — LOCKED. Every freshly-provisioned hosted agent is pinned
+ * to this model, this reasoning effort, and this daily USD spend cap. All are
+ * written at create time: model + effort into container_configs, the cap into
+ * agent_cost_caps as a per-agent row so it holds in the DB regardless of the
+ * PILOT_DAILY_COST_CAP_USD env default and never drifts. The provision request
+ * body carries no model/effort/cost fields, so a caller cannot raise any of
+ * them. Change the pilot tier here, in one place, not per request.
+ */
+// claude-sonnet-4-5 since 2026-08-05 (Elia): the whole live fleet was raised
+// to sonnet-4-5 after haiku kept producing broken-Hebrew replies despite the
+// proofreading rules (canary pilot-0641c8 verified clean). New pilots must
+// match the fleet — stamping haiku here was the residual gap that gave fresh
+// signups (רינת, 05.08) garbled Hebrew on day one.
+const PILOT_MODEL = 'claude-sonnet-4-5';
+// Reasoning effort, pinned low for cost. Joni is a conversational chat agent;
+// its Hebrew tone + "no em-dash / no AI-isms / be concise" rules live in the
+// persona prompt, not in extended thinking, so low effort keeps day-to-day
+// chat cheap without making it feel robotic. Bump to 'medium' here if quality
+// regresses. Valid: 'low' | 'medium' | 'high' | 'xhigh' | 'max'.
+const PILOT_EFFORT = 'low';
+// Overflow provider for pilots: when the Claude account hits its plan/session
+// limit, the pilot keeps answering via Codex instead of surfacing a raw
+// "session limit" error to the user (and returns to Claude automatically when
+// quota renews). Mirrors Daniela's config so app-created agents survive an
+// outage the same way.
+const PILOT_FALLBACK_PROVIDER = 'codex';
+const PILOT_DAILY_COST_CAP_USD = 1.0;
+// Agent-runner default is 15 turns per wake — a long chat exchange with
+// follow-up pushes hit it mid-conversation in QA (30.7). 30 gives headroom;
+// the daily cost cap stays the real spend guard.
+const PILOT_MAX_TURNS = 30;
+
+// Resolved once at startup from the Johnny bot token via getMe. The /provision
+// deep link points at @joni_agent_bot as of 2026-07-06 (Johnny replaces the
+// pilot in provisioning). Falls back to the literal username if getMe fails.
+const PILOT_BOT_USERNAME_PROMISE: Promise<string> = (async () => {
+  const env = readEnvFile(['JONI_TELEGRAM_BOT_TOKEN']);
+  const token = env['JONI_TELEGRAM_BOT_TOKEN'];
+  if (!token) return 'joni_agent_bot'; // fallback until Johnny bot token is set
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = (await res.json()) as { ok?: boolean; result?: { username?: string } };
+    return data.ok && data.result?.username ? data.result.username : 'joni_agent_bot';
+  } catch {
+    return 'joni_agent_bot';
+  }
+})();
+
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function json(res: http.ServerResponse, status: number, body: unknown): void {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(payload);
+}
+
+function generateSlug(): string {
+  return 'pilot-' + crypto.randomBytes(3).toString('hex'); // e.g. pilot-a3f9c2
+}
+
+function buildUserIdentityBlock(name: string | null, gender: string, lang: string): string {
+  if (lang === 'en') {
+    const nameLine = name
+      ? `The user's name is ${name}. Always address them by this name.`
+      : `The user's name is not known. Address them neutrally — never invent or guess a name, and don't ask for one unless it comes up naturally.`;
+    return (
+      `## User identity\n` +
+      `${nameLine}\n\n` +
+      `## Language\n` +
+      `This user chose English in the signup form. Open the conversation in English and ` +
+      `keep communicating in English throughout. If the user switches to another language ` +
+      `mid-conversation, follow them. ` +
+      `(Grammatical gender, only relevant if you ever speak Hebrew: ${gender === 'f' ? 'f' : 'm'}.)`
+    );
+  }
+  const formHe = gender === 'f' ? 'נקבית' : 'זכרית';
+  const nameLineHe = name
+    ? `שם המשתמש הוא ${name}. פנה אליו/אליה תמיד בשמו/שמה. `
+    : `שם המשתמש לא ידוע. פנה אליו/אליה בניסוח ניטרלי — אל תמציא שם ואל תנחש. `;
+  return (
+    `## זהות המשתמש\n` +
+    nameLineHe +
+    `דבר/י אליו/אליה בעברית, בצורה ${formHe} (מין: ${gender === 'f' ? 'נקבה' : 'זכר'}).`
+  );
+}
+
+/**
+ * The persona/onboarding script below is Hebrew-only and hardcodes literal
+ * Hebrew example messages (incl. the "automatic" opening line). For English
+ * signups this conflicts with the English directive in the identity block —
+ * without this note the model has to resolve a concrete Hebrew example
+ * against an abstract English rule, and doesn't reliably pick English.
+ */
+const EN_TEMPLATE_OVERRIDE_NOTE =
+  '## Language override for everything below\n' +
+  'The script below (persona, onboarding flow, example messages) is written in Hebrew. ' +
+  'Treat it as structure and tone reference ONLY, never as literal text to send. ' +
+  'You already know this user selected English — write every message, starting with the ' +
+  'very first one, in English, carrying the same intent and structure as the Hebrew examples.';
+
+function buildInstructions(userName: string, channel: string, assistantName: string, lang: PilotLang): string {
+  const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+  const filled = template
+    .replaceAll('{{USER_NAME}}', userName)
+    .replaceAll('{{CHANNEL}}', channel)
+    .replaceAll('{{ASSISTANT_NAME}}', assistantName);
+  return lang === 'en' ? `${EN_TEMPLATE_OVERRIDE_NOTE}\n\n${filled}` : filled;
+}
+
+export async function handleProvision(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  // 1. Validate Bearer token if HOST_PROVISION_TOKEN is set
+  const expectedToken = PROVISION_TOKEN;
+  if (expectedToken) {
+    const authHeader = req.headers['authorization'] ?? '';
+    const provided = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!provided || !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expectedToken))) {
+      json(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+  }
+
+  // 2. Parse body
+  let body: Record<string, unknown>;
+  try {
+    const raw = await readBody(req);
+    body = JSON.parse(raw);
+  } catch {
+    json(res, 400, { error: 'Bad request' });
+    return;
+  }
+
+  const userName = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'User';
+  const gender = typeof body.gender === 'string' ? body.gender : 'm';
+  const lang: PilotLang = body.lang === 'en' ? 'en' : 'he';
+
+  try {
+    // Mint a one-time activation code (24h TTL). The agent itself is created
+    // only when the user presses START — see provisionPilotAtPress.
+    const activation = createActivation({
+      lang,
+      metadata: {
+        name: userName,
+        gender,
+        phone: typeof body.phone === 'string' ? body.phone : null,
+        email: typeof body.email === 'string' ? body.email : null,
+        src: typeof body.src === 'string' && body.src.trim() ? body.src.trim() : null,
+      },
+    });
+
+    const botUsername = await PILOT_BOT_USERNAME_PROMISE;
+    const telegramDeepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
+    const telegramFallbackLink = `tg://resolve?domain=${botUsername}&start=${activation.code}`;
+
+    // WhatsApp deep link: wa.me/NUMBER?text=CODE. The number is the BOT's
+    // dedicated number (WHATSAPP_BOT_NUMBER) — deliberately a separate env var
+    // from WHATSAPP_PHONE_NUMBER, which the whatsapp adapter reads to decide
+    // pairing-code auth mode. Reusing that key here would flip the adapter's
+    // auth path as a side effect.
+    const whatsappPhoneNumber = readEnvFile(['WHATSAPP_BOT_NUMBER'])['WHATSAPP_BOT_NUMBER'];
+    // Friendly pre-filled message with the code embedded at the end — the
+    // adapter finds the code anywhere in the text (findPilotCodeInText),
+    // swallows the whole message, and answers with Johnny's greeting.
+    // Personalized when the form carried a name; neutral otherwise. No
+    // parentheses / brand tags — the message should read like the user
+    // actually wrote it (Elia, 2026-07-30).
+    const hasName = userName !== 'User';
+    const isJobSignup = body.src === 'agent4job' || body.src === 'jobs';
+    const whatsappText = isJobSignup
+      ? lang === 'en'
+        ? `Hello Johnny\nI came through the job search service\nI would like to begin\n\nActivation code: ${activation.code}`
+        : `שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל\n\nקוד הפעלה: ${activation.code}`
+      : lang === 'en'
+        ? `Hey Johnny,\n${hasName ? `I'm ${userName}, ` : ''}happy to start working together! 🙂\n\nActivation code: ${activation.code}`
+        : `אהלן ג'וני,\n${hasName ? `אני ${userName}, ` : ''}אשמח להתחיל לעבוד יחד! 🙂\n\nקוד הפעלה: ${activation.code}`;
+    const whatsappDeepLink = whatsappPhoneNumber
+      ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappText)}`
+      : null;
+
+    log.info('Provision: activation created', { code: activation.code, userName, lang });
+    json(res, 200, {
+      telegram: { deepLink: telegramDeepLink, fallbackLink: telegramFallbackLink },
+      whatsapp: whatsappDeepLink ? { deepLink: whatsappDeepLink } : null,
+    });
+  } catch (err) {
+    log.error('Provision: failed', { err, userName });
+    json(res, 500, { error: 'Internal error' });
+  }
+}
+
+/** Contact metadata captured by the signup form (never used for routing). */
+interface ActivationMetadata {
+  name?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  src?: string | null;
+}
+
+function parseActivationMetadata(activation: PilotActivation): ActivationMetadata {
+  try {
+    return activation.metadata ? (JSON.parse(activation.metadata) as ActivationMetadata) : {};
+  } catch {
+    return {};
+  }
+}
+
+export interface PressProvisionResult {
+  agentGroupId: string;
+  slug: string;
+  userName: string;
+  lang: PilotLang;
+  /** Set only on the profile-first path — the central "journey" opening line. */
+  profileFirstGreeting?: string;
+}
+
+/**
+ * Press-time provisioning — everything handleProvision used to do up front,
+ * now deferred to the moment the user presses START in Telegram. Creates the
+ * agent group (fixed name ג'ני), seeds instructions (user identity + hosted
+ * template), pins the pilot model + daily cost cap, and wires the agent to
+ * the supervisor. Chat-side wiring (messaging group, membership, greeting)
+ * stays with the caller in telegram-pilot.ts.
+ *
+ * The seed intentionally carries no "pilot window" / day-count narrative —
+ * `pilot_ends_at` still gates reactivation (see findActivePilotByUser) and
+ * the daily cost cap still enforces spend (see dailyCostAction in
+ * router.ts), but neither is framed to the user as a countdown.
+ */
+export async function provisionPilotAtPress(input: {
+  activation: PilotActivation;
+  /** Telegram profile name — fallback when the form carried no name. */
+  fallbackName?: string | null;
+  /** Channel name baked into the agent instructions ({{CHANNEL}}). Defaults to Telegram. */
+  channel?: string;
+  /** Stable channel identity used when an Agent4Job Telegram start has no phone metadata. */
+  boardUserId?: string | null;
+  /** Public Agent4Job entries remain isolated from legacy supervisor routing. */
+  supervisor?: boolean;
+}): Promise<PressProvisionResult> {
+  const meta = parseActivationMetadata(input.activation);
+  // realName drives the identity block (null → explicit "address neutrally"
+  // instruction); userName keeps the legacy 'User' placeholder for the
+  // template's {{USER_NAME}} slot and the return value.
+  const realName = meta.name?.trim() || input.fallbackName?.trim() || null;
+  const userName = realName || 'User';
+  const gender = meta.gender === 'f' ? 'f' : 'm';
+  const lang: PilotLang = input.activation.lang === 'en' ? 'en' : 'he';
+
+  // Unique slug / folder — internal id only, never user-facing.
+  let slug = generateSlug();
+  let attempts = 0;
+  while (getAgentGroupByFolder(slug) && attempts++ < 20) {
+    slug = generateSlug();
+  }
+
+  const agentGroupId = `ag-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const now = new Date().toISOString();
+
+  // Explicit opt-in on the flag only; never mint a board on this path.
+  // PROD: .catch(()=>null) so a central hiccup falls back to the footer path
+  // instead of failing the whole activation (staging has no guard — see PR notes).
+  const profileFirst = isJobPilot(meta) && process.env.AGENT4JOB_PROFILE_FIRST_STAGING === '1'
+    ? await createProfileFirstPilot({
+        userId: (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, ''),
+        userName,
+        template: fs.readFileSync(process.env.AGENT4JOB_PROFILE_FIRST_TEMPLATE || '', 'utf8'),
+        baseUrl: process.env.STAGING_CENTRAL_BASE || '',
+        provisionToken: process.env.STAGING_PROVISION_TOKEN || '',
+        feedToken: FEED_TOKEN, // already loaded from process.env.FEED_TOKEN; NEVER given to the agent
+      }).catch((e) => { log.warn('profile-first provision failed, falling back to footer path', { e }); return null; })
+    : null;
+
+  createAgentGroup({
+    id: agentGroupId,
+    name: DEFAULT_ASSISTANT_NAME,
+    folder: slug,
+    agent_provider: null,
+    created_at: now,
+  });
+
+  let instructions: string;
+  if (profileFirst) {
+    // Validated profile-first path (persona + /interview/profile loop vs central
+    // 8091). Reachable only when the flag is '1' AND isJobPilot AND the 8091
+    // onboard above succeeded; otherwise profileFirst is null and we fall through.
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) + '\n\n' + profileFirst.instructions;
+  } else if (isJobPilot(meta)) {
+    // Signup activations keep their phone-based board identity so the same
+    // agent can be reached from either channel. A public Telegram start has
+    // no phone form, therefore falls back to its stable Telegram numeric id.
+    const boardUserId = (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, '');
+    const minted = await mintBoardToken(boardUserId, 90); // null on failure — no throw
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) +
+      '\n\n' +
+      buildJobInstructions({
+        userName,
+        userId: boardUserId,
+        boardToken: minted?.token ?? '', // empty until a later re-provision mints
+        boardUrl: minted?.boardUrl ?? '',
+      });
+    if (!minted) {
+      log.warn('Provision: job pilot without board token — will re-mint next provision', { boardUserId, slug });
+    }
+  } else {
+    // UNCHANGED generic ג'וני path — byte-identical to today.
+    instructions =
+      buildUserIdentityBlock(realName, gender, lang) +
+      '\n\n' +
+      buildInstructions(userName, input.channel ?? 'Telegram', DEFAULT_ASSISTANT_NAME, lang);
+  }
+  initGroupFilesystem(
+    { id: agentGroupId, name: DEFAULT_ASSISTANT_NAME, folder: slug, agent_provider: null, created_at: now },
+    { instructions },
+  );
+
+  // Profile-first connection file: the agent reads /workspace/agent/.agent4job.json
+  // for baseUrl/userId/boardToken/token. Written 0600, never recited to the user.
+  if (profileFirst) {
+    fs.writeFileSync(
+      path.join(GROUPS_DIR, slug, '.agent4job.json'),
+      JSON.stringify(profileFirst.config),
+      { mode: 0o600 },
+    );
+  }
+
+  // Ship the use-case playbook into the new agent's workspace. The seed
+  // instructions carry only a compact trigger→title index (kept lean per the
+  // SCALE-FIRST token budget); the full teach_blocks live in this sibling
+  // file, which the agent greps on demand when it recognizes a scenario.
+  // Without this copy a new agent's index would point at a missing file.
+  try {
+    const playbookSrc = path.join(GROUPS_DIR, 'dm-with-elia-ben-cnaan', 'usecases_playbook.md');
+    const playbookDst = path.join(GROUPS_DIR, slug, 'usecases_playbook.md');
+    if (fs.existsSync(playbookSrc) && !fs.existsSync(playbookDst)) {
+      fs.copyFileSync(playbookSrc, playbookDst);
+    }
+  } catch (err) {
+    log.warn('Provision: failed to copy usecases playbook (non-fatal)', { err, slug });
+  }
+
+  // Pilot cost config (LOCKED, see PILOT_MODEL / PILOT_EFFORT / PILOT_DAILY_COST_CAP_USD).
+  ensureContainerConfig(agentGroupId);
+  updateContainerConfigScalars(agentGroupId, {
+    model: PILOT_MODEL,
+    effort: PILOT_EFFORT,
+    fallback_provider: PILOT_FALLBACK_PROVIDER,
+    assistant_name: DEFAULT_ASSISTANT_NAME,
+    max_turns: PILOT_MAX_TURNS,
+  });
+  setCostCapUsd(agentGroupId, PILOT_DAILY_COST_CAP_USD);
+
+  // Subagents must never receive an OpenAI API tool or credential. Incoming
+  // voice is transcribed locally by the host; spoken replies, when enabled,
+  // are a host-only capability restricted to the two main agents.
+  updateContainerConfigJson(agentGroupId, 'mcp_servers', {});
+
+  // Legacy channels retain their supervisor relationship. The public Agent4Job
+  // Telegram entrypoint explicitly opts out, so no new user can enter Daniela
+  // or be reachable through an existing personal-agent graph.
+  if (input.supervisor !== false) wirePilotToSupervisor(agentGroupId, slug);
+
+  log.info('Provision: pilot agent created at press', { slug, agentGroupId, userName, lang });
+  return { agentGroupId, slug, userName, lang, ...(profileFirst ? { profileFirstGreeting: profileFirst.greeting } : {}) };
+}

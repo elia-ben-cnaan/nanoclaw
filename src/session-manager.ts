@@ -82,6 +82,8 @@ function generateId(): string {
  * Session modes:
  * - 'shared': one session per messaging group (ignores threadId)
  * - 'per-thread': one session per (messaging group, thread)
+ * - 'per-user': one session per private user messaging group; adapters create
+ *   one such group per sender, so it cannot be shared with another user
  * - 'agent-shared': one session per agent group — all messaging groups
  *   wired with this mode share a single session (e.g. GitHub + Slack)
  */
@@ -89,7 +91,7 @@ export function resolveSession(
   agentGroupId: string,
   messagingGroupId: string | null,
   threadId: string | null,
-  sessionMode: 'shared' | 'per-thread' | 'agent-shared',
+  sessionMode: 'shared' | 'per-thread' | 'per-user' | 'agent-shared',
 ): { session: Session; created: boolean } {
   // agent-shared: single session per agent group, regardless of messaging group
   if (sessionMode === 'agent-shared') {
@@ -98,7 +100,7 @@ export function resolveSession(
       return { session: existing, created: false };
     }
   } else if (messagingGroupId) {
-    const lookupThreadId = sessionMode === 'shared' ? null : threadId;
+    const lookupThreadId = sessionMode === 'per-thread' ? threadId : null;
     // Scope lookup by agent_group_id so fan-out to multiple agents in the
     // same chat doesn't accidentally deliver to the wrong agent's session.
     const existing = findSessionForAgent(agentGroupId, messagingGroupId, lookupThreadId);

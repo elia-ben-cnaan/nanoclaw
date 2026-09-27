@@ -1,88 +1,88 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Agent4Job — נמצא לך עבודה שמתאימה לך</title>
-<meta name="description" content="סוכן אישי שמכיר אותך, מוצא ומדרג משרות, ומנהל לך את התהליך — הכל בוואטסאפ." />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Agent4Job — הסוכן שמוצא לך את העבודה הבאה</title>
+<meta name="description" content="סוכן אישי שחי איתך בוואטסאפ, מגובה במערכת משרות מתקדמת שמוצאת ומדרגת עבורך עבודות — ומלווה אותך לאורך כל הדרך." />
+<!-- Social share preview (WhatsApp / Telegram / LinkedIn) -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://agentforjob.com/" />
+<meta property="og:title" content="Agent4Job — Finds your next job" />
+<meta property="og:description" content="Your personal agent, right in WhatsApp — powered by a smart job-matching engine that finds and ranks real jobs for you, with you all the way." />
+<meta property="og:image" content="https://agentforjob.com/og-cover.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content="he_IL" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Agent4Job — Finds your next job" />
+<meta name="twitter:description" content="Your personal agent, right in WhatsApp — powered by a smart job-matching engine, with you all the way." />
+<meta name="twitter:image" content="https://agentforjob.com/og-cover.jpg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Heebo:wght@400;500;700;800&family=Fredoka+One&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#000000; --s1:#101010; --s2:#181818; --s3:#202020;
-    --ink:#FFFFFF; --muted:#B0B0B0;
-    --teal:#56EDD6; --action:#0F756D; --orange:#E85D3A; --line:#3A3A3A;
+    /* macOS dark — soft greys, turquoise dominant */
+    --paper:#1C1C1E; --s1:#2C2C2E; --s2:#3A3A3C; --line:#48484A;
+    --ink:#FFFFFF; --muted:#A1A1A6;
+    --teal:#56EDD6; --teal-deep:#012a26; --orange:#FF9F0A;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:var(--paper);color:var(--ink);font-family:'Heebo','Inter',sans-serif;-webkit-font-smoothing:antialiased}
   body{min-height:100dvh;display:flex;flex-direction:column;overflow-x:hidden}
-  .wrap{width:100%;max-width:560px;margin:0 auto;padding:28px 22px 40px;flex:1;display:flex;flex-direction:column}
-  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .brand{display:flex;align-items:center;gap:4px;direction:ltr;font-family:'Fredoka One',cursive;font-size:24px;letter-spacing:-1.4px}
-  .brand img{width:auto;height:51px;display:block;margin-right:-2px}
-  .brand b{color:var(--teal)}
-  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
-  .hero{flex:1;display:flex;flex-direction:column;justify-content:center;padding:34px 0 20px}
-  .kicker{color:var(--teal);font-weight:700;font-size:14px;letter-spacing:.3px;margin-bottom:16px}
-  h1{font-size:34px;line-height:1.18;font-weight:800;letter-spacing:-.4px;margin-bottom:16px}
+  .wrap{width:100%;max-width:540px;margin:0 auto;padding:34px 22px 34px;flex:1;display:flex;flex-direction:column}
+
+  /* Centered logo (icon + wordmark are one asset) */
+  .logo{display:flex;flex-direction:column;align-items:center;margin-bottom:2px}
+  .logo img{width:min(78%,300px);height:auto;display:block}
+
+  .hero{display:flex;flex-direction:column;text-align:center;padding:30px 0 6px}
+  .kicker{color:var(--teal);font-weight:700;font-size:14px;letter-spacing:.3px;margin-bottom:14px}
+  h1{font-size:33px;line-height:1.2;font-weight:800;letter-spacing:-.4px;margin-bottom:15px}
   h1 span{color:var(--teal)}
-  .sub{color:var(--muted);font-size:17px;line-height:1.6;max-width:460px}
-  .steps{display:flex;flex-direction:column;gap:12px;margin:30px 0 8px}
+  .sub{color:var(--muted);font-size:16.5px;line-height:1.6;max-width:430px;margin:0 auto}
+
+  .steps{display:flex;flex-direction:column;gap:11px;margin:28px 0 6px;text-align:right}
   .step{display:flex;align-items:flex-start;gap:13px;background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:15px 16px}
-  .num{flex:none;width:30px;height:30px;border-radius:9px;background:var(--s3);color:var(--teal);font-weight:800;display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;font-size:15px}
+  .num{flex:none;width:30px;height:30px;border-radius:9px;background:var(--s2);color:var(--teal);font-weight:800;
+    display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;font-size:15px}
   .step .t{font-weight:600;font-size:15.5px;margin-bottom:2px}
   .step .d{color:var(--muted);font-size:13.5px;line-height:1.45}
-  .cta-wrap{position:sticky;bottom:0;padding-top:18px;background:linear-gradient(to top,var(--paper) 70%,transparent)}
-  .cta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
-    background:var(--teal);color:#012a26;font-weight:800;font-size:18px;text-decoration:none;
-    padding:17px;border-radius:16px;transition:transform .12s ease, box-shadow .2s ease;
-    box-shadow:0 8px 30px rgba(86,237,214,.22)}
-  .cta:active{transform:scale(.985)}
-  .cta svg{width:22px;height:22px}
-  .cta.locked{opacity:.42;box-shadow:none;pointer-events:none;filter:grayscale(.3)}
-  .form{display:flex;flex-direction:column;gap:10px;margin:22px 0 4px}
-  .form-lbl{color:var(--muted);font-size:13px;margin-bottom:2px}
-  .form .row{display:flex;gap:10px}
-  .form input{width:100%;background:var(--s1);border:1px solid var(--line);border-radius:12px;
-    padding:14px;color:var(--ink);font-family:inherit;font-size:15.5px;outline:none;transition:border-color .15s ease}
-  .form input::placeholder{color:#6a6a6a}
-  .form input:focus{border-color:var(--teal)}
+
+  .cta-wrap{margin-top:26px}
   .consent{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;
     color:var(--muted);font-size:13.5px;line-height:1.5;cursor:pointer;text-align:right}
   .consent input{flex:none;width:20px;height:20px;margin-top:1px;accent-color:var(--teal);cursor:pointer}
   .consent a{color:var(--teal);text-decoration:underline;text-underline-offset:2px}
+  .cta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+    background:var(--teal);color:var(--teal-deep);font-weight:800;font-size:18px;text-decoration:none;
+    padding:18px;border-radius:16px;transition:transform .12s ease, box-shadow .2s ease;
+    box-shadow:0 8px 30px rgba(86,237,214,.24)}
+  .cta:active{transform:scale(.985)}
+  .cta svg{width:22px;height:22px}
+  .cta.locked{opacity:.42;box-shadow:none;pointer-events:none;filter:grayscale(.3)}
   .fine{text-align:center;color:var(--muted);font-size:12.5px;margin-top:12px;line-height:1.5}
-  footer{text-align:center;color:#6a6a6a;font-size:12px;padding-top:26px}
-  @media(max-width:380px){h1{font-size:29px}.sub{font-size:16px}}
+  footer{text-align:center;color:#6a6a6a;font-size:12px;padding-top:24px}
+  @media(max-width:380px){h1{font-size:29px}.sub{font-size:15.5px}}
 </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div class="brand">Agent<b>4</b>Job<img src="mascot.png" alt="" /></div>
-      <div class="badge">בטא · סוכן משרות</div>
-    </header>
+    <div class="logo">
+      <img src="logo_final_transparent.png" alt="Agent4Job" />
+    </div>
 
     <section class="hero">
-      <div class="kicker">הסוכן האישי שלך למציאת עבודה</div>
-      <h1>נמצא לך <span>עבודה שמתאימה לך</span> — ושאתה מתאים לה.</h1>
-      <p class="sub">סוכן אישי שמכיר אותך בשיחה קצרה, מוצא ומדרג עבורך משרות אמיתיות, ומנהל לך את כל התהליך. הכל בוואטסאפ — בלי אפליקציה, בלי טפסים.</p>
+      <div class="kicker">סוכן אישי שמלווה אותך — בוואטסאפ</div>
+      <h1>הסוכן ש<span>מוצא לך את העבודה הבאה</span>.</h1>
+      <p class="sub">סוכן אישי שחי איתך בוואטסאפ, מגובה במערכת משרות מתקדמת שמוצאת ומדרגת עבורך עבודות — ומלווה אותך לאורך כל הדרך.</p>
 
       <div class="steps">
-        <div class="step"><div class="num">1</div><div><div class="t">שיחה קצרה שמכירה אותך</div><div class="d">מה אתה מחפש, מה חשוב לך, במה אתה חזק.</div></div></div>
-        <div class="step"><div class="num">2</div><div><div class="t">מציאה ודירוג של משרות</div><div class="d">רק התאמות אמיתיות, מדורגות לפי מה שמתאים לך.</div></div></div>
-        <div class="step"><div class="num">3</div><div><div class="t">לוח שמנהל ומדייק</div><div class="d">מנהל את הכל במקום אחד, ומתכייל תוך כדי לפי המשוב שלך.</div></div></div>
+        <div class="step"><div class="num">1</div><div><div class="t">הסוכן פותח ומוביל</div><div class="d">שיחה קצרה שמכירה אותך. מה אתה מחפש ובמה אתה חזק. הוא שואל, אתה עונה.</div></div></div>
+        <div class="step"><div class="num">2</div><div><div class="t">שולח קורות חיים</div><div class="d">מעלה קו״ח בוואטסאפ, והסוכן לומד אותך לעומק כדי לדייק את ההתאמה.</div></div></div>
+        <div class="step"><div class="num">3</div><div><div class="t">משרות שמתאימות לך</div><div class="d">מוצא ומדרג רק התאמות אמיתיות, ומנהל לך את התהליך, ומתכייל תוך כדי לפי המשוב שלך.</div></div></div>
       </div>
-    </section>
-
-    <section class="form">
-      <div class="form-lbl">כדי שנתחיל אישית — כמה פרטים:</div>
-      <div class="row">
-        <input type="text" id="fname" placeholder="שם פרטי" autocomplete="given-name" />
-        <input type="text" id="lname" placeholder="שם משפחה" autocomplete="family-name" />
-      </div>
-      <input type="email" id="email" placeholder="אימייל" autocomplete="email" inputmode="email" dir="ltr" style="text-align:right" />
     </section>
 
     <div class="cta-wrap">
@@ -92,7 +92,7 @@
       </label>
       <a class="cta locked" id="cta" href="#" aria-disabled="true">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.48 1.34 5l-1.42 5.18 5.3-1.39c1.46.8 3.1 1.22 4.74 1.22 5.5 0 9.96-4.46 9.96-9.96S17.54 2 12.04 2zm5.8 14.06c-.24.68-1.4 1.3-1.94 1.34-.5.05-1.13.24-3.66-.77-3.08-1.22-5.04-4.36-5.2-4.56-.15-.2-1.24-1.65-1.24-3.15s.79-2.24 1.07-2.54c.28-.3.6-.38.8-.38h.58c.19 0 .44-.07.68.52.24.6.82 2.06.9 2.2.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.17-.31.39-.44.52-.15.15-.3.31-.13.61.17.3.76 1.25 1.63 2.02 1.12 1 2.06 1.31 2.36 1.46.3.15.47.12.65-.07.18-.2.75-.87.95-1.17.2-.3.4-.25.68-.15.28.1 1.76.83 2.06.98.3.15.5.22.58.35.07.12.07.73-.17 1.42z"/></svg>
-        הקמת הסוכן שלי בוואטסאפ
+        לפתיחת שיחה עם הסוכן
       </a>
       <div class="fine">חינם להתחלה · הסוכן ידריך אותך משם.</div>
     </div>
@@ -101,42 +101,54 @@
   </div>
 
 <script>
-  // Separation lever: this CTA carries the job-agent onboarding marker (agent4job).
-  // By the opener text / src, routing knows this is the JOB agent — a distinct
-  // onboarding from the generic click2agent flow.
   var PHONE = "972547872636";
+  var REG  = "https://nanohubdemo.vercel.app/api/register";
   var cta = document.getElementById('cta');
-  var cb = document.getElementById('consent');
-  var fname = document.getElementById('fname');
-  var lname = document.getElementById('lname');
-  var email = document.getElementById('email');
+  var cb  = document.getElementById('consent');
 
-  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
-
-  // The opener is framed as a shared mission — "let's find my next job together" —
-  // not "I want a personal agent". Name + email travel in so the agent starts personal.
-  function buildWa(){
-    var full = (fname.value.trim() + " " + lname.value.trim()).trim();
-    var hebrewName = /^[\u0590-\u05FF\s׳״'-]+$/.test(full);
-    var nameLine = hebrewName && full ? "שמי " + full + "\n" : "";
-    var op = "שלום ג׳וני\n"
-           + nameLine
-           + "הגעתי דרך שירות חיפוש העבודה\n"
-           + "אשמח להתחיל";
-    return "https://wa.me/" + PHONE + "?text=" + encodeURIComponent(op);
+  // Warm, first-person opening line the user sends to the agent.
+  // The final line is a locked attribution phrase (byte-identical to
+  // SRC_PHRASES in prod parseWalkupAttribution → slug 'agent4job'). It is the
+  // belt-and-suspenders fallback: even if /api/register returns no coded
+  // deepLink, the code-less wa.me still carries src=agent4job in its text so
+  // the walk-up path routes to the job-search agent, never silently to Joni.
+  var OPEN = "היי ג׳וני 👋\nאשמח שתהיה העוזר האישי שלי במציאת התפקיד הבא שלי. בוא נתחיל!\nהגעתי דרך שירות חיפוש העבודה";
+  function fallbackWa(){
+    return "https://wa.me/" + PHONE + "?text=" + encodeURIComponent(OPEN);
+  }
+  // Keep the host's wa.me target/phone but show our chosen opening text.
+  // Routing to the job-search agent is metadata-driven (src=agent4job in the
+  // register body), not the message string, so the text is ours to set.
+  function withOpenText(link){
+    try{
+      if(!/^https?:\/\/wa\.me\//i.test(link)) return link;
+      var u = new URL(link);
+      u.searchParams.set('text', OPEN);
+      return u.toString();
+    }catch(e){ return link; }
   }
 
-  function ready(){
-    return fname.value.trim() && lname.value.trim() && emailOk(email.value.trim()) && cb.checked;
+  function go(ev){
+    if(ev) ev.preventDefault();
+    if(!cb.checked) return;
+    // Ask the provisioner for the canonical WhatsApp deep-link tagged src=agent4job.
+    // That tag routes the new user to a job-search agent (scoped token + board),
+    // not a generic agent. Same-tab redirect so mobile Safari keeps the tap.
+    fetch(REG, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ src:'agent4job', channel:'whatsapp', lang:'he' })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ window.location.href = (d && d.deepLink) ? withOpenText(d.deepLink) : fallbackWa(); })
+    .catch(function(){ window.location.href = fallbackWa(); });
   }
 
-  // CTA stays locked (not clickable) until name, a valid email, and consent are all present.
   function sync(){
-    if(ready()){ cta.href = buildWa(); cta.classList.remove('locked'); }
-    else { cta.removeAttribute('href'); cta.classList.add('locked'); }
+    if(cb.checked){ cta.href = fallbackWa(); cta.classList.remove('locked'); cta.setAttribute('aria-disabled','false'); }
+    else { cta.removeAttribute('href'); cta.classList.add('locked'); cta.setAttribute('aria-disabled','true'); }
   }
-  [fname, lname, email].forEach(function(el){ el.addEventListener('input', sync); });
   cb.addEventListener('change', sync);
+  cta.addEventListener('click', go);
   sync();
 </script>
 </body>

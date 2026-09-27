@@ -11,7 +11,7 @@
 // session limit · resets 7:30am (UTC)"), not as an SDK-level error. A normal
 // agent reply is exceedingly unlikely to contain these phrases by accident.
 export const QUOTA_ERROR_RE =
-  /usage limit reached|hit your session limit|session limit.*reset|rate.?limit|quota|credit balance|insufficient credits|\b429\b|overloaded/i;
+  /usage limit reached|hit your session limit|session limit.*reset|rate.?limit|quota|credit balance|insufficient credits|\b429\b|overloaded|claude code process exited with code [1-9]\d*/i;
 
 export function isQuotaErrorMessage(message: string): boolean {
   return QUOTA_ERROR_RE.test(message);

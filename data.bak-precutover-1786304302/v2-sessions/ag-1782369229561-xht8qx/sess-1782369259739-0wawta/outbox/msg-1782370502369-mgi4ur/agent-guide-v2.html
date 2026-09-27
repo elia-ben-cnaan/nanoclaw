@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מדריך סוכני AI — NanoClaw</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0b0f;
+      --bg2:       #111318;
+      --bg3:       #181c24;
+      --border:    rgba(255,255,255,.07);
+      --border2:   rgba(255,255,255,.12);
+      --text:      #e8eaf0;
+      --muted:     #8a90a0;
+      --accent:    #6c63ff;
+      --accent2:   #a78bfa;
+      --accent3:   #38bdf8;
+      --green:     #34d399;
+      --gold:      #fbbf24;
+      --card-bg:   rgba(255,255,255,.03);
+      --card-hover:rgba(255,255,255,.06);
+      --radius:    16px;
+      --radius-sm: 10px;
+      --shadow:    0 4px 24px rgba(0,0,0,.4);
+      --shadow-lg: 0 8px 48px rgba(0,0,0,.6);
+      --glow:      0 0 40px rgba(108,99,255,.2);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Heebo', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise Texture Overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: .5;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4 { font-weight: 700; letter-spacing: -.02em; }
+    p { color: var(--muted); }
+    a { color: var(--accent2); text-decoration: none; }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    section { padding: 96px 0; }
+    section + section { padding-top: 0; }
+
+    /* ── Fade-in animation ── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity .6s ease, transform .6s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,11,15,.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--text);
+    }
+
+    .nav-logo .dot {
+      width: 8px; height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .6; transform: scale(1.3); }
+    }
+
+    .nav-badge {
+      font-size: .75rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 100px;
+      letter-spacing: .03em;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 120px 0 96px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Background glow blobs */
+    .hero::before, .hero::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .hero::before {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(108,99,255,.15) 0%, transparent 70%);
+      top: -200px; left: -100px;
+    }
+    .hero::after {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(56,189,248,.1) 0%, transparent 70%);
+      bottom: -100px; right: 50px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .8rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      background: rgba(108,99,255,.1);
+      border: 1px solid rgba(108,99,255,.2);
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 32px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 7vw, 5rem);
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff 0%, var(--accent2) 50%, var(--accent3) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin-bottom: 48px;
+      line-height: 1.8;
+    }
+
+    /* Visual element — animated grid */
+    .hero-visual {
+      position: absolute;
+      top: 60px; left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      opacity: .4;
+    }
+
+    .hero-visual svg {
+      position: absolute;
+      right: -60px;
+      top: 40px;
+      width: 500px;
+      height: 500px;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: .85rem;
+      color: var(--muted);
+    }
+
+    .stat-divider {
+      width: 1px;
+      background: var(--border2);
+      align-self: stretch;
+    }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .section-tag::before, .section-tag::after {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+      opacity: .5;
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border2) 30%, var(--border2) 70%, transparent);
+      margin: 0 auto;
+      max-width: 800px;
+    }
+
+    /* ── CONCEPT CARDS (section 1) ── */
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .concept-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      transition: background .25s, border-color .25s, transform .25s, box-shadow .25s;
+      cursor: default;
+    }
+
+    .concept-card:hover {
+      background: var(--card-hover);
+      border-color: var(--border2);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow);
+    }
+
+    .concept-card.featured {
+      border-color: rgba(108,99,255,.35);
+      background: linear-gradient(135deg, rgba(108,99,255,.08) 0%, rgba(167,139,250,.04) 100%);
+    }
+
+    .concept-card.featured:hover {
+      box-shadow: var(--glow), var(--shadow);
+    }
+
+    .card-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+    }
+
+    .icon-purple { background: rgba(108,99,255,.15); }
+    .icon-blue   { background: rgba(56,189,248,.15); }
+    .icon-green  { background: rgba(52,211,153,.15); }
+    .icon-gold   { background: rgba(251,191,36,.15); }
+    .icon-pink   { background: rgba(244,114,182,.15); }
+
+    .card-label {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .card-text {
+      font-size: .9rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+
+    /* ── 4 COMPONENTS ── */
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .components-grid { grid-template-columns: 1fr; }
+    }
+
+    .component-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px;
+      position: relative;
+      overflow: hidden;
+      transition: background .25s, border-color .25s, transform .25s, box-shadow .25s;
+    }
+
+    .component-card::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .component-card:hover::before { opacity: 1; }
+    .component-card:hover {
+      background: var(--card-hover);
+      border-color: var(--border2);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+    }
+
+    .cc-purple::before { background: radial-gradient(circle, rgba(108,99,255,.15), transparent 70%); }
+    .cc-blue::before   { background: radial-gradient(circle, rgba(56,189,248,.15), transparent 70%); }
+    .cc-green::before  { background: radial-gradient(circle, rgba(52,211,153,.15), transparent 70%); }
+    .cc-gold::before   { background: radial-gradient(circle, rgba(251,191,36,.12), transparent 70%); }
+
+    .comp-num {
+      font-size: 3.5rem;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 16px;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .num-purple { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .num-blue   { background: linear-gradient(135deg, var(--accent3), #818cf8); }
+    .num-green  { background: linear-gradient(135deg, var(--green), #6ee7b7); }
+    .num-gold   { background: linear-gradient(135deg, var(--gold), #fde68a); }
+
+    .comp-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .comp-text {
+      font-size: .9rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ── AGENT TYPES ── */
+    .types-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .type-row {
+      display: grid;
+      grid-template-columns: 56px 1fr auto;
+      align-items: start;
+      gap: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      transition: background .25s, border-color .25s, transform .25s;
+    }
+
+    .type-row:hover {
+      background: var(--card-hover);
+      border-color: var(--border2);
+      transform: translateX(-4px);
+    }
+
+    .type-num {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .type-body {}
+
+    .type-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .type-desc {
+      font-size: .88rem;
+      color: var(--muted);
+    }
+
+    .type-tag {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 100px;
+      white-space: nowrap;
+      align-self: flex-start;
+    }
+
+    .tag-ops  { background: rgba(52,211,153,.12); color: var(--green); border: 1px solid rgba(52,211,153,.2); }
+    .tag-know { background: rgba(56,189,248,.12); color: var(--accent3); border: 1px solid rgba(56,189,248,.2); }
+    .tag-cx   { background: rgba(244,114,182,.12); color: #f472b6; border: 1px solid rgba(244,114,182,.2); }
+    .tag-data { background: rgba(251,191,36,.12); color: var(--gold); border: 1px solid rgba(251,191,36,.2); }
+    .tag-mgmt { background: rgba(108,99,255,.12); color: var(--accent2); border: 1px solid rgba(108,99,255,.2); }
+
+    /* ── PRINCIPLES / STEPS ── */
+    .principles-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 64px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .principles-wrapper { grid-template-columns: 1fr; gap: 40px; }
+    }
+
+    .principles-sticky {
+      position: sticky;
+      top: 100px;
+    }
+
+    .principles-big-num {
+      font-size: 7rem;
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .principles-lead {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 19px;
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(to bottom, var(--accent), transparent);
+      opacity: .3;
+    }
+
+    .tl-item {
+      display: grid;
+      grid-template-columns: 1fr 40px;
+      gap: 20px;
+      padding-bottom: 32px;
+    }
+
+    .tl-item:last-child { padding-bottom: 0; }
+
+    .tl-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      transition: background .25s, border-color .25s;
+    }
+
+    .tl-item:hover .tl-content {
+      background: var(--card-hover);
+      border-color: var(--border2);
+    }
+
+    .tl-step-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .tl-step-text {
+      font-size: .88rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .tl-dot {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 2px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--accent2);
+      flex-shrink: 0;
+      z-index: 1;
+    }
+
+    /* ── COMPARISON TABLE ── */
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+
+    thead tr {
+      background: var(--bg3);
+    }
+
+    th {
+      padding: 18px 24px;
+      font-weight: 700;
+      color: var(--text);
+      font-size: .85rem;
+      letter-spacing: .02em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th:first-child { color: var(--muted); font-weight: 500; }
+    th.highlight { color: var(--accent2); }
+
+    td {
+      padding: 16px 24px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    td.feature-name {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    td.highlight-col {
+      background: rgba(108,99,255,.05);
+    }
+
+    tbody tr:hover td { background: rgba(255,255,255,.02); }
+    tbody tr:hover td.highlight-col { background: rgba(108,99,255,.08); }
+
+    .check { color: var(--green); font-size: 1rem; }
+    .cross { color: #ef4444; font-size: 1rem; }
+    .partial { color: var(--gold); font-size: .85rem; }
+
+    /* ── CTA / TRY NOW ── */
+    .try-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .try-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      transition: background .25s, border-color .25s, transform .25s, box-shadow .25s;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .try-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(108,99,255,.06), transparent);
+      opacity: 0;
+      transition: opacity .25s;
+    }
+
+    .try-card:hover {
+      background: var(--card-hover);
+      border-color: rgba(108,99,255,.3);
+      transform: translateY(-4px);
+      box-shadow: var(--glow), var(--shadow);
+    }
+
+    .try-card:hover::after { opacity: 1; }
+
+    .try-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+
+    .try-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .try-desc {
+      font-size: .88rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .try-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 20px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    .try-cta .arrow { transition: transform .2s; }
+    .try-card:hover .try-cta .arrow { transform: translateX(-4px); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 0;
+      text-align: center;
+    }
+
+    .footer-logo {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .footer-text {
+      font-size: .85rem;
+      color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      section { padding: 72px 0; }
+      .hero { padding: 80px 0 72px; }
+      .hero-visual { display: none; }
+      .type-row { grid-template-columns: 40px 1fr; }
+      .type-tag { display: none; }
+      .concept-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-stats { flex-direction: column; gap: 20px; }
+      .stat-divider { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <span class="dot"></span>
+        NanoClaw
+      </div>
+      <span class="nav-badge">מדריך סוכני AI</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-visual">
+    <svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="grd" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#6c63ff" stop-opacity=".3"/>
+          <stop offset="100%" stop-color="#6c63ff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <!-- Orbital rings -->
+      <circle cx="250" cy="250" r="200" stroke="rgba(108,99,255,.15)" stroke-width="1" stroke-dasharray="6 4"/>
+      <circle cx="250" cy="250" r="140" stroke="rgba(167,139,250,.12)" stroke-width="1" stroke-dasharray="4 6"/>
+      <circle cx="250" cy="250" r="80"  stroke="rgba(56,189,248,.1)"  stroke-width="1"/>
+      <!-- Center node -->
+      <circle cx="250" cy="250" r="18" fill="url(#grd)" stroke="rgba(108,99,255,.5)" stroke-width="1.5"/>
+      <circle cx="250" cy="250" r="8"  fill="#6c63ff" opacity=".8"/>
+      <!-- Satellites -->
+      <circle cx="250" cy="50"  r="5" fill="#a78bfa" opacity=".6"/>
+      <circle cx="450" cy="250" r="4" fill="#38bdf8" opacity=".5"/>
+      <circle cx="250" cy="450" r="5" fill="#34d399" opacity=".6"/>
+      <circle cx="50"  cy="250" r="4" fill="#fbbf24" opacity=".5"/>
+      <!-- Connection lines -->
+      <line x1="250" y1="250" x2="250" y2="55"  stroke="rgba(167,139,250,.2)" stroke-width="1"/>
+      <line x1="250" y1="250" x2="445" y2="250" stroke="rgba(56,189,248,.2)"  stroke-width="1"/>
+      <line x1="250" y1="250" x2="250" y2="445" stroke="rgba(52,211,153,.2)"  stroke-width="1"/>
+      <line x1="250" y1="250" x2="55"  y2="250" stroke="rgba(251,191,36,.2)"  stroke-width="1"/>
+      <!-- Small dots -->
+      <circle cx="380" cy="120" r="3" fill="#a78bfa" opacity=".4"/>
+      <circle cx="120" cy="380" r="3" fill="#38bdf8" opacity=".4"/>
+      <circle cx="380" cy="380" r="3" fill="#34d399" opacity=".3"/>
+      <circle cx="120" cy="120" r="3" fill="#fbbf24" opacity=".3"/>
+    </svg>
+  </div>
+
+  <div class="container">
+    <div class="fade-up">
+      <div class="hero-eyebrow">
+        ✦ המדריך המלא
+      </div>
+      <h1>סוכני AI<br/>לארגונים</h1>
+      <p class="hero-sub">
+        מה ההבדל בין ChatGPT לסוכן אמיתי? מה מאחורי הקלעים? ואיך תתחיל לעבוד עם AI שעושה את העבודה בשבילך — לא רק עונה על שאלות.
+      </p>
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-num">5</span>
+          <span class="stat-label">סוגי סוכנים</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-num">4</span>
+          <span class="stat-label">מרכיבי ליבה</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-num">7</span>
+          <span class="stat-label">עקרונות עבודה</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 1 — מה זה סוכן AI -->
+<section id="what-is">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-tag">יסודות</div>
+      <h2 class="section-title">מה זה סוכן AI?</h2>
+      <p class="section-desc">שלושה מושגים, הבדל עצום. ההבנה שלהם תשנה את האופן שבו אתה חושב על AI בארגון שלך.</p>
+    </div>
+
+    <div class="concept-grid">
+      <div class="concept-card fade-up">
+        <div class="card-icon icon-blue">🧠</div>
+        <div class="card-label">רמה 1</div>
+        <div class="card-title">LLM — מודל שפה</div>
+        <p class="card-text">
+          מנוע חישוב טקסט. מקבל קלט, מחשב תגובה, מחזיר פלט. לא זוכר, לא יכול לפעול בעולם, לא יכול לתכנן. GPT-4, Claude, Gemini — כולם LLMs.
+        </p>
+      </div>
+
+      <div class="concept-card fade-up">
+        <div class="card-icon icon-purple">⚡</div>
+        <div class="card-label">רמה 2</div>
+        <div class="card-title">סוכן (Agent)</div>
+        <p class="card-text">
+          LLM + יכולת לפעול. הסוכן יכול להשתמש בכלים — לחפש ברשת, לקרוא קבצים, לשלוח מיילים, לכתוב קוד. הוא מתכנן, מבצע, ומתקן שגיאות.
+        </p>
+      </div>
+
+      <div class="concept-card featured fade-up">
+        <div class="card-icon icon-green">🔗</div>
+        <div class="card-label">רמה 3 — הכי עוצמתי</div>
+        <div class="card-title">Multi-Agent System</div>
+        <p class="card-text">
+          רשת של סוכנים שעובדים יחד. סוכן תכנון מפרק משימה גדולה, סוכני ביצוע עובדים במקביל, סוכן בדיקה מאמת תוצאות. כמו צוות עבודה אמיתי.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 2 — 4 מרכיבים -->
+<section id="components">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-tag">ארכיטקטורה</div>
+      <h2 class="section-title">4 מרכיבים של כל סוכן</h2>
+      <p class="section-desc">כמו אדם — כל סוכן AI בנוי מאותם ארבעה אלמנטים בסיסיים.</p>
+    </div>
+
+    <div class="components-grid">
+      <div class="component-card cc-purple fade-up">
+        <div class="comp-num num-purple">01</div>
+        <div class="comp-title">מוח — LLM</div>
+        <p class="comp-text">
+          הכישרון הגולמי של הסוכן. קובע כמה הוא חכם, כמה הוא מבין הקשר מורכב, ואיך הוא מנסח תגובות. Claude Sonnet, GPT-4o, Gemini — כל אחד עם חוזקות שונות.
+        </p>
+      </div>
+
+      <div class="component-card cc-blue fade-up">
+        <div class="comp-num num-blue">02</div>
+        <div class="comp-title">זיכרון</div>
+        <p class="comp-text">
+          מה הסוכן זוכר ואיך. זיכרון קצר טווח (שיחה נוכחית), זיכרון ארוך טווח (מסד נתונים חיצוני), והקשר מוזרק (מסמכים, עובדות, פרסונה). בלי זיכרון — אין רצף.
+        </p>
+      </div>
+
+      <div class="component-card cc-green fade-up">
+        <div class="comp-num num-green">03</div>
+        <div class="comp-title">כלים (Tools)</div>
+        <p class="comp-text">
+          הידיים של הסוכן. כל API, מסד נתונים, שליחת מייל, כתיבת קוד, חיפוש ברשת — כל אלה הם "כלים" שהסוכן יכול לבחור להפעיל. ככל שיש יותר כלים, כך הסוכן יכול לעשות יותר.
+        </p>
+      </div>
+
+      <div class="component-card cc-gold fade-up">
+        <div class="comp-num num-gold">04</div>
+        <div class="comp-title">תכנון (Planning)</div>
+        <p class="comp-text">
+          המה שהופך סוכן לחכם באמת. יכולת לפרק משימה מורכבת לצעדים, לבחור אסטרטגיה, להתמודד עם כשלים, ולהחליט מתי המשימה הושלמה. ReAct, Chain-of-Thought, Tree-of-Thought.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 3 — סוגי סוכנים -->
+<section id="types">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-tag">שימושים</div>
+      <h2 class="section-title">5 סוגי סוכנים בארגונים</h2>
+      <p class="section-desc">לכל מחלקה, יש סוכן שמתאים לה בדיוק.</p>
+    </div>
+
+    <div class="types-list">
+      <div class="type-row fade-up">
+        <div class="type-num">01</div>
+        <div class="type-body">
+          <div class="type-name">סוכן אופרציונלי</div>
+          <div class="type-desc">מבצע משימות חוזרות ונשנות — שליחת מיילים, עדכון CRM, יצירת דוחות, ניהול לו"ז. חוסך שעות עבודה יומיות לאנשים אמיתיים.</div>
+        </div>
+        <span class="type-tag tag-ops">אופרציות</span>
+      </div>
+
+      <div class="type-row fade-up">
+        <div class="type-num">02</div>
+        <div class="type-body">
+          <div class="type-name">סוכן ידע</div>
+          <div class="type-desc">מחובר לכל הידע הארגוני — מסמכים, Confluence, Notion, Slack. עונה על שאלות פנימיות בשניות ומאתר מידע שאנשים לא ידעו שקיים.</div>
+        </div>
+        <span class="type-tag tag-know">ידע</span>
+      </div>
+
+      <div class="type-row fade-up">
+        <div class="type-num">03</div>
+        <div class="type-body">
+          <div class="type-name">סוכן שירות לקוחות</div>
+          <div class="type-desc">מטפל בפניות לקוחות 24/7 — מסלק שאלות נפוצות, מעביר לנציג אנושי רק כשצריך, כותב בסגנון המותג ומזכיר היסטוריית לקוח.</div>
+        </div>
+        <span class="type-tag tag-cx">שירות לקוחות</span>
+      </div>
+
+      <div class="type-row fade-up">
+        <div class="type-num">04</div>
+        <div class="type-body">
+          <div class="type-name">סוכן ניתוח נתונים</div>
+          <div class="type-desc">מושך נתונים ממקורות שונים, מנתח, מזהה מגמות, ומייצר דוחות ותובנות. מחליף ביעילות עבודה שלוקחת לאנליסט ימים שלמים.</div>
+        </div>
+        <span class="type-tag tag-data">דאטה</span>
+      </div>
+
+      <div class="type-row fade-up">
+        <div class="type-num">05</div>
+        <div class="type-body">
+          <div class="type-name">סוכן ניהול פרויקטים</div>
+          <div class="type-desc">עוקב אחרי משימות, מזהה עיכובים, מדווח לבעלי עניין, ומתאם בין צוותים. שומר את הפרויקט על המסלול גם כשהמנהל לא מסתכל.</div>
+        </div>
+        <span class="type-tag tag-mgmt">ניהול</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 4 — 7 עקרונות -->
+<section id="principles">
+  <div class="container">
+    <div class="principles-wrapper">
+      <div class="principles-sticky fade-up">
+        <div class="principles-big-num">7</div>
+        <div class="principles-lead">עקרונות לעבודה עם הסוכן שלנו</div>
+      </div>
+
+      <div class="timeline">
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">תן הקשר, לא רק פקודות</div>
+            <p class="tl-step-text">ככל שתסביר יותר מה אתה מנסה להשיג ולמה, הסוכן יוכל לקבל החלטות טובות יותר בצמתים. "שלח מייל ל-100 לקוחות" פחות טוב מ-"שלח מייל ל-100 לקוחות שלא הגיבו בשבועיים — אנחנו רוצים לחדש קשר, לא להיות דוחקים".</p>
+          </div>
+          <div class="tl-dot">01</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">הגדר גבולות ברורים</div>
+            <p class="tl-step-text">ספר לסוכן מה הוא אינו מורשה לעשות. "אל תשלח מיילים ללקוחות VIP ללא אישור", "אל תמחק נתונים ישנים מבלי לגבות". גבולות ברורים = סוכן שאפשר לסמוך עליו.</p>
+          </div>
+          <div class="tl-dot">02</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">התחל במשימה קטנה</div>
+            <p class="tl-step-text">לפני שנותנים לסוכן לנהל את כל ה-CRM — תנו לו לכתוב 5 מיילים ותראו. לפני שמפעילים אוטומציה מלאה — בצעו ריצת ניסיון על נתונים לא-פרודקשן. צעדים קטנים בונים אמון.</p>
+          </div>
+          <div class="tl-dot">03</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">שמור אנשים בלולאה</div>
+            <p class="tl-step-text">בשלב הראשון, הגדר נקודות תיאום ידניות. הסוכן מבצע, אבל אדם אנושי מאשר לפני שלב קריטי. עם הזמן אפשר להפחית את נקודות ה-check-in — אבל לא לוותר עליהן לגמרי.</p>
+          </div>
+          <div class="tl-dot">04</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">הזן נתונים רלוונטיים</div>
+            <p class="tl-step-text">הסוכן חכם רק כמו המידע שהוא מקבל. חבר אותו לכלים הנכונים — CRM, ERP, Slack, Notion — כדי שיכול לעבוד עם מציאות ולא עם הנחות.</p>
+          </div>
+          <div class="tl-dot">05</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">אמן אותו על הסגנון שלך</div>
+            <p class="tl-step-text">ספק דוגמאות של מיילים טובים, דוחות שאתה אוהב, תגובות שעובדות. הסוכן לומד ממה שאתה מראה לו — ככל שתראה לו יותר, כך הסגנון שלו יתאים לך יותר.</p>
+          </div>
+          <div class="tl-dot">06</div>
+        </div>
+
+        <div class="tl-item fade-up">
+          <div class="tl-content">
+            <div class="tl-step-title">מדוד תוצאות, לא פעולות</div>
+            <p class="tl-step-text">אל תשאל "כמה מיילים שלח הסוכן?" — שאל "כמה לקוחות חזרו?" אל תשאל "כמה דוחות יצר?" — שאל "כמה החלטות טובות יותר התקבלו?" הסוכן הוא אמצעי, לא מטרה.</p>
+          </div>
+          <div class="tl-dot">07</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 5 — טבלת השוואה -->
+<section id="comparison">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-tag">השוואה</div>
+      <h2 class="section-title">ChatGPT, Siri, ואנחנו</h2>
+      <p class="section-desc">לא כל AI שווה. הנה למה סוכן ארגוני שונה בתכלית.</p>
+    </div>
+
+    <div class="table-wrapper fade-up">
+      <table>
+        <thead>
+          <tr>
+            <th>יכולת</th>
+            <th>ChatGPT / Copilot</th>
+            <th>Siri / Alexa</th>
+            <th class="highlight">הסוכן שלנו ✦</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature-name">זיכרון בין שיחות</td>
+            <td><span class="partial">⚠ חלקי</span></td>
+            <td><span class="cross">✕</span></td>
+            <td class="highlight-col"><span class="check">✓ מלא</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">מחובר לכלים הארגוניים</td>
+            <td><span class="cross">✕</span></td>
+            <td><span class="cross">✕</span></td>
+            <td class="highlight-col"><span class="check">✓ CRM, Slack, email ועוד</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">יכול לפעול אוטונומית</td>
+            <td><span class="cross">✕</span></td>
+            <td><span class="partial">⚠ פקודות בלבד</span></td>
+            <td class="highlight-col"><span class="check">✓ מתכנן ומבצע</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">אבטחה ופרטיות ארגונית</td>
+            <td><span class="partial">⚠ תלוי בתוכנית</span></td>
+            <td><span class="partial">⚠ מוגבל</span></td>
+            <td class="highlight-col"><span class="check">✓ על-פי מדיניות הארגון</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">עובד 24/7 ברקע</td>
+            <td><span class="cross">✕</span></td>
+            <td><span class="partial">⚠ מוגבל</span></td>
+            <td class="highlight-col"><span class="check">✓ אוטומציות מתוזמנות</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">מאמן על סגנון ארגוני</td>
+            <td><span class="partial">⚠ בהנחיות בלבד</span></td>
+            <td><span class="cross">✕</span></td>
+            <td class="highlight-col"><span class="check">✓ לומד מדוגמאות</span></td>
+          </tr>
+          <tr>
+            <td class="feature-name">תמיכה בעברית מלאה</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="partial">⚠ חלקי</span></td>
+            <td class="highlight-col"><span class="check">✓ כולל RTL מלא</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 6 — נסה עכשיו -->
+<section id="try">
+  <div class="container">
+    <div class="section-header fade-up">
+      <div class="section-tag">בואו נתחיל</div>
+      <h2 class="section-title">מה אפשר לנסות עכשיו</h2>
+      <p class="section-desc">אין צורך בהגדרות מורכבות. כאן יש כמה נקודות כניסה קלות שיראו לך את הכוח האמיתי.</p>
+    </div>
+
+    <div class="try-grid">
+      <div class="try-card fade-up">
+        <div class="try-icon">📬</div>
+        <div class="try-title">כתיבת מיילים חכמה</div>
+        <p class="try-desc">תאר מצב — "צריך לעדכן לקוח שהמשלוח מתעכב, הוא VIP, לא כועס עדיין" — ותקבל טיוטה ברמה של copywriter מנוסה.</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+
+      <div class="try-card fade-up">
+        <div class="try-icon">📊</div>
+        <div class="try-title">סיכום דוח ארוך</div>
+        <p class="try-desc">הדבק דוח של 20 עמוד ותבקש "3 תובנות מרכזיות ל-CEO". תקבל בולטים חדים תוך שניות.</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+
+      <div class="try-card fade-up">
+        <div class="try-icon">🔍</div>
+        <div class="try-title">חיפוש בכל הידע הארגוני</div>
+        <p class="try-desc">שאל "מה המדיניות שלנו לגבי החזרות?" — הסוכן יחפש בכל המסמכים שחיברת ויענה בדיוק.</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+
+      <div class="try-card fade-up">
+        <div class="try-icon">🤖</div>
+        <div class="try-title">אוטומציה ראשונה</div>
+        <p class="try-desc">הגדר: "כל בוקר ב-8:00 שלח לי סיכום של 5 הטיקטים הפתוחים הדחופים ביותר." זה הכל. הסוכן יעשה את השאר.</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+
+      <div class="try-card fade-up">
+        <div class="try-icon">💬</div>
+        <div class="try-title">שחקן תפקידים לאימון</div>
+        <p class="try-desc">בקש מהסוכן לשחק לקוח כועס, מתמחה שצריך הכשרה, או שותף עסקי קשה — ותתרגל שיחות לפני שהן קורות.</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+
+      <div class="try-card fade-up">
+        <div class="try-icon">✍️</div>
+        <div class="try-title">תוכן שיווקי בסגנון שלך</div>
+        <p class="try-desc">תן לסוכן 3 פוסטים שכתבת בעצמך ובקש ממנו לכתוב עוד 5 בסגנון זהה. תראה בדיוק מה הכוונה ב"לומד ממך".</p>
+        <span class="try-cta">נסה עכשיו <span class="arrow">←</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-logo">NanoClaw ✦</div>
+    <p class="footer-text">מדריך סוכני AI לארגונים — גרסה 2.0</p>
+  </div>
+</footer>
+
+<script>
+  // Scroll-triggered fade-in
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

@@ -80,7 +80,7 @@ const STALE_THREAD_RE = /thread\s+not\s+found|unknown\s+thread|thread[_\s]id|no 
  * Exported for tests.
  */
 export function findRolloutPath(threadId: string, sessionsRoot?: string): string | null {
-  const root = sessionsRoot ?? `${process.env.HOME || '/home/node'}/.codex/sessions`;
+  const root = sessionsRoot ?? `${process.env.CODEX_HOME || `${process.env.HOME || '/home/node'}/.codex`}/sessions`;
   const stack = [root];
   while (stack.length > 0) {
     const dir = stack.pop()!;
@@ -127,7 +127,7 @@ export class CodexProvider implements AgentProvider {
   readonly supportsNativeSlashCommands = false;
 
   private readonly mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
-  private readonly model: string;
+  private readonly model: string | undefined;
   private readonly baseUrl?: string;
   private memorySessionHook?: MemorySessionHookRegistration;
 
@@ -138,8 +138,14 @@ export class CodexProvider implements AgentProvider {
     // CODEX_MODEL env is the quota-fallback default: index.ts creates the
     // fallback codex with model:undefined, so a claude group's fallback lands
     // here and uses CODEX_MODEL, never its (claude) model field.
-    this.model = options.model ?? (options.env?.CODEX_MODEL as string | undefined) ?? 'gpt-5.4-mini';
-    this.baseUrl = options.env?.OPENAI_BASE_URL as string | undefined;
+    this.model = options.env?.NANOCLAW_CODEX_AUTH === 'chatgpt'
+      ? options.model
+      : options.model ?? (options.env?.CODEX_MODEL as string | undefined) ?? 'gpt-5.4-mini';
+    // Subscription auth must use Codex's native ChatGPT route, never an
+    // API-compatible base URL supplied for the OneCLI/API fallback path.
+    this.baseUrl = options.env?.NANOCLAW_CODEX_AUTH === 'chatgpt'
+      ? undefined
+      : options.env?.OPENAI_BASE_URL as string | undefined;
   }
 
   /**
@@ -311,7 +317,7 @@ async function* runOneTurn(
   server: AppServer,
   threadId: string,
   inputText: string,
-  model: string,
+  model: string | undefined,
   cwd: string,
   hasInit: () => boolean,
   markInit: () => void,

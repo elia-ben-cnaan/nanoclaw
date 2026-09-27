@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PayMe · Strategic Partner Sales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #171B3A;
+  --card: #242B54;
+  --card-hi: #2E3667;
+  --brand: #2A315D;
+  --accent: #2FC2BC;
+  --accent-d: #22A9A3;
+  --border: rgba(255,255,255,0.09);
+  --border-acc: rgba(47,194,188,0.36);
+  --text: #F4F5FB;
+  --gray: #A7ADCC;
+  --dim: rgba(255,255,255,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Heebo', sans-serif; -webkit-font-smoothing: antialiased; }
+
+#deck { position: fixed; inset: 0; z-index: 1; }
+
+.slide { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.55s ease; display: flex; align-items: center; justify-content: center; }
+.slide.active { opacity: 1; pointer-events: auto; }
+.s-ov { position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(120% 90% at 50% 0%, rgba(42,49,93,0.6) 0%, transparent 55%); }
+
+.s-wrap { position: relative; z-index: 2; width: 100%; max-width: 1280px; padding: 0 72px; display: flex; flex-direction: column; }
+.s-wrap.centered { align-items: center; text-align: center; }
+
+.label-sm { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 20px; }
+.rule { width: 40px; height: 2px; background: var(--accent); margin-bottom: 26px; opacity: 0.75; border-radius: 2px; }
+.rule.c { margin-right: auto; margin-left: auto; }
+
+.h-xl { font-size: clamp(44px, 6.4vw, 98px); font-weight: 900; line-height: 1.02; letter-spacing: -0.02em; color: var(--text); margin-bottom: 30px; }
+.h-xl em { font-style: normal; color: var(--accent); }
+.h-lg { font-size: clamp(34px, 4.4vw, 64px); font-weight: 900; line-height: 1.05; letter-spacing: -0.015em; color: var(--text); margin-bottom: 22px; }
+.h-lg em { font-style: normal; color: var(--accent); }
+.body-t { font-size: clamp(15px, 1.35vw, 18px); font-weight: 400; line-height: 1.8; color: var(--gray); max-width: 560px; }
+.s-wrap.centered .body-t { max-width: 640px; }
+
+/* COVER */
+.cover-logo { width: 156px; height: auto; border-radius: 16px; margin-bottom: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
+.cover-tag { font-size: clamp(18px, 2.2vw, 30px); font-weight: 800; color: var(--text); margin-bottom: 10px; letter-spacing: -0.01em; }
+.cover-sub-line { font-size: clamp(13px, 1.5vw, 19px); font-weight: 600; color: var(--accent); margin-bottom: 18px; }
+.cover-line { font-size: clamp(13px, 1.35vw, 17px); font-weight: 500; color: var(--gray); max-width: 560px; line-height: 1.6; margin-bottom: 30px; }
+.cover-meta { display: flex; gap: 13px; align-items: center; flex-wrap: wrap; justify-content: center; font-size: clamp(11px, 1.1vw, 14px); font-weight: 500; color: var(--dim); }
+.cover-meta b { color: var(--text); font-weight: 700; }
+.cover-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border-acc); }
+
+/* PROCESS */
+.proc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; width: 100%; margin-top: 40px; }
+.proc-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 26px 22px; text-align: right; position: relative; overflow: hidden; transition: border-color .45s, background .45s; }
+.proc-card.on { border-color: var(--border-acc); background: var(--card-hi); }
+.proc-num { font-size: 30px; font-weight: 900; color: var(--dim); line-height: 1; margin-bottom: 14px; transition: color .45s; }
+.proc-card.on .proc-num { color: var(--accent); }
+.proc-card h3 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 7px; }
+.proc-card p { font-size: 13px; line-height: 1.6; color: var(--gray); }
+.proc-band { margin-top: 16px; display: flex; gap: 14px; width: 100%; }
+.proc-eng { flex: 1; background: rgba(47,194,188,0.08); border: 1px solid var(--border-acc); border-radius: 12px; padding: 16px 20px; text-align: right; }
+.proc-eng b { color: var(--accent); font-weight: 800; font-size: 15px; }
+.proc-eng span { display: block; color: var(--gray); font-size: 12.5px; margin-top: 3px; }
+
+/* SPLIT / CARDS */
+.split { display: flex; align-items: flex-start; gap: 64px; width: 100%; }
+.split-l { flex: 0 0 340px; }
+.split-r { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.split-r.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+.split-r.grid2 .fcard { padding: 15px 17px 14px; }
+.split-r.grid2 .fcard h3 { font-size: 15.5px; margin-bottom: 4px; }
+.split-r.grid2 .fcard p { font-size: 12.5px; line-height: 1.55; }
+.split-r.grid2 .fcard .mrr { margin-top: 7px; font-size: 11.5px; }
+.fcard { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 20px; position: relative; overflow: hidden; transition: border-color .45s, background .45s; }
+.fcard.on { border-color: var(--border-acc); background: var(--card-hi); }
+.fcard-step { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; color: var(--dim); margin-bottom: 8px; transition: color .45s; }
+.fcard.on .fcard-step { color: var(--accent); }
+.fcard h3 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.fcard p { font-size: 13.5px; line-height: 1.68; color: var(--gray); }
+.fcard .mrr { display: inline-block; margin-top: 9px; font-size: 12.5px; font-weight: 800; color: var(--accent); background: rgba(47,194,188,0.12); padding: 3px 11px; border-radius: 20px; }
+.fcard-dot { position: absolute; top: 20px; left: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 9px var(--accent); opacity: 0; animation: dpulse 2.2s ease-in-out infinite; transition: opacity .45s; }
+.fcard.on .fcard-dot { opacity: 1; }
+@keyframes dpulse { 0%,100% { transform: scale(0.8);} 50% { transform: scale(1.25);} }
+
+/* TABLE */
+.tbl-wrap { width: 100%; max-width: 1180px; margin-top: 30px; overflow-x: auto; }
+.ptable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; min-width: 720px; }
+.ptable thead th { background: var(--brand); color: var(--text); font-weight: 800; font-size: 12.5px; padding: 13px 15px; text-align: right; border-bottom: 2px solid var(--accent); white-space: nowrap; }
+.ptable thead th:first-child { border-top-right-radius: 10px; }
+.ptable thead th:last-child { border-top-left-radius: 10px; }
+.ptable tbody td { padding: 12px 15px; text-align: right; color: var(--gray); border-bottom: 1px solid var(--border); line-height: 1.45; vertical-align: top; }
+.ptable tbody tr:nth-child(even) td { background: rgba(255,255,255,0.018); }
+.ptable tbody tr:hover td { background: rgba(47,194,188,0.07); }
+.ptable td:first-child { color: var(--text); font-weight: 700; white-space: nowrap; }
+.ptable .num { color: var(--accent); font-weight: 800; white-space: nowrap; }
+.ptable .stars { color: var(--accent); letter-spacing: 1px; white-space: nowrap; }
+.ptable .tag-pain { color: var(--text); font-weight: 700; }
+.ptable .tag-hunger { color: var(--accent); font-weight: 700; }
+.tbl-foot { margin-top: 16px; font-size: 14px; font-weight: 700; color: var(--text); text-align: center; }
+.tbl-foot b { color: var(--accent); }
+.tbl-src { margin-top: 8px; font-size: 11px; color: var(--dim); text-align: center; }
+
+/* FORMULA */
+.fx-eq { display: flex; align-items: stretch; justify-content: center; gap: 9px; flex-wrap: wrap; margin: 30px 0 30px; direction: rtl; }
+.fx-res-lead { display: flex; align-items: center; font-size: clamp(24px, 3.4vw, 44px); font-weight: 900; color: var(--accent); }
+.fx-op { display: flex; align-items: center; font-size: clamp(17px, 2vw, 26px); font-weight: 800; color: var(--gray); }
+.fx-eq-sign { color: var(--accent); }
+.fx-term { background: var(--card); border: 1px solid var(--border-acc); border-radius: 12px; padding: 15px 18px; min-width: 116px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.fx-term-t { font-size: 12px; font-weight: 700; color: var(--gray); margin-bottom: 7px; line-height: 1.3; }
+.fx-term-ex { font-size: clamp(17px, 1.9vw, 23px); font-weight: 900; color: var(--text); }
+.fx-example { display: flex; flex-direction: column; gap: 9px; align-items: center; background: rgba(47,194,188,0.08); border: 1px solid var(--border-acc); border-radius: 14px; padding: 20px 30px; }
+.fx-ex-label { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent); }
+.fx-ex-calc { font-size: clamp(16px, 2vw, 26px); font-weight: 600; color: var(--text); direction: ltr; }
+.fx-ex-calc b { color: var(--accent); font-weight: 900; }
+
+/* INSIGHT */
+.insight-wrap { position: relative; z-index: 2; width: 100%; padding: 0 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+.h-insight { font-size: clamp(40px, 6vw, 90px); font-weight: 900; line-height: 1.02; letter-spacing: -0.02em; color: var(--text); text-align: center; }
+.h-insight em { font-style: normal; color: var(--accent); }
+.insight-body { font-size: clamp(14px, 1.25vw, 17px); line-height: 1.8; color: var(--gray); text-align: center; max-width: 660px; }
+.stat-row { display: flex; gap: 44px; align-items: stretch; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+.stat-box { text-align: center; min-width: 150px; }
+.stat-num { font-size: clamp(46px, 5.6vw, 84px); font-weight: 900; letter-spacing: -0.03em; line-height: 1; color: var(--accent); }
+.stat-num.muted { color: var(--gray); }
+.stat-lbl { font-size: clamp(12px, 1.1vw, 14px); font-weight: 600; color: var(--gray); margin-top: 10px; line-height: 1.5; }
+
+/* STATEMENT */
+.pts { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 760px; margin-top: 8px; }
+.pt-item { background: var(--card); border: 1px solid var(--border); border-right: 3px solid var(--border-acc); border-radius: 12px; padding: 18px 22px; text-align: right; transition: border-color .4s, background .4s; }
+.pt-item.on { background: var(--card-hi); border-right-color: var(--accent); }
+.pt-item h4 { font-size: 17px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.pt-item p { font-size: 13.5px; line-height: 1.6; color: var(--gray); }
+
+/* COMMAND CENTER */
+.cmd-scan { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(180deg, transparent 0%, rgba(47,194,188,0.05) 50%, transparent 100%); opacity: 0; }
+@keyframes scan { 0% { transform: translateY(-100%); opacity: 0;} 8% {opacity:1;} 92% {opacity:1;} 100% { transform: translateY(110%); opacity: 0;} }
+.cmd-center { position: absolute; top: 78px; bottom: 70px; right: 0; left: 0; padding: 18px 72px 14px; display: flex; flex-direction: column; gap: 14px; z-index: 2; }
+.cmd-bg-num { position: absolute; left: 56px; top: 20%; font-size: clamp(110px,18vw,280px); font-weight: 900; letter-spacing: -0.05em; color: rgba(47,194,188,0.07); line-height: 1; pointer-events: none; user-select: none; transition: opacity .3s; }
+.cmd-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.cmd-meta { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; color: var(--accent); }
+.cmd-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+.cmd-node { background: var(--bg); padding: 17px 16px 15px; cursor: pointer; position: relative; overflow: hidden; transition: background .35s; }
+.cmd-node.active { background: var(--card-hi); }
+.cmd-node:hover:not(.active) { background: rgba(255,255,255,0.03); }
+.cmd-node-num { font-size: 13px; font-weight: 900; color: var(--dim); margin-bottom: 6px; transition: color .35s; }
+.cmd-node.active .cmd-node-num { color: var(--accent); }
+.cmd-node-name { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.34); line-height: 1.35; transition: color .35s; }
+.cmd-node.active .cmd-node-name { color: rgba(255,255,255,0.92); }
+.cmd-node::before { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: 0; transition: opacity .35s; }
+.cmd-node.active::before { opacity: 1; }
+.cmd-prog { position: absolute; bottom: 0; right: 0; height: 2px; width: 0%; background: var(--accent); box-shadow: 0 0 6px var(--accent); opacity: 0; }
+.cmd-node.active .cmd-prog { opacity: 1; }
+.cmd-main { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; max-width: 64%; }
+.cmd-stage-label { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 14px; }
+.cmd-stage-title { font-size: clamp(34px, 4.6vw, 68px); font-weight: 900; letter-spacing: -0.02em; line-height: 1.04; color: var(--text); margin-bottom: 26px; }
+.cmd-bullets { display: flex; flex-direction: column; gap: 13px; }
+.cmd-bullet-item { font-size: clamp(15px, 1.5vw, 21px); font-weight: 500; line-height: 1.35; padding-right: 18px; border-right: 2px solid rgba(47,194,188,0.1); color: rgba(255,255,255,0.22); transition: color .55s, border-color .55s, text-shadow .55s, padding .3s; }
+.cmd-bullet-item.lit { color: rgba(255,255,255,0.95); border-right-color: rgba(47,194,188,0.9); text-shadow: 0 0 26px rgba(47,194,188,0.28); padding-right: 22px; }
+.cmd-bullet-item.seen { color: rgba(255,255,255,0.44); border-right-color: rgba(47,194,188,0.3); }
+.cmd-mrr-tag { margin-top: 22px; display: inline-block; align-self: flex-start; font-size: 15px; font-weight: 900; color: #fff; background: var(--accent); padding: 7px 18px; border-radius: 24px; }
+
+/* CLOSING */
+.banner { font-size: clamp(32px, 4.8vw, 74px); font-weight: 900; letter-spacing: -0.02em; line-height: 1.06; color: var(--text); text-align: center; margin-bottom: 20px; }
+.close-line { font-size: clamp(14px, 1.5vw, 18px); font-weight: 500; color: var(--gray); max-width: 700px; line-height: 1.65; text-align: center; margin: 0 auto 30px; }
+.banner em { font-style: normal; color: var(--accent); }
+.next-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; max-width: 1000px; margin-top: 6px; }
+.next-cell { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 18px; text-align: right; transition: border-color .3s; }
+.next-cell:hover { border-color: var(--border-acc); }
+.next-ic { font-size: 22px; margin-bottom: 10px; }
+.next-cell h4 { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.next-cell p { font-size: 11.5px; line-height: 1.55; color: var(--gray); }
+
+/* PROFILE */
+.profile-wrap { display: flex; flex-direction: row-reverse; align-items: center; gap: clamp(28px, 5vw, 72px); max-width: 1040px; margin: 0 auto; width: 100%; }
+.prof-photo { flex: none; width: clamp(200px, 24vw, 300px); aspect-ratio: 1; border-radius: 24px; overflow: hidden; background: linear-gradient(150deg, var(--card-hi), var(--card)); border: 1px solid var(--border-acc); box-shadow: 0 24px 70px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; position: relative; }
+.prof-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prof-mono { font-size: clamp(56px, 7vw, 88px); font-weight: 900; color: var(--accent); letter-spacing: 0.02em; }
+.prof-text { flex: 1; text-align: right; }
+.prof-name { font-size: clamp(30px, 4vw, 52px); font-weight: 900; letter-spacing: -0.02em; color: var(--text); margin: 6px 0 8px; }
+.prof-role { font-size: clamp(13px, 1.5vw, 17px); font-weight: 700; color: var(--accent); margin-bottom: 26px; letter-spacing: 0.01em; }
+.prof-pts { display: flex; flex-direction: column; gap: 15px; }
+.prof-pt { position: relative; padding-right: 20px; font-size: clamp(14px, 1.55vw, 18px); font-weight: 500; line-height: 1.55; color: var(--gray); }
+.prof-pt b { color: var(--text); font-weight: 800; }
+.prof-dot { position: absolute; right: 0; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+/* FINALE */
+.finale-wrap { gap: 0; }
+.finale-logo { width: clamp(96px, 11vw, 132px); height: auto; border-radius: 14px; margin-bottom: 34px; box-shadow: 0 18px 54px rgba(0,0,0,0.45); }
+.finale-h { font-size: clamp(38px, 6vw, 82px); font-weight: 900; letter-spacing: -0.025em; line-height: 1.04; color: var(--text); text-align: center; margin-bottom: 24px; }
+.finale-h em { font-style: normal; color: var(--accent); }
+.finale-line { font-size: clamp(15px, 1.7vw, 20px); font-weight: 500; color: var(--gray); max-width: 720px; line-height: 1.6; text-align: center; margin: 0 auto 34px; }
+.finale-sign { font-size: clamp(14px, 1.5vw, 18px); font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.finale-contact { font-size: 13px; font-weight: 600; color: var(--dim); letter-spacing: 0.03em; direction: ltr; }
+
+/* NAVBAR */
+#navbar { position: fixed; top: 0; right: 0; left: 0; z-index: 200; display: flex; align-items: center; justify-content: space-between; padding: 22px 44px; pointer-events: all; }
+.nav-logo img { height: 30px; width: auto; border-radius: 6px; display: block; }
+.nav-count { font-size: 12px; color: var(--dim); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+.nav-count b { color: rgba(255,255,255,0.7); font-weight: 600; }
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.lang-toggle { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--border-acc); border-radius: 20px; padding: 5px 13px; text-decoration: none; transition: all .2s; }
+.lang-toggle:hover { background: rgba(47,194,188,0.12); }
+
+/* BOTTOMBAR */
+#bottombar { position: fixed; bottom: 0; right: 0; left: 0; z-index: 200; display: flex; align-items: center; justify-content: space-between; padding: 20px 44px 22px; pointer-events: none; background: linear-gradient(to top, var(--bg) 55%, rgba(23,27,58,0.75) 80%, transparent); }
+#bottombar > * { pointer-events: all; }
+#slide-lbl { font-size: 11px; letter-spacing: 0.05em; color: var(--dim); min-width: 120px; font-weight: 600; }
+#progress { display: flex; gap: 5px; align-items: center; direction: ltr; }
+.pdot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.22s; }
+.pdot.on { background: var(--accent); width: 18px; border-radius: 2px; }
+.pdot:hover:not(.on) { background: rgba(255,255,255,0.45); }
+#arrows { display: flex; gap: 6px; direction: ltr; }
+.arr-btn { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,0.24); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; border-radius: 8px; }
+.arr-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(47,194,188,0.12); }
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .slide { display: block; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .s-wrap, .insight-wrap { min-height: 100%; justify-content: center; padding: 84px 20px 92px; }
+  #navbar { padding: 15px 16px; background: linear-gradient(to bottom, var(--bg) 62%, transparent); }
+  #bottombar { padding: 12px 16px 14px; background: linear-gradient(to top, var(--bg) 62%, transparent); }
+  .nav-logo img { height: 26px; }
+  #slide-lbl { min-width: 0; }
+  .h-xl { font-size: clamp(36px, 10vw, 66px); }
+  .h-lg { font-size: clamp(28px, 8vw, 48px); }
+  .h-insight { font-size: clamp(30px, 8vw, 56px); }
+  .cover-logo { width: 124px; }
+  .split { flex-direction: column !important; gap: 18px; }
+  .split-l { flex: none; }
+  .profile-wrap { flex-direction: column; gap: 24px; }
+  .prof-photo { width: clamp(150px, 46vw, 210px); }
+  .prof-text { text-align: right; width: 100%; }
+  .proc-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+  .proc-band { flex-direction: column; }
+  .tbl-wrap { margin-top: 20px; }
+  .ptable { font-size: 12px; }
+  .cmd-center { position: static; height: auto; min-height: 100%; justify-content: center; padding: 84px 18px 92px; gap: 16px; }
+  .cmd-bg-num { font-size: 92px; left: 4px; top: auto; bottom: 12%; }
+  .cmd-main { max-width: 100%; }
+  .cmd-stage-title { font-size: clamp(28px, 8vw, 46px); margin-bottom: 20px; }
+  .cmd-selector { grid-template-columns: repeat(2, 1fr); }
+  .cmd-bullet-item { font-size: 15px; }
+  .next-grid { grid-template-columns: 1fr 1fr; }
+  .banner { font-size: clamp(30px, 8vw, 54px); }
+  .stat-row { gap: 24px; }
+  .fx-eq { gap: 6px; }
+  .fx-term { min-width: 74px; padding: 10px 9px; }
+  .fx-term-t { font-size: 10.5px; }
+  .fx-example { padding: 16px 18px; }
+  .fx-ex-calc { font-size: 15px; }
+}
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-left">
+    <div class="nav-logo"><img src="payme-logo.jpg" alt="PayMe"></div>
+    <div class="nav-count"><b id="cur">01</b>&thinsp;/&thinsp;<span id="tot">17</span></div>
+  </div>
+  <a class="lang-toggle" href="/en.html">EN</a>
+</nav>
+
+<div id="deck"></div>
+
+<div id="bottombar">
+  <div id="arrows">
+    <button class="arr-btn" id="arr-fwd">&#8592;</button>
+    <button class="arr-btn" id="arr-back">&#8594;</button>
+  </div>
+  <div id="progress"></div>
+  <div id="slide-lbl"></div>
+</div>
+
+<script>
+const STAGES = [
+  { n: 'חודש 1', t: 'תכנון\nופניות', mrr: '5,000 ₪', bullets: [
+    'מיפוי כל אקוסיסטם ומקבלי ההחלטות בו',
+    'Inbound: הרחבת Activation אצל שליחי Wolt הקיימים',
+    'Outbound: פנייה ראשונה לתן ביס ו-Plannie',
+    'אסותא: מיפוי קבוצות הרופאים'
+  ]},
+  { n: 'חודש 2', t: 'ביצוע\nו-Pilots', mrr: '13,600 ₪', bullets: [
+    'תן ביס: חתימה על ההסכם',
+    'Plannie: סגירה, Wix: פגישת Fintech',
+    'Arbox: מעבר מפגישה למשא ומתן',
+    'ההכנסות מתחילות להצטבר'
+  ]},
+  { n: 'חודש 3', t: 'הבשלה', mrr: '47,000 ₪', bullets: [
+    'תן ביס: Rollout מלא לשליחים',
+    'Arbox: פתיחת Beta לעסקים ראשונים',
+    'אסותא: Pilot עם קבוצת הרופאים הראשונה',
+    'Isracard: משא ומתן על הרחבת ההסכם'
+  ]},
+  { n: 'חודש 4', t: 'סגירות\nו-Scale', mrr: '102,100 ₪', bullets: [
+    'כל השותפים שנחתמו מייצרים הכנסה',
+    'Rollout מלא + Promoter מתחיל להצטבר',
+    'מנוע ה-Inbound מגיע ל-Activation מלא',
+    'חוצים את היעד: מעל 100K MRR'
+  ]}
+];
+
+const SLIDES = [
+  { label: 'שער', type: 'cover' },
+  { label: 'איך בניתי את האסטרטגיה', type: 'process',
+    kicker: 'המתודולוגיה',
+    hl: 'איך בניתי\n<em>את האסטרטגיה</em>',
+    bd: 'לא ניחוש. תהליך של ארבעה שלבים, מרוחב של השוק אל תוכנית שאפשר להריץ.',
+    steps: [
+      { num: '1', h: 'מחקר שוק', p: '5 סגמנטים, 40+ שותפים פוטנציאליים' },
+      { num: '2', h: 'סינון ופוקוס', p: 'הסגמנטים עם הפוטנציאל הגבוה ביותר' },
+      { num: '3', h: 'חלוקה', p: 'Outbound (שותפים חדשים) + Inbound (מינוף קיימים)' },
+      { num: '4', h: 'תוכנית אופרטיבית', p: 'למי פונים, מה אומרים, מתי סוגרים, כמה מכניס' }
+    ],
+    band: [
+      { b: 'Outbound', s: '6 שותפים חדשים · 5 סגמנטים · ~20,000 עסקים' },
+      { b: 'Inbound', s: '4 שותפים קיימים · הרחבת מוצרים · ~90,000 עסקים' }
+    ]
+  },
+  { label: 'שני מנועים', type: 'split', cycle: true,
+    hl: 'שני מנועים.\n<em>יעד אחד.</em>',
+    bd: 'לא הימרתי הכל על עסקאות חדשות. חצי מהתוכנית מגדל שותפים שכבר בפנים, מהיר ובסיכון נמוך. החצי השני פותח קרקע חדשה. אם אחד מתעכב, השני מפצה.',
+    cards: [
+      { step: 'מנוע 01', hl: 'Outbound', bd: 'שש שותפויות חדשות שבהן PayMe עדיין לא נמצאת, שנבחרו כי ההתאמה ברורה וה-Sales Cycle קצר.' },
+      { step: 'מנוע 02', hl: 'Inbound', bd: 'ארבעה שותפים שכבר עובדים עם PayMe. מרחיבים את מה שהם מוכרים, מתשלומים אל הנהלת חשבונות ושיווק. בלי להתחיל מאפס.' }
+    ]
+  },
+  { label: 'Inbound · מה יש, מה חסר', type: 'table',
+    kicker: 'מנוע 02 · Inbound',
+    hl: 'למנף את מי שכבר בפנים',
+    cols: ['שותף', 'משתמש היום', 'מה חסר', 'סוג הזדמנות', 'פוטנציאל'],
+    rows: [
+      ['Wolt', 'Accounting + Payments (שליחים)', 'Accounting + Promoter ל-Merchants', '<span class="tag-hunger">רעב</span> · Revenue Stream חדש', '~4,000 מסעדות'],
+      ['Wix', 'Payments (powered by PayMe)', 'Accounting ישראלי + Promoter', '<span class="tag-pain">כאב</span> · 3 מערכות נפרדות', '~20,000 סוחרים IL'],
+      ['Isracard / Cal', 'Payments (White Label)', 'Accounting + Promoter כחבילה', '<span class="tag-hunger">רעב</span> · דיפרנציאציה', '~50,000 עסקים'],
+      ['Zester', 'Payments B2B', 'Accounting למסעדות', '<span class="tag-pain">כאב</span> · חשבוניות בנפרד', '~500-1,000']
+    ],
+    src: 'מקור: אתר PayMe, Wix Developer Docs, Isracard.co.il'
+  },
+  { label: 'Inbound · אסטרטגיה', type: 'split', cycle: true,
+    hl: 'כאב מול\n<em>רעב.</em>',
+    bd: 'כאב = פונים עם פתרון. רעב = פונים עם הזדמנות. כל שותף מקבל את הזווית שמתאימה לו.',
+    foot: 'סה"כ Inbound: ~30,000 ₪ שמרני · ~35,000 ₪+ עליון',
+    cards: [
+      { step: 'Wolt הרחבה', hl: 'הגדלת Activation', bd: 'הגדלת Activation בקרב שליחים קיימים. עבודה פנימית, לא Sales Cycle חדש.', mrr: '15,000 ₪' },
+      { step: 'Wix Upsell', hl: 'Bundle לסוחרים IL', bd: 'פגישה עם צוות ה-Fintech, חבילת Accounting לסוחרים הישראלים, Beta ואז Launch.', mrr: '7,500 ₪' },
+      { step: 'Wolt Merchants', hl: 'Accounting למסעדות', bd: 'פגישה פנימית עם Wolt Ops, הצעת Accounting למסעדות, Pilot 50 ואז Rollout.', mrr: '7,000 ₪' },
+      { step: 'Zester', hl: 'Accounting למסעדות', bd: 'שותף Payments B2B, חשבוניות עדיין בנפרד. הוספת Accounting ל-500-1,000 מסעדות.', mrr: '~1,500 ₪' },
+      { step: 'Isracard / Cal', hl: 'חבילה כדיפרנציאציה', bd: 'Accounting + Promoter מעל ה-White Label הקיים. עסקה אחת, עשרות אלפי עסקים.', mrr: '5,000 ₪ · עליון' }
+    ]
+  },
+  { label: 'Outbound · מיפוי סגמנטים', type: 'table',
+    kicker: 'מנוע 01 · Outbound',
+    hl: 'חמישה סגמנטים, לפי עדיפות',
+    cols: ['סגמנט', 'גודל שוק (IL)', 'שותפים אסטרטגיים', 'מוצר PayMe', 'עדיפות'],
+    rows: [
+      ['Gig Economy', '25,000-35,000', '<span class="tag-hunger">10bis · יאנגו דלי · Gett</span>', 'Accounting', '<span class="stars">★★★★★</span>'],
+      ['מרכזים רפואיים', '1,500-2,000', '<span class="tag-hunger">אסותא · HMC · מדיקה</span>', 'Accounting + Payments', '<span class="stars">★★★★★</span>'],
+      ['כושר / סטודיואים', '10,000-20,000', '<span class="tag-hunger">Arbox · BoostApp · Fizikal</span>', 'Accounting + Promoter', '<span class="stars">★★★★</span>'],
+      ['יופי / קוסמטיקה', '10,000-20,000', '<span class="tag-hunger">Plannie · Arbox · Fresha</span>', 'Payments + Accounting', '<span class="stars">★★★★</span>'],
+      ['בעלי מקצוע', 'עשרות אלפים', '<span class="tag-hunger">מידרג · המקצוענים</span>', 'Accounting + Payments', '<span class="stars">★★★★</span>']
+    ],
+    foot: 'סה"כ Addressable Market: ~50,000-80,000 עסקים קטנים ועצמאיים בישראל',
+    src: 'מקורות מפורטים בגיליון "בסיס החישוב" + מסמכי המחקר המצורפים'
+  },
+  { label: 'Outbound · שותפים נבחרים', type: 'table',
+    kicker: 'מנוע 01 · Outbound',
+    hl: 'שישה נבחרו מתוך 40+',
+    sub: 'קריטריונים: Sales Cycle, PoC קיים, Volume, התאמה למוצר',
+    cols: ['שותף', 'גודל', 'למה נבחר', 'מוצר', 'MRR חודש 4'],
+    rows: [
+      ['תן ביס (10bis)', '~6,000 שליחים', 'PoC של Wolt מוכח. עברה ל-100% עצמאיים ב-2025. מחליפה Keycost.', 'Accounting', '<span class="num">33,750 ₪</span>'],
+      ['Arbox', '~7,000 עסקים', 'פלטפורמה #1 בכושר. חסר Accounting. Volume ענק.', 'Accounting + Promoter', '<span class="num">17,600 ₪</span>'],
+      ['Plannie', '~3,000 עסקים', 'תורים ללא סליקה. התאמה טבעית.', 'Payments + Accounting', '<span class="num">12,000 ₪</span>'],
+      ['יאנגו דלי', '~2,000 שליחים', 'אותו מודל Wolt. מבית Yandex.', 'Accounting', '<span class="num">7,500 ₪</span>'],
+      ['אסותא', '~400 רופאים', 'Credibility. עסקה אחת = מאות רופאים.', 'Accounting + Payments', '<span class="num">1,250 ₪</span>'],
+      ['HMC · הרצליה מדיקל', '~500 רופאים', 'בי"ח פרטי פרימיום. אות איכות למגזר הרפואי.', 'Accounting + Payments', '<span class="tag-pain">עליון</span>']
+    ],
+    foot: 'סה"כ Outbound (שמרני): ~72,000 ₪ MRR בחודש 4'
+  },
+  { label: 'הצעת ערך', type: 'split', cycle: true,
+    hl: 'הצעת ערך,\n<em>לא עמלה.</em>',
+    bd: 'הפיץ׳ הוא לא העמלה. הוא מה שהשותף מרוויח ולא יכול לבנות לבד.',
+    cards: [
+      { step: 'תן ביס', hl: 'שימור שליחים', bd: 'שליח שלא מסתדר עם ניירת עוזב. PayMe מחליפה את Keycost בשירות טוב יותר, והשליח נשאר.' },
+      { step: 'Arbox', hl: 'הפיצ׳ר החסר', bd: 'הלקוחות שואלים "למה אין חשבוניות?". PayMe נותנת את זה בלי שורת קוד אחת מצדם.' },
+      { step: 'Plannie', hl: 'הכפלת ARPU', bd: 'מ-50 ₪ (יומן) ל-200 ₪ (יומן + סליקה + חשבוניות). PayMe מכפילה את ה-ARPU של Plannie.' },
+      { step: 'Wix', hl: 'חווית משתמש שלמה', bd: 'סוחר ישראלי מנהל 3 מערכות בנפרד. עם Accounting הכל במקום אחד, Lock-in ו-Revenue Stream חדש.' }
+    ]
+  },
+  { label: 'Use Case · הכאב', type: 'table',
+    kicker: 'Use Case מסחרי · סגמנט רופאים',
+    hl: 'יום בחיי <em>רופא פרטי חדש</em>',
+    sub: 'רופא שמסיים התמחות ופותח קליניקה פרטית מגלה שהוא צריך להרכיב לבד מערכת שלמה. זו הדוגמה שכל אחד מבין, גם מי שרחוק מעולם ה-Fintech.',
+    cols: ['צורך', 'מה הוא עושה היום', 'עלות', 'הבעיה'],
+    rows: [
+      ['פתיחת עסק', 'רו"ח, מילוי טפסים', '<span class="num">500-1,500 ₪</span> חד-פעמי', 'מסורבל, לוקח שבועות'],
+      ['סליקת אשראי', 'Meshulam · Tranzila · Pelecard', '<span class="num">80-150 ₪</span>/חודש + עמלות', 'מערכת נפרדת נוספת'],
+      ['ניהול קליניקה', 'טיפולוג · My-Cliniq · CliniKit', '<span class="num">100-300 ₪</span>/חודש', 'לא מחובר לסליקה ולא לחשבוניות'],
+      ['חשבוניות', 'iCount · GreenInvoice · חשבונית ירוקה', '<span class="num">50-100 ₪</span>/חודש', 'מערכת נפרדת, לא מחוברת לסליקה'],
+      ['דיווח מס', 'רו"ח', '<span class="num">300-800 ₪</span>/חודש', 'ידני, איטי, יקר']
+    ],
+    foot: 'סה"כ: 3-5 מערכות נפרדות · ~500-1,500 ₪/חודש · שום דבר לא מחובר לשום דבר',
+    src: 'מקור: מחקר סגמנט מרכזים רפואיים'
+  },
+  { label: 'Use Case · הפתרון', type: 'split', cycle: true,
+    hl: 'PayMe כ-\n<em>One Stop Shop</em>',
+    bd: 'מחליפה 2-3 מהמערכות ומחברת אותן. מטופל משלם, חשבונית יוצאת אוטומטית, דיווח המס מוכן לרו"ח. הכל בממשק אחד, מחובר לתוכנת ניהול הקליניקה שכבר בשימוש.',
+    foot: 'רופא שמנהל 4 מערכות ומשלם 1,200 ₪/חודש, עם PayMe משלם 250 ₪ ומקבל הכל במקום אחד.',
+    cards: [
+      { step: 'Payments', hl: 'תשלום בקליק', bd: 'מטופל משלם ל-PayMe בכרטיס, ב-Bit או בהעברה. אין מסוף נפרד, אין ספק סליקה נוסף ואין עמלות סליקה כפולות.' },
+      { step: 'Accounting', hl: 'חשבונית אוטומטית', bd: 'חשבונית יוצאת ברגע התשלום, דיווח המס מוכן, הכל זורם לרו"ח בלי עבודה ידנית.' },
+      { step: 'ממשק אחד', hl: 'הכל מחובר', bd: 'במקום 3 מערכות שלא מדברות, מערכת אחת שמתחברת לתוכנת ניהול הקליניקה.' }
+    ]
+  },
+  { label: 'Use Case · מי מרוויח', type: 'table',
+    kicker: 'המודל המסחרי · דרך תוכנת ניהול קליניקה',
+    hl: 'מי <em>מרוויח</em> מה',
+    sub: 'המסלול המומלץ: כניסה דרך פלטפורמה קיימת כמו טיפולוג. את המרכזים הרפואיים (אסותא, HMC, מדיקה) פונים לכולם במקביל וממפים עם מי מבשילים. עסקה אחת פותחת אלפי מטפלים, וכל צד יוצא מרוויח.',
+    cols: ['צד', 'מה מקבל', 'כמה'],
+    rows: [
+      ['רופא / מטפל', 'Payments + Accounting מובנים בתוכנה שהוא כבר עובד איתה', 'משלם <span class="num">50-100 ₪</span> במקום 500-800. חיסכון 400-700 ₪/חודש'],
+      ['הפלטפורמה (טיפולוג)', 'Revenue Share + שימור לקוח + העלאת ARPU', '<span class="num">40-60 ₪</span>/מטפל/חודש'],
+      ['PayMe', 'גישה לאלפי מטפלים בלי Sales Cycle ארוך', '<span class="num">100-150K ₪</span> MRR (1,000 מטפלים × 100-150 ₪ ARPU אחרי Revenue Share)']
+    ],
+    foot: 'נקודת כניסה: טיפולוג, חברה ישראלית קטנה עם אלפי מטפלים ובלי סליקה. One deal = אלפי מטפלים, ומשם מרחיבים ל-My-Cliniq, CliniKit ולפקולטות רופאים.',
+    src: 'הפוטנציאל: המודל עובד לכל וורטיקל, כושר · יופי · בנייה. הרופאים הם ה-Proof of Concept.'
+  },
+  { label: 'בסיס החישוב', type: 'formula',
+    kicker: 'מאחורי המספרים',
+    hl: 'כל שקל כאן <em>מחושב.</em>',
+    terms: [
+      { t: 'עסקים באקוסיסטם', ex: '6,000' },
+      { t: '% חשיפה', ex: '15%' },
+      { t: 'שיעור הפעלה', ex: '25%' },
+      { t: 'ARPU חודשי', ex: '150 ₪' }
+    ],
+    result: '33,750 ₪',
+    exLabel: 'דוגמה · 10bis (תן ביס) · חודש 4',
+    note: 'החשיפה עולה מדורגת לאורך הרבעון: חודש 1 חתימה · חודש 2 · 10-30% · חודש 3 · 40-60% · חודש 4 · 100%. אותה נוסחה רצה על כל שותף בגיליון.',
+    src: 'מקור: גיליון "בסיס החישוב", PayMe_תוכנית_סופית.xlsx'
+  },
+  { label: 'מודל ההכנסה לפי שותף', type: 'table',
+    kicker: 'תרחיש שמרני מול עליון',
+    hl: 'מאיפה מגיע ה-MRR',
+    sub: 'חמשת שותפי ה-Outbound המרכזיים: גודל האקוסיסטם, החשיפה השמרנית מול העליונה, וה-MRR שהוא מייצר בחודש 4.',
+    cols: ['שותף', 'אקוסיסטם', 'חשיפה שמרנית', 'חשיפה עליונה', 'MRR חודש 4'],
+    rows: [
+      ['תן ביס', '~6,000 שליחים', '900 · 15%', '1,800 · 30%', '<span class="num">33,750 ₪</span>'],
+      ['Arbox', '~7,000 עסקים', '350 · 5%', '700 · 10%', '<span class="num">17,600 ₪</span>'],
+      ['Plannie', '~3,000 עסקים', '300 · 10%', '600 · 20%', '<span class="num">12,000 ₪</span>'],
+      ['יאנגו דלי', '~2,000 שליחים', '200 · 10%', '400 · 20%', '<span class="num">7,500 ₪</span>'],
+      ['אסותא', '~400 רופאים', '20 · 5%', '50 · 12%', '<span class="num">1,250 ₪</span>']
+    ],
+    foot: 'חמשת ה-Outbound = 72,100 ₪. יחד עם מנוע ה-Inbound (Wolt הרחבה · Wolt Merchants · Wix): 102,100 ₪ שמרני · 141,000 ₪ עליון.',
+    src: 'מקור: גיליונות "תרחיש שמרני" + "תרחיש עליון", PayMe_תוכנית_סופית.xlsx'
+  },
+  { label: 'תוכנית 4 חודשים', type: 'cmdcenter', meta: 'תוכנית עבודה · חודש אחר חודש' },
+  { label: 'תחזית', type: 'insight',
+    hl: 'שני תרחישים.\n<em>שניהם חוצים את היעד.</em>',
+    bd: 'התרחיש השמרני מניח 60% סגירה ו-Rollout איטי, ועדיין חוצה את יעד ה-100K. העליון מניח Rollout מהיר, Promoter שעובד, ו-Isracard שנוחת בזמן. גם בשמרני מגיעים ליעד. התוכנית לא תלויה בהצלחה אחת.',
+    stats: [
+      { num: '102,100 ₪', lbl: 'תרחיש שמרני\n60% סגירה · 15% חשיפה' },
+      { num: '141,000 ₪', lbl: 'תרחיש עליון\n80% סגירה · 30% חשיפה · Promoter פעיל', muted: true }
+    ]
+  },
+  { label: 'הגישה שלי', type: 'statement', cycle: true,
+    kicker: 'בכנות',
+    hl: 'הגישה שלי,\n<em>בכנות.</em>',
+    pts: [
+      { h: 'חודש 1 = תכנון, לא הכנסות', p: 'מי שמבטיח הכנסות בחודש הראשון לא מכיר את המציאות.' },
+      { h: 'קודם Inbound, כי שם יש יחסים', p: 'Sales Cycle קצר, תוצאות מהירות, המעגל הקרוב קודם.' },
+      { h: 'המספרים הם הערכות, לא נבואות', p: 'צריך לתקף אותם מול המציאות בכל שבוע.' },
+      { h: 'חודש 3 = מגמה. חודש 4 = סגירות', p: 'מה שהתבשל שלושה חודשים צריך להפוך למספרים.' }
+    ]
+  },
+  { label: 'מי מאחורי הדק', type: 'profile',
+    kicker: 'מי מאחורי הדק',
+    photo: 'elia.png',
+    name: 'אליה בן כנען',
+    role: 'פיתוח עסקי · אסטרטגיה שיווקית · 15 שנה',
+    pts: [
+      '<b>15 שנה בפיתוח עסקי ואסטרטגיה שיווקית</b>, מהמפגש הראשון ועד סגירת העסקה.',
+      'עבודת שטח מול שותפים: לפתוח דלתות, לבנות ערך משותף ולהניע תהליך מסחרי עד הסוף.',
+      'בדיוק מה שהתפקיד דורש: לזהות שותף, לחבר אותו למוצר הנכון ולתרגם את זה למספרים.'
+    ]
+  },
+  { label: 'נספחים ותודה', type: 'closing',
+    kicker: 'העבודה שמאחורי הדק',
+    banner: 'נחקר. מומדל.\n<em>מוכן להרצה.</em>',
+    close: 'זה מה שאני מביא לתפקיד: לא רק לזהות הזדמנות, אלא לתרגם אותה לתוכנית מספרית שאפשר לפתוח בה את יום העבודה הראשון. אשמח להיכנס לעומק מול הצוות ולהתחיל.',
+    next: [
+      { ic: '📊', t: 'Google Sheet, תוכנית סופית', d: '6 גיליונות: בסיס החישוב, בחירת שותפים, פעילות שבועית 12 שבועות, שני תרחישים והשוואה.' },
+      { ic: '📄', t: 'מסמך נלווה', d: '9 עמודים: מודל דו-מנועי, מתודולוגיית Inbound, הצעות ערך, לוגיקת התחזית.' },
+      { ic: '📚', t: 'מסמכי מחקר', d: 'מחקר אסטרטגי, מחקר סגמנטים, מחקר מעמיק ל-5 סגמנטים, תוכנית אופרטיבית.' },
+      { ic: '🌐', t: 'Executive Dashboard', d: 'דף HTML שמרכז את כל העבודה, מוכן להיפתח בפגישה.' }
+    ]
+  },
+  { label: 'מוכן להתחיל', type: 'finale',
+    hl: 'מוכן להתחיל.\n<em>מהיום הראשון.</em>',
+    line: 'לא ניתחתי שוק. בניתי תוכנית שאפשר לפתוח בה את יום העבודה הראשון, ולהגיע ל-100,000 ₪ MRR בארבעה חודשים. אשמח להיכנס לעומק מול הצוות ולהתחיל.',
+    sign: 'אליה בן כנען · Strategic Partner Sales',
+    contact: 'elia@bencnaan.net · 052-8738698'
+  }
+];
+
+const N = SLIDES.length;
+let cur = 0;
+const cycleIntervals = {}, cycleState = {};
+const BULLET_DURATION = 1875;
+let cmdActiveIdx = -1, cmdBulletTimer = null, cmdBulletIdx = -1, cmdAutoTimer = null;
+
+function pad2(n){ return String(n+1).padStart(2,'0'); }
+
+function buildSlideHTML(s, i) {
+  const ov = `<div class="s-ov"></div>`;
+
+  if (s.type === 'cover') {
+    return ov + `<div class="s-wrap centered">
+      <img class="cover-logo" src="payme-logo.jpg" alt="PayMe">
+      <div class="cover-tag">Strategic Partner Sales</div>
+      <div class="cover-sub-line">100,000 ₪ MRR ב-4 חודשים · אסטרטגיית שותפויות</div>
+      <div class="cover-line">לא ניתחתי שוק. בניתי תוכנית שאפשר להריץ ביום הראשון.</div>
+      <div class="cover-meta"><span>הוגש על ידי</span><span class="cover-dot"></span><b>אליה בן כנען</b></div>
+    </div>`;
+  }
+
+  if (s.type === 'process') {
+    const cards = s.steps.map((c,ci)=>`
+      <div class="proc-card" id="proc-card-${i}-${ci}"><div class="proc-num">${c.num}</div><h3>${c.h}</h3><p>${c.p}</p></div>`).join('');
+    const band = s.band.map(e=>`<div class="proc-eng"><b>${e.b}</b><span>${e.s}</span></div>`).join('');
+    return ov + `<div class="s-wrap">
+      <div class="label-sm">${s.kicker}</div><div class="rule"></div>
+      <h1 class="h-lg" id="hl-${i}"></h1><p class="body-t" id="bd-${i}"></p>
+      <div class="proc-grid">${cards}</div><div class="proc-band">${band}</div>
+    </div>`;
+  }
+
+  if (s.type === 'split') {
+    const cards = s.cards.map((c,ci)=>`
+      <div class="fcard">
+        <div class="fcard-step" id="cstep-${i}-${ci}"></div>
+        <h3 id="ctitle-${i}-${ci}"></h3><p id="cdesc-${i}-${ci}"></p>
+        ${c.mrr ? `<span class="mrr">${c.mrr}</span>` : ''}<div class="fcard-dot"></div>
+      </div>`).join('');
+    return ov + `<div class="s-wrap"><div class="split">
+        <div class="split-l"><div class="rule"></div>
+          <h1 class="h-lg" id="hl-${i}"></h1><p class="body-t" id="bd-${i}"></p>
+          ${s.foot ? `<div style="margin-top:22px;font-size:14px;font-weight:800;color:var(--accent)">${s.foot}</div>` : ''}
+        </div>
+        <div class="split-r${s.cards.length > 3 ? ' grid2' : ''}">${cards}</div>
+      </div></div>`;
+  }
+
+  if (s.type === 'table') {
+    const head = s.cols.map(c=>`<th>${c}</th>`).join('');
+    const body = s.rows.map(r=>`<tr>${r.map(c=>`<td>${String(c).replace(/\n/g,'<br>')}</td>`).join('')}</tr>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(34px,4.6vw,66px);margin-bottom:${s.sub?'8px':'0'}"></h1>
+      ${s.sub ? `<p class="body-t" style="max-width:720px">${s.sub}</p>` : ''}
+      <div class="tbl-wrap"><table class="ptable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+      ${s.foot ? `<div class="tbl-foot">${s.foot.replace(/(~?[\d,]+(?:-[\d,]+)?\s*₪?)/,'<b>$1</b>')}</div>` : ''}
+      ${s.src ? `<div class="tbl-src">${s.src}</div>` : ''}
+    </div>`;
+  }
+
+  if (s.type === 'formula') {
+    const terms = s.terms.map((t,ti)=>`
+      <div class="fx-term"><div class="fx-term-t">${t.t}</div><div class="fx-term-ex">${t.ex}</div></div>
+      ${ti < s.terms.length-1 ? '<div class="fx-op">×</div>' : ''}`).join('');
+    const calc = s.terms.map(t=>t.ex).join(' × ') + ' = <b>' + s.result + '</b>';
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(34px,4.6vw,64px);margin-bottom:6px"></h1>
+      <div class="fx-eq"><div class="fx-res-lead">MRR</div><div class="fx-op fx-eq-sign">=</div>${terms}</div>
+      <div class="fx-example"><span class="fx-ex-label">${s.exLabel}</span><span class="fx-ex-calc">${calc}</span></div>
+      <div class="tbl-src" style="margin-top:22px;max-width:660px;line-height:1.6">${s.note}</div>
+      ${s.src ? `<div class="tbl-src">${s.src}</div>` : ''}
+    </div>`;
+  }
+
+  if (s.type === 'insight') {
+    const stats = s.stats ? `<div class="stat-row">${s.stats.map((st,si)=>
+      `<div class="stat-box"><div class="stat-num ${st.muted?'muted':''}">${st.num}</div><div class="stat-lbl" id="stat-lbl-${i}-${si}"></div></div>`).join('')}</div>` : '';
+    return ov + `<div class="insight-wrap"><h1 class="h-insight" id="hl-${i}"></h1><p class="insight-body" id="bd-${i}"></p>${stats}</div>`;
+  }
+
+  if (s.type === 'statement') {
+    const pts = s.pts.map((p,pi)=>`<div class="pt-item" id="pt-${i}-${pi}"><h4>${p.h}</h4><p>${p.p}</p></div>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="h-xl" id="hl-${i}" style="font-size:clamp(38px,5vw,72px);margin-bottom:30px"></h1>
+      <div class="pts">${pts}</div></div>`;
+  }
+
+  if (s.type === 'cmdcenter') {
+    const nodes = STAGES.map((st,si)=>`
+      <div class="cmd-node" id="cmd-node-${si}" onclick="cmdSelectStage(${si})">
+        <div class="cmd-node-num">${st.n}</div><div class="cmd-node-name" id="cmd-nname-${si}"></div>
+        <div class="cmd-prog" id="cmd-prog-${si}"></div>
+      </div>`).join('');
+    return ov + `
+      <div class="cmd-scan" id="cmd-scan"></div>
+      <div class="cmd-center">
+        <div class="cmd-bg-num" id="cmd-bg-num">חודש 1</div>
+        <div class="cmd-header"><div class="cmd-meta" id="meta-${i}"></div></div>
+        <div class="cmd-selector">${nodes}</div>
+        <div class="cmd-main" id="cmd-content">
+          <div class="cmd-stage-label" id="cmd-active-num"></div>
+          <div class="cmd-stage-title" id="cmd-active-name"></div>
+          <div class="cmd-bullets" id="cmd-bullets"></div>
+          <div class="cmd-mrr-tag" id="cmd-mrr"></div>
+        </div>
+      </div>`;
+  }
+
+  if (s.type === 'closing') {
+    const cells = s.next.map((c,ci)=>`
+      <div class="next-cell"><div class="next-ic">${c.ic}</div><h4 id="next-t-${i}-${ci}"></h4><p id="next-d-${i}-${ci}"></p></div>`).join('');
+    return ov + `<div class="s-wrap centered">
+      <div class="label-sm">${s.kicker||''}</div><div class="rule c"></div>
+      <h1 class="banner" id="banner-${i}"></h1>
+      ${s.close ? `<div class="close-line">${s.close}</div>` : ''}
+      <div class="next-grid">${cells}</div></div>`;
+  }
+
+  if (s.type === 'profile') {
+    const photo = s.photo
+      ? `<img src="${s.photo}" alt="${s.name}">`
+      : `<div class="prof-mono">אבכ</div>`;
+    const pts = s.pts.map(p=>`<div class="prof-pt"><span class="prof-dot"></span>${p}</div>`).join('');
+    return ov + `<div class="s-wrap profile-wrap">
+      <div class="prof-photo">${photo}</div>
+      <div class="prof-text">
+        <div class="label-sm">${s.kicker||''}</div><div class="rule"></div>
+        <h1 class="prof-name">${s.name}</h1>
+        <div class="prof-role">${s.role}</div>
+        <div class="prof-pts">${pts}</div>
+      </div>
+    </div>`;
+  }
+
+  if (s.type === 'finale') {
+    return ov + `<div class="s-wrap centered finale-wrap">
+      <img class="finale-logo" src="payme-logo.jpg" alt="PayMe">
+      <h1 class="finale-h">${s.hl.replace(/\n/g,'<br>')}</h1>
+      <div class="finale-line">${s.line}</div>
+      <div class="finale-sign">${s.sign}</div>
+      <div class="finale-contact">${s.contact}</div>
+    </div>`;
+  }
+  return ov;
+}
+
+function buildDeck() {
+  const deck = document.getElementById('deck');
+  const prog = document.getElementById('progress');
+  document.getElementById('tot').textContent = N;
+  SLIDES.forEach((s,i)=>{
+    const el = document.createElement('div');
+    el.className = 'slide' + (i===0?' active':'');
+    el.id = 'slide-'+i;
+    el.innerHTML = buildSlideHTML(s,i);
+    deck.appendChild(el);
+    const dot = document.createElement('div');
+    dot.className = 'pdot' + (i===0?' on':'');
+    dot.onclick = ()=>goTo(i);
+    prog.appendChild(dot);
+  });
+  renderContent();
+}
+
+function renderContent() {
+  SLIDES.forEach((s,i)=>{
+    const hl = document.getElementById('hl-'+i);
+    const bd = document.getElementById('bd-'+i);
+    const meta = document.getElementById('meta-'+i);
+    if (hl && s.hl) hl.innerHTML = s.hl.replace(/\n/g,'<br>');
+    if (bd && s.bd) bd.innerHTML = s.bd.replace(/\n/g,'<br>');
+    if (meta && s.meta) meta.textContent = s.meta;
+    if (s.stats) s.stats.forEach((st,si)=>{ const l = document.getElementById(`stat-lbl-${i}-${si}`); if (l) l.innerHTML = st.lbl.replace(/\n/g,'<br>'); });
+    if (s.cards) s.cards.forEach((c,ci)=>{
+      const st = document.getElementById(`cstep-${i}-${ci}`);
+      const t = document.getElementById(`ctitle-${i}-${ci}`);
+      const d = document.getElementById(`cdesc-${i}-${ci}`);
+      if (st) st.textContent = c.step; if (t) t.textContent = c.hl; if (d) d.textContent = c.bd;
+    });
+    if (s.type === 'closing') {
+      const banner = document.getElementById(`banner-${i}`);
+      if (banner && s.banner) banner.innerHTML = s.banner.replace(/\n/g,'<br>');
+      s.next.forEach((c,ci)=>{
+        const t = document.getElementById(`next-t-${i}-${ci}`);
+        const d = document.getElementById(`next-d-${i}-${ci}`);
+        if (t) t.textContent = c.t; if (d) d.textContent = c.d;
+      });
+    }
+    if (s.type === 'cmdcenter') {
+      STAGES.forEach((st,si)=>{ const nn = document.getElementById(`cmd-nname-${si}`); if (nn) nn.innerHTML = st.t.replace(/\n/g,'<br>'); });
+      if (cmdActiveIdx>=0) updateCmdContent();
+    }
+  });
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+}
+
+function startCycle(slideIdx) {
+  if (cycleIntervals[slideIdx]) return;
+  const s = SLIDES[slideIdx];
+  let sel = `#slide-${slideIdx} .fcard`;
+  if (s.type === 'process') sel = `#slide-${slideIdx} .proc-card`;
+  if (s.type === 'statement') sel = `#slide-${slideIdx} .pt-item`;
+  const cards = document.querySelectorAll(sel);
+  if (!cards.length) return;
+  if (cycleState[slideIdx] === undefined) cycleState[slideIdx] = 0;
+  cards.forEach((c,i)=>c.classList.toggle('on', i===cycleState[slideIdx]));
+  cycleIntervals[slideIdx] = setInterval(()=>{
+    cards[cycleState[slideIdx]].classList.remove('on');
+    cycleState[slideIdx] = (cycleState[slideIdx]+1) % cards.length;
+    cards[cycleState[slideIdx]].classList.add('on');
+  }, 2300);
+}
+function stopCycle(slideIdx) { if (cycleIntervals[slideIdx]) { clearInterval(cycleIntervals[slideIdx]); delete cycleIntervals[slideIdx]; } }
+
+function startCmdCenter(){ cmdSelectStage(0, true); }
+function stopCmdCenter(){
+  stopBulletCycle(); if (cmdAutoTimer){ clearTimeout(cmdAutoTimer); cmdAutoTimer=null; } cmdActiveIdx = -1;
+  for (let i=0;i<STAGES.length;i++){
+    const node = document.getElementById(`cmd-node-${i}`); if (node) node.classList.remove('active');
+    const bar = document.getElementById(`cmd-prog-${i}`); if (bar){ bar.style.transition='none'; bar.style.width='0%'; }
+  }
+}
+function cmdSelectStage(idx, auto){
+  stopBulletCycle(); if (cmdAutoTimer){ clearTimeout(cmdAutoTimer); cmdAutoTimer=null; } cmdActiveIdx = idx;
+  for (let i=0;i<STAGES.length;i++){ const node = document.getElementById(`cmd-node-${i}`); if (node) node.classList.toggle('active', i===idx); }
+  const bgNum = document.getElementById('cmd-bg-num');
+  if (bgNum){ bgNum.style.opacity='0'; setTimeout(()=>{ bgNum.textContent = STAGES[idx].n; bgNum.style.opacity='1'; },220); }
+  triggerScanLine(); updateCmdContent();
+  for (let i=0;i<STAGES.length;i++){ const bar = document.getElementById(`cmd-prog-${i}`); if (bar){ bar.style.transition='none'; bar.style.width='0%'; } }
+  const bar = document.getElementById(`cmd-prog-${idx}`);
+  if (bar){ void bar.offsetWidth; bar.style.transition=`width ${BULLET_DURATION*4}ms linear`; bar.style.width='100%'; }
+  startBulletCycle();
+  if (auto !== false && SLIDES[cur] && SLIDES[cur].type === 'cmdcenter'){
+    cmdAutoTimer = setTimeout(()=>{ cmdSelectStage((idx+1) % STAGES.length, true); }, BULLET_DURATION*4 + 900);
+  }
+}
+function startBulletCycle(){
+  stopBulletCycle(); cmdBulletIdx = 0; highlightBullet(0);
+  cmdBulletTimer = setInterval(()=>{ cmdBulletIdx++; if (cmdBulletIdx < 4) highlightBullet(cmdBulletIdx); else stopBulletCycle(); }, BULLET_DURATION);
+}
+function stopBulletCycle(){ if (cmdBulletTimer){ clearInterval(cmdBulletTimer); cmdBulletTimer=null; } cmdBulletIdx=-1; }
+function highlightBullet(activeIdx){
+  document.querySelectorAll('#cmd-bullets .cmd-bullet-item').forEach((b,i)=>{
+    b.classList.remove('lit','seen');
+    if (i<activeIdx) b.classList.add('seen'); else if (i===activeIdx) b.classList.add('lit');
+  });
+}
+function updateCmdContent(){
+  if (cmdActiveIdx<0) return;
+  const st = STAGES[cmdActiveIdx];
+  const an = document.getElementById('cmd-active-num');
+  const aname = document.getElementById('cmd-active-name');
+  const mrr = document.getElementById('cmd-mrr');
+  if (an) an.textContent = st.n;
+  if (aname) aname.innerHTML = st.t.replace(/\n/g,'<br>');
+  if (mrr) mrr.textContent = st.mrr;
+  const bl = document.getElementById('cmd-bullets');
+  if (bl) bl.innerHTML = st.bullets.map(b=>`<div class="cmd-bullet-item">${b}</div>`).join('');
+}
+function triggerScanLine(){
+  const el = document.getElementById('cmd-scan'); if (!el) return;
+  el.style.animation='none'; el.offsetHeight; el.style.animation='scan 0.7s ease-out forwards';
+}
+
+function goTo(n){
+  const slides = document.querySelectorAll('.slide');
+  const dots = document.querySelectorAll('.pdot');
+  const prev = cur;
+  if (SLIDES[prev].cycle) stopCycle(prev);
+  if (SLIDES[prev].type === 'cmdcenter') stopCmdCenter();
+  slides[prev].classList.remove('active'); dots[prev].classList.remove('on');
+  cur = ((n%N)+N)%N;
+  slides[cur].classList.add('active'); dots[cur].classList.add('on');
+  document.getElementById('cur').textContent = pad2(cur);
+  document.getElementById('slide-lbl').textContent = SLIDES[cur].label;
+  if (SLIDES[cur].cycle) startCycle(cur);
+  if (SLIDES[cur].type === 'cmdcenter') startCmdCenter();
+}
+function nav(d){ goTo(cur+d); }
+
+document.getElementById('arr-back').onclick = ()=>nav(-1);
+document.getElementById('arr-fwd').onclick = ()=>nav(1);
+document.addEventListener('keydown', e=>{
+  if (e.key==='ArrowLeft' || e.key==='ArrowDown') nav(1);
+  if (e.key==='ArrowRight' || e.key==='ArrowUp') nav(-1);
+  if (e.key==='Escape') goTo(0);
+});
+let tx=0;
+document.addEventListener('touchstart', e=>{ tx=e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend', e=>{ const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx)>44) nav(dx>0 ? 1 : -1); }, {passive:true});
+document.getElementById('deck').addEventListener('click', e=>{
+  if (SLIDES[cur].type==='cmdcenter') return;
+  if (e.target.closest('.next-cell')||e.target.closest('.fcard')||e.target.closest('.proc-card')||e.target.closest('.ptable')||e.target.closest('.pt-item')) return;
+  const x = e.clientX / window.innerWidth;
+  if (x < 0.35) nav(1); else if (x > 0.65) nav(-1);
+});
+
+buildDeck();
+</script>
+</body>
+</html>

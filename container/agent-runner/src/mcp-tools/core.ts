@@ -134,7 +134,8 @@ export const sendMessage: McpToolDefinition = {
 export const sendFile: McpToolDefinition = {
   tool: {
     name: 'send_file',
-    description: 'Send a file to a named destination. If you have only one destination, you can omit `to`.',
+    description:
+      'Send a user-requested file or real artifact to a named destination. Never use this for a prompt, command, token, or other copy-paste text; send those in a fenced code block with send_message instead.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -142,6 +143,10 @@ export const sendFile: McpToolDefinition = {
         path: { type: 'string', description: 'File path (relative to /workspace/agent/ or absolute)' },
         text: { type: 'string', description: 'Optional accompanying message' },
         filename: { type: 'string', description: 'Display name (default: basename of path)' },
+        userRequestedFile: {
+          type: 'boolean',
+          description: 'Set true only when the user explicitly asked to receive a file.',
+        },
       },
       required: ['path'],
     },
@@ -158,6 +163,12 @@ export const sendFile: McpToolDefinition = {
 
     const id = generateId();
     const filename = (args.filename as string) || path.basename(resolvedPath);
+
+    // A text attachment is a common but poor substitute for a copyable chat
+    // response. Require an explicit user request before it can leave the agent.
+    if (/\.(?:txt|md|markdown)$/i.test(filename) && args.userRequestedFile !== true) {
+      return err('Text files require an explicit user request. Send copyable text with send_message in one fenced code block.');
+    }
 
     const outboxDir = path.join('/workspace/outbox', id);
     fs.mkdirSync(outboxDir, { recursive: true });
