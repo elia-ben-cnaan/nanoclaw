@@ -1,3 +1,4 @@
+import { whatsappInboundBlockReason } from '../whatsapp-loop-guard.js';
 /**
  * Pilot provisioning + supervisor mirroring for the WhatsApp Cloud API
  * channel — port of the pilot block from the native Baileys adapter
@@ -428,6 +429,16 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
       const originalOnInbound = hostConfig.onInbound;
 
       const wrappedOnInbound: ChannelSetup['onInbound'] = async (platformId, threadId, inbound) => {
+        // Before provisioning, mirroring, activation or automatic replies.
+        const loopReason = whatsappInboundBlockReason({
+          channelType: CHANNEL_TYPE, instance: INSTANCE, platformId, threadId,
+          message: { ...inbound, content: JSON.stringify(inbound.content) },
+        });
+        if (loopReason) {
+          log.warn('WhatsApp agent loop blocked before provisioning', { reason: loopReason, messageId: inbound.id });
+          return;
+        }
+
         try {
           const { text, senderName, isGroup } = readInbound(inbound);
           const sender = senderNumberFromPlatformId(platformId);
@@ -504,6 +515,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     activation: consumed,
                     fallbackName: senderName || null,
                     channel: 'WhatsApp',
+                      whatsappInstance: 'whatsapp-cloud',
                   });
                   // Greeting BEFORE wiring — guarantees it's the first
                   // message on every new agent (Telegram parity). Mirrors the
@@ -577,6 +589,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     fallbackName: attr.name || senderName || null,
                     boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
+                      whatsappInstance: 'whatsapp-cloud',
                   });
                   wireJoniChat(platformId, prov.agentGroupId, userId, senderName || prov.userName, CHANNEL_TYPE);
                   stampInstance(platformId);

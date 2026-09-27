@@ -463,6 +463,8 @@ export async function provisionPilotAtPress(input: {
   boardUserId?: string | null;
   /** Public Agent4Job entries remain isolated from legacy supervisor routing. */
   supervisor?: boolean;
+  /** Host adapter identity, never the customer phone. Seeds the WhatsApp loop-guard binding. */
+  whatsappInstance?: string;
 }): Promise<PressProvisionResult> {
   const meta = parseActivationMetadata(input.activation);
   // realName drives the identity block (null → explicit "address neutrally"
@@ -504,7 +506,7 @@ export async function provisionPilotAtPress(input: {
     folder: slug,
     agent_provider: null,
     created_at: now,
-  });
+  }, input.channel === 'WhatsApp' ? (input.whatsappInstance ?? '') : undefined);
 
   let instructions: string;
   if (profileFirst) {

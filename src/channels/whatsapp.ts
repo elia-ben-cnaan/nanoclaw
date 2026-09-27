@@ -1,3 +1,5 @@
+import { registerWhatsAppAccount } from '../whatsapp-agent-identities.js';
+import { whatsappInboundBlockReason } from '../whatsapp-loop-guard.js';
 /**
  * WhatsApp channel adapter (v2) — native Baileys v7 implementation.
  *
@@ -977,6 +979,10 @@ registerChannelAdapter('whatsapp', {
             log.warn('Failed to send presence update', { err });
           });
 
+          // Keep an unavailable/quarantined account local to this adapter, not a host crash.
+          try { registerWhatsAppAccount('whatsapp', sock.user?.id ?? ''); }
+          catch { return; } // registry emitted an explicit alert; ingress remains fail-closed
+
           // Build LID → phone mapping from auth state
           if (sock.user) {
             const phoneUser = sock.user.id.split(':')[0];
@@ -1068,6 +1074,17 @@ registerChannelAdapter('whatsapp', {
               : rawSender;
             const senderName = msg.pushName || sender.split('@')[0];
             const fromMe = msg.key.fromMe || false;
+            // Before interactive actions, pilot provisioning and outbound acknowledgements.
+            const loopReason = whatsappInboundBlockReason({
+              channelType: 'whatsapp', instance: 'whatsapp', platformId: chatJid, threadId: null,
+              message: { id: msg.key.id || '', kind: 'chat', timestamp, isGroup,
+                content: JSON.stringify({ sender, text: content }) },
+            });
+            if (loopReason) {
+              log.warn('WhatsApp agent loop blocked at adapter', { reason: loopReason, messageId: msg.key.id });
+              continue;
+            }
+
             // Filter bot's own messages to prevent echo loops.
             // In self-chat (user messaging their own number), all messages have
             // fromMe=true — use sentMessageCache to distinguish bot echoes from
@@ -1226,6 +1243,7 @@ registerChannelAdapter('whatsapp', {
                       activation: consumed,
                       fallbackName: senderName || null,
                       channel: 'WhatsApp',
+                      whatsappInstance: 'whatsapp',
                     });
                     // Greeting BEFORE wiring, same ordering rationale as
                     // Telegram: guarantee it's the first message on the chat.
@@ -1276,6 +1294,7 @@ registerChannelAdapter('whatsapp', {
                       },
                       fallbackName: senderName || null,
                       channel: 'WhatsApp',
+                      whatsappInstance: 'whatsapp',
                     });
                     wireJoniChat(chatJid, prov.agentGroupId, userId, senderName || prov.userName, 'whatsapp');
                     log.info('WhatsApp pilot provisioned for walk-up sender', {

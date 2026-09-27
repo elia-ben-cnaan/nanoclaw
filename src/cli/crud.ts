@@ -44,6 +44,8 @@ export interface CustomOperation {
 }
 
 export interface ResourceDef {
+  /** Synchronous validation in the same write transaction as INSERT. */
+  validateCreate?: (row: Record<string, unknown>) => void;
   /** Singular name: 'group'. */
   name: string;
   /** Plural name: 'groups'. Used in command names. */
@@ -159,9 +161,12 @@ function genericCreate(def: ResourceDef) {
 
     const colNames = Object.keys(values);
     const placeholders = colNames.map((c) => `@${c}`);
-    getDb()
+    const insert = () => getDb()
       .prepare(`INSERT INTO ${def.table} (${colNames.join(', ')}) VALUES (${placeholders.join(', ')})`)
       .run(values);
+    if (def.validateCreate) {
+      getDb().transaction(() => { def.validateCreate!(values); insert(); }).immediate();
+    } else insert();
     return values;
   };
 }

@@ -1,9 +1,15 @@
+import { bindWhatsAppWiring } from '../../whatsapp-agent-identities.js';
+import { assertWhatsAppWiring } from '../../whatsapp-loop-wiring.js';
 import { registerResource } from '../crud.js';
 
 registerResource({
   name: 'wiring',
   plural: 'wirings',
   table: 'messaging_group_agents',
+  validateCreate: row => {
+    bindWhatsAppWiring(String(row.agent_group_id), String(row.messaging_group_id));
+    assertWhatsAppWiring({ agent_group_id: String(row.agent_group_id), target_type: 'channel', target_id: String(row.messaging_group_id) });
+  },
   description:
     'Wiring — connects a messaging group to an agent group. Determines which agent handles messages from which chat. The same messaging group can be wired to multiple agents; the same agent can be wired to multiple messaging groups.',
   idColumn: 'id',

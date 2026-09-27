@@ -1,3 +1,4 @@
+import { assertWhatsAppWiring } from '../../../whatsapp-loop-wiring.js';
 /**
  * Per-agent destination map + ACL.
  *
@@ -45,6 +46,13 @@ import { deletePoliciesTouching, removeMessagePolicy } from './agent-message-pol
  * container's inbound.db. See the top-of-file invariant.
  */
 export function createDestination(row: AgentDestination): void {
+  getDb().transaction(() => {
+    assertWhatsAppWiring(row);
+    insertDestination(row);
+  }).immediate();
+}
+
+function insertDestination(row: AgentDestination): void {
   getDb()
     .prepare(
       `INSERT INTO agent_destinations (agent_group_id, local_name, target_type, target_id, created_at)

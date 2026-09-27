@@ -1,3 +1,5 @@
+import { bindWhatsAppWiring } from '../whatsapp-agent-identities.js';
+import { assertWhatsAppWiring } from '../whatsapp-loop-wiring.js';
 import type { MessagingGroup, MessagingGroupAgent } from '../types.js';
 // Transitional tier violation: core imports from optional agent-to-agent module.
 // `createMessagingGroupAgent` auto-creates a destination row on wiring — the
@@ -168,6 +170,14 @@ export function setMessagingGroupDeniedAt(id: string, deniedAt: string | null): 
  * mirrors the backfill logic in migration 004.
  */
 export function createMessagingGroupAgent(mga: MessagingGroupAgent): void {
+  getDb().transaction(() => {
+    bindWhatsAppWiring(mga.agent_group_id, mga.messaging_group_id);
+    assertWhatsAppWiring({ agent_group_id: mga.agent_group_id, target_type: 'channel', target_id: mga.messaging_group_id });
+    insertMessagingGroupAgent(mga);
+  }).immediate();
+}
+
+function insertMessagingGroupAgent(mga: MessagingGroupAgent): void {
   getDb()
     .prepare(
       `INSERT INTO messaging_group_agents (

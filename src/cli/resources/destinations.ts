@@ -1,3 +1,4 @@
+import { assertWhatsAppWiring } from '../../whatsapp-loop-wiring.js';
 import { getDb, hasTable } from '../../db/connection.js';
 import { getSessionsByAgentGroup } from '../../db/sessions.js';
 import { log } from '../../log.js';
@@ -76,12 +77,15 @@ registerResource({
           throw new Error('--target-type must be channel or agent');
         }
         if (!targetId) throw new Error('--target-id is required');
-        getDb()
+        getDb().transaction(() => {
+          assertWhatsAppWiring({ agent_group_id: agentGroupId, target_type: targetType, target_id: targetId });
+          getDb()
           .prepare(
             `INSERT INTO agent_destinations (agent_group_id, local_name, target_type, target_id, created_at)
              VALUES (?, ?, ?, ?, datetime('now'))`,
           )
           .run(agentGroupId, localName, targetType, targetId);
+        }).immediate();
         await projectDestinationsToSessions(agentGroupId);
         return { agent_group_id: agentGroupId, local_name: localName, target_type: targetType, target_id: targetId };
       },

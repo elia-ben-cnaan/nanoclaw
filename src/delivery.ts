@@ -1,3 +1,6 @@
+import { requireWhatsAppBinding } from './whatsapp-agent-identities.js';
+import { recordWhatsAppOutbound } from './whatsapp-loop-guard.js';
+import { assertWhatsAppWiring } from './whatsapp-loop-wiring.js';
 /**
  * Outbound message delivery.
  * Polls session outbound DBs for undelivered messages, delivers through channel adapters.
@@ -382,6 +385,11 @@ async function deliverMessage(
         );
       }
     }
+    // Re-check at send time: stale projections or direct DB writes must not bypass the graph guard.
+    if (msg.channel_type === 'whatsapp') {
+      requireWhatsAppBinding(session.agent_group_id, mg.instance ?? msg.channel_type);
+      assertWhatsAppWiring({ agent_group_id: session.agent_group_id, target_type: 'channel', target_id: mg.id });
+    }
     deliverInstance = mg.instance;
   }
 
@@ -438,6 +446,12 @@ async function deliverMessage(
     files,
     deliverInstance,
   );
+  // Echo guard: fingerprint the payload we actually put on the wire (post
+  // action-link promotion) so a cross-transport reflection of our own send is
+  // recognized as agent output on inbound. After a successful send only —
+  // never poison the fingerprint map on a failed delivery. No-op unless
+  // channel is whatsapp AND WHATSAPP_LOOP_GUARD=1; self-guarded, never throws.
+  recordWhatsAppOutbound(msg.channel_type, JSON.stringify(content));
   log.info('Message delivered', {
     id: msg.id,
     channelType: msg.channel_type,

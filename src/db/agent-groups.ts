@@ -1,7 +1,16 @@
+import { bindWhatsAppAgent, requireWhatsAppAccount } from '../whatsapp-agent-identities.js';
 import type { AgentGroup } from '../types.js';
 import { getDb } from './connection.js';
 
-export function createAgentGroup(group: AgentGroup): void {
+export function createAgentGroup(group: AgentGroup, whatsappInstance?: string): void {
+  if (whatsappInstance !== undefined) requireWhatsAppAccount(whatsappInstance);
+  getDb().transaction(() => {
+    insertAgentGroup(group);
+    if (whatsappInstance !== undefined) bindWhatsAppAgent(group.id, whatsappInstance);
+  }).immediate();
+}
+
+function insertAgentGroup(group: AgentGroup): void {
   getDb()
     .prepare(
       `INSERT INTO agent_groups (id, name, folder, agent_provider, created_at)

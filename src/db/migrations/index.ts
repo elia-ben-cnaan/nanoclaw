@@ -27,6 +27,7 @@ import { migration022 } from './022-group-post-allowances.js';
 import { migration023 } from './023-fallback-model.js';
 import { migration024 } from './024-cost-notices.js';
 import { migration025 } from './025-users-board-summaries.js';
+import { migration027 } from './027-whatsapp-agent-identities.js';
 import { migration026 } from './026-onecli-url.js';
 
 export interface Migration {
@@ -72,6 +73,7 @@ export const migrations: Migration[] = [
   migration024,
   migration025,
   migration026,
+  migration027,
 ];
 
 /** Row shape of PRAGMA foreign_key_check. Child rowids are stable across a

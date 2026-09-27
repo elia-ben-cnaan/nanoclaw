@@ -1,3 +1,4 @@
+import { discoverWhatsAppCloudAccount } from '../whatsapp-agent-identities.js';
 /**
  * WhatsApp Cloud API channel adapter (v2) — uses Chat SDK bridge.
  * Uses the official Meta WhatsApp Business Cloud API (not Baileys).
@@ -46,6 +47,11 @@ registerChannelAdapter('whatsapp-cloud', {
       concurrency: 'concurrent',
       supportsThreads: false,
     });
+    const setupBridge = bridge.setup.bind(bridge);
+    bridge.setup = async config => {
+      await discoverWhatsAppCloudAccount('whatsapp-cloud', env.WHATSAPP_PHONE_NUMBER_ID ?? '', env.WHATSAPP_ACCESS_TOKEN!);
+      return setupBridge(config);
+    };
     // Additive: intercept a clean single-https-button send_card and deliver it
     // as a native interactive cta_url message (one clickable button) instead of
     // the text + link-button fallback. Confined to this channel — the shared

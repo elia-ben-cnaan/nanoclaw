@@ -1,3 +1,5 @@
+import { requireWhatsAppBinding } from './whatsapp-agent-identities.js';
+import { whatsappInboundBlockReason } from './whatsapp-loop-guard.js';
 /**
  * Inbound message routing.
  *
@@ -226,6 +228,13 @@ function safeParseContent(raw: string): { text?: string; sender?: string; sender
  * Creates messaging group + session if they don't exist yet.
  */
 export async function routeInbound(event: InboundEvent): Promise<void> {
+  if (event.channelType === 'whatsapp') {
+    const reason = whatsappInboundBlockReason(event);
+    if (reason) {
+      log.warn('WhatsApp agent loop blocked before routing', { reason, messageId: event.message.id });
+      return;
+    }
+  }
   // Pre-route interceptors — let modules consume messages before any routing
   // (e.g. free-text DM replies during multi-step approval flows). They run in
   // registration order; the first to claim the message stops routing. The
@@ -402,6 +411,8 @@ export async function routeInbound(event: InboundEvent): Promise<void> {
   for (const agent of agents) {
     const agentGroup = getAgentGroup(agent.agent_group_id);
     if (!agentGroup) continue;
+    if (event.channelType === 'whatsapp') requireWhatsAppBinding(agent.agent_group_id, event.instance ?? mg.instance ?? event.channelType);
+
 
     const engages = evaluateEngage(agent, messageText, isMention, mg, event.threadId);
 
