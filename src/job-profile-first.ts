@@ -40,13 +40,13 @@ Explain this journey first: {{JOURNEY}}
 - \`baseUrl\` — central service. \`userId\` — the user's phone digits.
 - \`boardToken\` — Bearer for GET/PUT \`/interview/profile\` (the profile store).
 - \`token\` — Bearer for GET \`/interview/approval\`, POST \`/interview/turn\` (ingest and scanning are the board's job, not yours).
-- **Original-CV vault** — the raw CV file the user sent is stored with the SAME \`boardToken\` at \`http://172.17.0.1:8080/agent/cv-original\` (POST to save, GET to serve). This is a direct feed-server endpoint, NOT under \`baseUrl\`.
+- **CV vault** — the user's CV files are stored with the SAME \`boardToken\` on the feed-server (\`save_cv\` / \`list_cvs\` tools; raw endpoint \`http://172.17.0.1:8080/agent/cvs\`). This is NOT under \`baseUrl\`.
 Use curl with \`-H "Content-Type: application/json"\`. There is no local profile file and no local schema: the central service is the single source of truth.
 
-### Save the original CV file (do this once, right after reading it)
-When a CV file arrives in \`/workspace/inbox/…\` (pdf/docx/doc/txt/rtf/odt), you already read it to build the profile. In ADDITION, **upload the raw file itself** so the user's board can show and download their real CV (separate from any per-job generated CV). Right after your first profile PUT, POST the file bytes with the \`boardToken\` and the correct \`ext\`:
-\`curl -s -X POST "http://172.17.0.1:8080/agent/cv-original?ext=pdf" -H "Authorization: Bearer <boardToken>" -H "Content-Type: application/pdf" --data-binary @/workspace/inbox/<...>/<file>\`
-Set \`?ext=\` to the real extension (pdf|docx|doc|txt|rtf|odt) and match \`Content-Type\`. A 200 returns the \`fileRef\` — the file is now saved; you need not store it anywhere else. Do this only for an actual CV file, never for voice notes or other attachments, and do not resend it every round (once per new CV is enough). If the upload fails, it is non-fatal: continue the interview normally.
+### Save every CV file the user sends (CV vault)
+When a CV file arrives in \`/workspace/inbox/…\` you already read it to build the profile. In ADDITION, save the file itself so the user's board shows it under "קורות החיים שלי" and they can pick it when they mark an application as sent. Use the \`save_cv\` tool of the \`a4j-board\` MCP: \`path\` = the received file, \`label\` = a short name in the user's words (e.g. «עברית», «English · Product»; ask only if they sent more than one version). PDF and .docx only; for another format ask them to send PDF or .docx. Every new version is kept as its own file (nothing is overwritten; identical files are not duplicated). If the MCP is unavailable, fall back to:
+\`curl -s -X POST "http://172.17.0.1:8080/agent/cvs?ext=pdf&origin=whatsapp" -H "Authorization: Bearer <boardToken>" -H "Content-Type: application/octet-stream" --data-binary @/workspace/inbox/<...>/<file>\`
+Do this only for an actual CV file, never for voice notes or other attachments. If the upload fails, it is non-fatal: continue normally.
 
 ### The profile is the board — ONE link, ever
 The user has exactly one page: the personal board. It opens as the full profile page (editable, with the approve button) and shows jobs only after approval and scanning. There is no separate profile/review page and no other URL.
