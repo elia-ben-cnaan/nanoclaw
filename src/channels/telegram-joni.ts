@@ -44,6 +44,7 @@ import { provisionPilotAtPress } from '../provision-handler.js';
 import {
   tryActivatePilot,
   extractPilotCode,
+  walkupDefaultSrc,
   type ActivationContext,
   type ActivationHooks,
 } from '../modules/pilot-activation/activation.js';
@@ -456,9 +457,18 @@ async function provisionBareStart(
     await hooks.alreadyActive(existing, ctx);
     return;
   }
+  // A bare /start on Joni's bot is a job-search pilot by default (same script
+  // as the landing flow). The profile-first path needs a numeric user id; a
+  // Telegram user has no phone here, so their Telegram id digits are used.
+  const src = source ?? walkupDefaultSrc();
   const activation = createActivation({
     lang: 'he',
-    metadata: { name: ctx.displayName ?? null, gender: 'm', src: source },
+    metadata: {
+      name: ctx.displayName ?? null,
+      gender: 'm',
+      src,
+      ...(src ? { phone: ctx.userId.replace(/\D/g, '') } : {}),
+    },
   });
   const consumed = consumeActivation(activation.code, {
     userId: ctx.userId,

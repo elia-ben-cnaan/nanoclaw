@@ -15,6 +15,7 @@ import {
   isPrimaryInCooldown,
   registerPrimaryQuota,
   registerPrimaryRecovery,
+  classifyFallbackFailure,
 } from './poll-loop.js';
 import type { AgentProvider, AgentQuery, ProviderEvent, QueryInput } from './providers/types.js';
 import type { Database } from 'bun:sqlite';
@@ -231,6 +232,19 @@ describe('runFallbackTurn', () => {
     ).rejects.toThrow();
     // Continuity preserved — only stale-thread signals trigger a reset.
     expect(getContinuation('codex')).toBe('good-thread');
+  });
+});
+
+describe('classifyFallbackFailure', () => {
+  it('identifies auth failures from the Codex linked-desktop path', () => {
+    expect(classifyFallbackFailure('External ChatGPT authorization expired')).toBe('auth');
+    expect(classifyFallbackFailure('Linked desktop authorization needs an updated access-token snapshot')).toBe('auth');
+  });
+
+  it('separates quota, stale thread, and network failures', () => {
+    expect(classifyFallbackFailure('429 rate limit')).toBe('quota');
+    expect(classifyFallbackFailure('thread not found')).toBe('stale-thread');
+    expect(classifyFallbackFailure('fetch failed: ETIMEDOUT')).toBe('network');
   });
 });
 

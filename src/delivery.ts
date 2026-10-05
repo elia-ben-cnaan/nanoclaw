@@ -29,6 +29,7 @@ import { normalizeOptions } from './channels/ask-question.js';
 import { clearOutbox, openInboundDb, openOutboundDb, readOutboxFiles } from './session-manager.js';
 import { pauseTypingRefreshAfterDelivery, setTypingAdapter } from './modules/typing/index.js';
 import { promoteActionLinkToCard } from './action-link-guard.js';
+import { sanitizeOutboundContent } from './outbound-sanitize.js';
 import type { OutboundFile } from './channels/adapter.js';
 import type { Session } from './types.js';
 
@@ -288,6 +289,9 @@ async function deliverMessage(
   let content = JSON.parse(msg.content) as Record<string, unknown>;
   const actionLinkPromotion = promoteActionLinkToCard(content);
   content = actionLinkPromotion.content;
+  if (sanitizeOutboundContent(content).stripped) {
+    log.warn('Stripped leaked tool markup from outbound message', { id: msg.id });
+  }
   if (actionLinkPromotion.promoted) {
     log.info('Promoted raw action URL to a delivery card', {
       id: msg.id,

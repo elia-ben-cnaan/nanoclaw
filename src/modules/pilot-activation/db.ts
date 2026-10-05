@@ -116,7 +116,45 @@ export function consumeActivation(
       pilotEnds: pilotEnds.toISOString(),
     });
   if (result.changes === 0) return null;
-  return getActivation(code)!;
+  const consumed = getActivation(code)!;
+  recordConsent(consumed, usedBy.userId, now.toISOString());
+  return consumed;
+}
+
+/**
+ * Persist the policy consent carried by a landing-page signup (metadata
+ * policyVersion + consentedAt, both stamped server-side at /provision).
+ * Signups without a policyVersion (bare /start, walk-ups) write nothing.
+ * Upsert on the code: a provisioning failure re-opens the code, and the
+ * retry that wins it re-binds the record to the actual consumer.
+ */
+export function recordConsent(activation: PilotActivation, userId: string, boundAt: string): void {
+  let meta: Record<string, unknown> = {};
+  try {
+    meta = activation.metadata ? JSON.parse(activation.metadata) : {};
+  } catch {
+    return;
+  }
+  const policyVersion = typeof meta.policyVersion === 'string' ? meta.policyVersion : null;
+  if (!policyVersion) return;
+  const consentedAt = typeof meta.consentedAt === 'string' ? meta.consentedAt : activation.created_at;
+  const channel = userId.includes(':') ? userId.slice(0, userId.indexOf(':')) : 'unknown';
+  getDb()
+    .prepare(
+      `INSERT INTO consent_records (activation_code, policy_version, consented_at, source, user_id, channel, bound_at)
+       VALUES (@code, @policyVersion, @consentedAt, @source, @userId, @channel, @boundAt)
+       ON CONFLICT(activation_code) DO UPDATE SET user_id = excluded.user_id, channel = excluded.channel,
+         bound_at = excluded.bound_at`,
+    )
+    .run({
+      code: activation.code,
+      policyVersion,
+      consentedAt,
+      source: typeof meta.src === 'string' ? meta.src : null,
+      userId,
+      channel,
+      boundAt,
+    });
 }
 
 /**

@@ -74,11 +74,13 @@ async function main(): Promise<void> {
   const config = loadConfig();
   // These two operator agents keep independently authorized credentials away
   // from the host's legacy auth.json copy-on-wake. Other groups are unchanged.
+  const hasNativeCodexAuth = fs.existsSync('/workspace/codex-linked/auth.json');
+  const hasExternalCodexAuth = fs.existsSync('/workspace/codex-linked/external-auth.json');
   if (['ag-1780401001748-zriukn', 'ag-1778670984219-665dop'].includes(config.agentGroupId)
-      && (fs.existsSync('/workspace/codex-linked/auth.json') || fs.existsSync('/workspace/codex-linked/external-auth.json'))) {
+      && (hasNativeCodexAuth || hasExternalCodexAuth)) {
     process.env.CODEX_HOME = '/workspace/codex-linked';
     process.env.NANOCLAW_CODEX_AUTH = 'chatgpt';
-    if (fs.existsSync('/workspace/codex-linked/external-auth.json')) {
+    if (!hasNativeCodexAuth && hasExternalCodexAuth) {
       process.env.NANOCLAW_CODEX_EXTERNAL_AUTH_FILE = '/workspace/codex-linked/external-auth.json';
     }
   }

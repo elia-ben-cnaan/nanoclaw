@@ -94,6 +94,30 @@ export function findPilotCodeInText(text: string): string | null {
  * 'en'; anything else (emoji, digits, empty) defaults to 'he' per product
  * spec. Deliberately character-class based — no dependency, no network.
  */
+/**
+ * Language for a code-less first message (walk-up). detectLang treats any Latin
+ * letter as English, so "hi" / "ok" / a pasted URL turned an Israeli user's
+ * whole agent English. Default to Hebrew unless the text is clearly English:
+ * no Hebrew and at least three Latin words (2026-10-05).
+ */
+export function walkupLang(text: string): PilotLang {
+  if (/[֐-׿]/.test(text)) return 'he';
+  const latinWords = (text.replace(/https?:\/\/\S+/g, ' ').match(/[a-zA-Z]{2,}/g) || []).length;
+  return latinWords >= 3 ? 'en' : 'he';
+}
+
+/**
+ * Source for a code-less first contact on Joni's channels. Joni is the job
+ * agent, so by default a direct contact gets the same job-search (profile-first)
+ * pilot as the landing flow, not the generic script. JONI_WALKUP_DEFAULT_SRC
+ * overrides it; set it to an empty string to restore the old generic behaviour.
+ */
+export function walkupDefaultSrc(): string | null {
+  const v = process.env.JONI_WALKUP_DEFAULT_SRC;
+  if (v === undefined) return 'agent4job';
+  return v.trim() || null;
+}
+
 export function detectLang(text: string): PilotLang {
   if (/[֐-׿]/.test(text)) return 'he';
   if (/[a-zA-Z]/.test(text)) return 'en';

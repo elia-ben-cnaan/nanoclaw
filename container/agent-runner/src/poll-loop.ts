@@ -185,6 +185,27 @@ const CLAUDE_USAGE_ALERT_AGENT_GROUP_IDS = new Set([
 ]);
 type RateLimitEvent = Extract<ProviderEvent, { type: 'rate_limit' }>;
 
+/**
+ * Text sent to the chat when a turn fails for good. Operator agents keep the
+ * raw error (they debug with it); everyone else gets the short Hebrew notice
+ * instead of raw English like "You've hit your session limit" or "API Error:
+ * Overloaded" (2026-10-05). The raw error is always logged.
+ */
+export function userFacingErrorText(errMsg: string, agentGroupId: string | undefined): string {
+  if (agentGroupId && CLAUDE_USAGE_ALERT_AGENT_GROUP_IDS.has(agentGroupId)) return `Error: ${errMsg}`;
+  return BOTH_PROVIDERS_FAILED_NOTICE;
+}
+
+export type FallbackFailureKind = 'auth' | 'quota' | 'network' | 'stale-thread' | 'unknown';
+
+export function classifyFallbackFailure(message: string): FallbackFailureKind {
+  if (/authorization|authentication|auth\b|login|access-token|access token|refresh token|expired/i.test(message)) return 'auth';
+  if (isQuotaErrorMessage(message)) return 'quota';
+  if (/thread\s+not\s+found|unknown\s+thread|no such thread/i.test(message)) return 'stale-thread';
+  if (/network|fetch failed|econnreset|etimedout|enotfound|eai_again|socket|tls|certificate/i.test(message)) return 'network';
+  return 'unknown';
+}
+
 export function claudeUsagePercent(value: number | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) return -1;
   return value <= 1 ? value * 100 : value;
@@ -587,13 +608,14 @@ export async function runPollLoop(config: PollLoopConfig): Promise<void> {
             }
 
             // Write error response so the user knows something went wrong
+            log(`Turn failed, notifying user: ${errMsg}`);
             writeMessageOut({
               id: generateId(),
               kind: 'chat',
               platform_id: routing.platformId,
               channel_type: routing.channelType,
               thread_id: routing.threadId,
-              content: JSON.stringify({ text: `Error: ${errMsg}` }),
+              content: JSON.stringify({ text: userFacingErrorText(errMsg, config.agentGroupId) }),
             });
             break;
           } finally {
@@ -1129,7 +1151,7 @@ export async function serveViaFallback(
     if (operatorNotice) maybeNotifyCodexFallback(routing, fallback.providerName, operatorNotice);
   } catch (fbErr) {
     const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr);
-    log(`Fallback turn failed: ${fbMsg}`);
+    log(`Fallback turn failed (${classifyFallbackFailure(fbMsg)}): ${fbMsg}`);
     writeNotice(routing, BOTH_PROVIDERS_FAILED_NOTICE);
   }
 }

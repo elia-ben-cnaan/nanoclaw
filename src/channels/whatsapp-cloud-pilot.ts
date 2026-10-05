@@ -24,7 +24,12 @@ import { getDb } from '../db/connection.js';
 import { getMessagingGroupAgents, getMessagingGroupByPlatform } from '../db/messaging-groups.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
-import { detectLang, findPilotCodeInText } from '../modules/pilot-activation/activation.js';
+import {
+  detectLang,
+  findPilotCodeInText,
+  walkupDefaultSrc,
+  walkupLang,
+} from '../modules/pilot-activation/activation.js';
 import { consumeActivation, createActivation, findActivePilotByUser } from '../modules/pilot-activation/db.js';
 import { getLatestMembershipByUser } from '../modules/permissions/db/agent-group-members.js';
 import { provisionPilotAtPress } from '../provision-handler.js';
@@ -431,7 +436,10 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
       const wrappedOnInbound: ChannelSetup['onInbound'] = async (platformId, threadId, inbound) => {
         // Before provisioning, mirroring, activation or automatic replies.
         const loopReason = whatsappInboundBlockReason({
-          channelType: CHANNEL_TYPE, instance: INSTANCE, platformId, threadId,
+          channelType: CHANNEL_TYPE,
+          instance: INSTANCE,
+          platformId,
+          threadId,
           message: { ...inbound, content: JSON.stringify(inbound.content) },
         });
         if (loopReason) {
@@ -514,8 +522,9 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   const prov = await provisionPilotAtPress({
                     activation: consumed,
                     fallbackName: senderName || null,
+                    boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
-                      whatsappInstance: 'whatsapp-cloud',
+                    whatsappInstance: 'whatsapp-cloud',
                   });
                   // Greeting BEFORE wiring — guarantees it's the first
                   // message on every new agent (Telegram parity). Mirrors the
@@ -571,12 +580,15 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   // gets name/source attribution — the landing's code-less
                   // pre-fill carries both in the text itself.
                   const attr = parseWalkupAttribution(text);
+                  // Code-less contact still gets the job-search pilot (same
+                  // script as the landing flow) and Hebrew unless clearly English.
+                  const walkupSrc = attr.src ?? walkupDefaultSrc();
                   const minted = createActivation({
-                    lang: detectLang(text),
+                    lang: walkupLang(text),
                     metadata: {
                       name: attr.name || senderName || null,
                       gender: 'm',
-                      ...(attr.src ? { src: attr.src } : {}),
+                      ...(walkupSrc ? { src: walkupSrc } : {}),
                     },
                   });
                   const consumed = consumeActivation(minted.code, {
@@ -589,7 +601,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     fallbackName: attr.name || senderName || null,
                     boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
-                      whatsappInstance: 'whatsapp-cloud',
+                    whatsappInstance: 'whatsapp-cloud',
                   });
                   wireJoniChat(platformId, prov.agentGroupId, userId, senderName || prov.userName, CHANNEL_TYPE);
                   stampInstance(platformId);
@@ -600,7 +612,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     slug: prov.slug,
                     agentGroupId: prov.agentGroupId,
                     userId,
-                    source: attr.src,
+                    source: walkupSrc,
                   });
                 }
               } catch (err) {

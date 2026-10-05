@@ -40,6 +40,7 @@ import {
   updateContainerConfigJson,
   updateContainerConfigScalars,
 } from './db/container-configs.js';
+import type { McpServerConfig } from './container-config.js';
 import { setCostCapUsd } from './db/usage-metering.js';
 import { findSessionByAgentGroup } from './db/sessions.js';
 import { readEnvFile } from './env.js';
@@ -231,7 +232,7 @@ const DEFAULT_ASSISTANT_NAME = "ג'וני";
 // proofreading rules (canary pilot-0641c8 verified clean). New pilots must
 // match the fleet — stamping haiku here was the residual gap that gave fresh
 // signups (רינת, 05.08) garbled Hebrew on day one.
-const PILOT_MODEL = 'claude-sonnet-4-5';
+const PILOT_MODEL = 'claude-sonnet-5';
 // Reasoning effort, pinned low for cost. Joni is a conversational chat agent;
 // its Hebrew tone + "no em-dash / no AI-isms / be concise" rules live in the
 // persona prompt, not in extended thinking, so low effort keeps day-to-day
@@ -244,7 +245,7 @@ const PILOT_EFFORT = 'low';
 // quota renews). Mirrors Daniela's config so app-created agents survive an
 // outage the same way.
 const PILOT_FALLBACK_PROVIDER = 'codex';
-const PILOT_DAILY_COST_CAP_USD = 1.0;
+const PILOT_DAILY_COST_CAP_USD = 2.0;
 // Agent-runner default is 15 turns per wake — a long chat exchange with
 // follow-up pushes hit it mid-conversation in QA (30.7). 30 gives headroom;
 // the daily cost cap stays the real spend guard.
@@ -334,6 +335,26 @@ function buildInstructions(userName: string, channel: string, assistantName: str
   return lang === 'en' ? `${EN_TEMPLATE_OVERRIDE_NOTE}\n\n${filled}` : filled;
 }
 
+/**
+ * Privacy-policy versions a landing signup may consent to. Only a known
+ * version is stamped (with server time) onto the activation; anything else
+ * is dropped, so a client can never forge a version or a timestamp.
+ */
+const CONSENT_POLICY_VERSIONS = new Set(
+  (process.env.CONSENT_POLICY_VERSIONS || '2026-09-30')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean),
+);
+
+function acceptedConsent(policyVersion: unknown): { policyVersion?: string; consentedAt?: string } {
+  if (typeof policyVersion !== 'string' || !CONSENT_POLICY_VERSIONS.has(policyVersion.trim())) {
+    if (policyVersion !== undefined) log.warn('Provision: unknown policyVersion ignored', { policyVersion });
+    return {};
+  }
+  return { policyVersion: policyVersion.trim(), consentedAt: new Date().toISOString() };
+}
+
 export async function handleProvision(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   // 1. Validate Bearer token if HOST_PROVISION_TOKEN is set
   const expectedToken = PROVISION_TOKEN;
@@ -371,6 +392,7 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
         phone: typeof body.phone === 'string' ? body.phone : null,
         email: typeof body.email === 'string' ? body.email : null,
         src: typeof body.src === 'string' && body.src.trim() ? body.src.trim() : null,
+        ...acceptedConsent(body.policyVersion),
       },
     });
 
@@ -490,7 +512,7 @@ export async function provisionPilotAtPress(input: {
   // instead of failing the whole activation (staging has no guard — see PR notes).
   const profileFirst = isJobPilot(meta) && process.env.AGENT4JOB_PROFILE_FIRST_STAGING === '1'
     ? await createProfileFirstPilot({
-        userId: (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, ''),
+        userId: (meta.phone || input.boardUserId || '').replace(/\D/g, ''),
         userName,
         template: fs.readFileSync(process.env.AGENT4JOB_PROFILE_FIRST_TEMPLATE || '', 'utf8'),
         baseUrl: process.env.STAGING_CENTRAL_BASE || '',
@@ -519,7 +541,7 @@ export async function provisionPilotAtPress(input: {
     // Signup activations keep their phone-based board identity so the same
     // agent can be reached from either channel. A public Telegram start has
     // no phone form, therefore falls back to its stable Telegram numeric id.
-    const boardUserId = (meta.phone ?? input.boardUserId ?? '').replace(/\D/g, '');
+    const boardUserId = (meta.phone || input.boardUserId || '').replace(/\D/g, '');
     const minted = await mintBoardToken(boardUserId, 90); // null on failure — no throw
     instructions =
       buildUserIdentityBlock(realName, gender, lang) +
@@ -584,7 +606,14 @@ export async function provisionPilotAtPress(input: {
   // Subagents must never receive an OpenAI API tool or credential. Incoming
   // voice is transcribed locally by the host; spoken replies, when enabled,
   // are a host-only capability restricted to the two main agents.
-  updateContainerConfigJson(agentGroupId, 'mcp_servers', {});
+  const A4J_BOARD_MCP: McpServerConfig = {
+    command: 'node',
+    args: ['/opt/vendor/a4j-board-mcp/index.mjs'],
+    env: { A4J_FEED_URL: 'http://172.17.0.1:8080', NO_PROXY: '172.17.0.1', no_proxy: '172.17.0.1' },
+    instructions:
+      "The \`a4j-board\` MCP server reads and writes the user's job board. Call list_board_jobs before acting and again after every write to verify. When the user asks you to look for jobs, call search_jobs with precise role keywords (one search per distinct query; respect retryAfterSec on 'search too soon'), show the relevant results that are not onBoard, and add the ones the user wants with add_job_to_board. When you find or receive a relevant job URL, add it with add_job_to_board; if it comes back needsReview, tell the user the details still need a check and never invent them. Use star_job for jobs the user likes, track_job for pipeline stages and the job's contact person (name/email/phone/role) as the user reports them (never mark applied unless it happened), and log_contact_message to record each email/message/call/meeting with a contact the user tells you about. Use set_job_status only for interested or not_relevant. Use get_board_status to report the scan truthfully (last scan, next run, counts); never claim the scan is finished. Tell the user something is saved only after the tool succeeded and the read-back shows it. These tools never apply, submit or contact anyone.",
+  };
+  updateContainerConfigJson(agentGroupId, 'mcp_servers', profileFirst ? { 'a4j-board': A4J_BOARD_MCP } : {});
 
   // Legacy channels retain their supervisor relationship. The public Agent4Job
   // Telegram entrypoint explicitly opts out, so no new user can enter Daniela
