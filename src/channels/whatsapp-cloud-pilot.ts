@@ -436,10 +436,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
       const wrappedOnInbound: ChannelSetup['onInbound'] = async (platformId, threadId, inbound) => {
         // Before provisioning, mirroring, activation or automatic replies.
         const loopReason = whatsappInboundBlockReason({
-          channelType: CHANNEL_TYPE,
-          instance: INSTANCE,
-          platformId,
-          threadId,
+          channelType: CHANNEL_TYPE, instance: INSTANCE, platformId, threadId,
           message: { ...inbound, content: JSON.stringify(inbound.content) },
         });
         if (loopReason) {
@@ -524,7 +521,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     fallbackName: senderName || null,
                     boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
-                    whatsappInstance: 'whatsapp-cloud',
+                      whatsappInstance: 'whatsapp-cloud',
                   });
                   // Greeting BEFORE wiring — guarantees it's the first
                   // message on every new agent (Telegram parity). Mirrors the
@@ -534,11 +531,20 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   // old 3-part pitch per pending_after_wa_e2e.md item 1 (Elia,
                   // 2026-08-03 #63062), implemented once WA Cloud E2E was verified.
                   const greetName = prov.userName !== 'User' ? prov.userName : null;
+                  // Agent4Job pilots (profile-first): the opening is the script's own
+                  // line, word for word (joni_onboarding_script_v1.md, שלב 1), first
+                  // name only, no emoji. The script then does not greet again.
+                  // Other pilots keep the legacy greeting. (Elia, 2026-10-05)
+                  const first = greetName ? greetName.trim().split(/\s+/)[0] : null;
                   await sendText(
                     platformId,
-                    prov.lang === 'en'
-                      ? `Hi${greetName ? ` ${greetName}` : ''}, I'm Johnny. Elia developed me just for you. 👋 What's on your mind today — anything we can work on together?`
-                      : `היי${greetName ? ` ${greetName}` : ''}, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋 מה הכי מעסיק אותך היום, יש משהו שנעבוד עליו יחד?`,
+                    prov.profileFirstGreeting !== undefined
+                      ? prov.lang === 'en'
+                        ? `Hi${first ? ` ${first}` : ''}, happy to get going with you. Where do we start? The fastest way is to send me your CV.`
+                        : `היי${first ? ` ${first}` : ''}, אשמח לצאת איתך לדרך. מאיפה מתחילים? הכי מהיר זה לשלוח לי קורות חיים.`
+                      : prov.lang === 'en'
+                        ? `Hi${greetName ? ` ${greetName}` : ''}, I'm Johnny. Elia developed me just for you. 👋 What's on your mind today — anything we can work on together?`
+                        : `היי${greetName ? ` ${greetName}` : ''}, אני ג'וני. אליה פיתח אותי במיוחד בשבילך. 👋 מה הכי מעסיק אותך היום, יש משהו שנעבוד עליו יחד?`,
                   );
                   wireJoniChat(platformId, prov.agentGroupId, userId, senderName || prov.userName, CHANNEL_TYPE);
                   stampInstance(platformId);
@@ -601,7 +607,7 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                     fallbackName: attr.name || senderName || null,
                     boardUserId: senderNumberFromPlatformId(platformId),
                     channel: 'WhatsApp',
-                    whatsappInstance: 'whatsapp-cloud',
+                      whatsappInstance: 'whatsapp-cloud',
                   });
                   wireJoniChat(platformId, prov.agentGroupId, userId, senderName || prov.userName, CHANNEL_TYPE);
                   stampInstance(platformId);
