@@ -30,6 +30,7 @@ import { migration025 } from './025-users-board-summaries.js';
 import { migration027 } from './027-whatsapp-agent-identities.js';
 import { migration026 } from './026-onecli-url.js';
 import { migration028 } from './028-consent-records.js';
+import { migration029 } from './029-consent-nonces.js';
 
 export interface Migration {
   version: number;
@@ -76,6 +77,7 @@ export const migrations: Migration[] = [
   migration026,
   migration027,
   migration028,
+  migration029,
 ];
 
 /** Row shape of PRAGMA foreign_key_check. Child rowids are stable across a

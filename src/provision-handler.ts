@@ -48,6 +48,8 @@ import { initGroupFilesystem } from './group-init.js';
 import { createProfileFirstPilot } from './job-profile-first.js';
 import { log } from './log.js';
 import { createActivation, type PilotActivation, type PilotLang } from './modules/pilot-activation/db.js';
+import { consentNonceLine, createConsentNonce } from './modules/pilot-activation/consent-nonce.js';
+import { getDb } from './db/connection.js';
 import { createDestination, getDestinationByName } from './modules/agent-to-agent/db/agent-destinations.js';
 import { writeDestinations } from './modules/agent-to-agent/write-destinations.js';
 
@@ -384,17 +386,36 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
   try {
     // Mint a one-time activation code (24h TTL). The agent itself is created
     // only when the user presses START — see provisionPilotAtPress.
-    const activation = createActivation({
-      lang,
-      metadata: {
-        name: userName,
-        gender,
-        phone: typeof body.phone === 'string' ? body.phone : null,
-        email: typeof body.email === 'string' ? body.email : null,
-        src: typeof body.src === 'string' && body.src.trim() ? body.src.trim() : null,
-        ...acceptedConsent(body.policyVersion),
-      },
-    });
+    const consent = acceptedConsent(body.policyVersion);
+    const src = typeof body.src === 'string' && body.src.trim() ? body.src.trim() : null;
+    // Walk-up consent binding (2026-10-06): when a known policyVersion was
+    // accepted, also mint a single-use consent nonce tied to this code. The
+    // nonce rides as the last line of the wa.me text and survives the
+    // landing's opener swap, so the webhook can bind the consent to the
+    // verified phone even when the activation code itself is dropped.
+    // Same transaction as the code: a nonce storage failure → 500, no orphan.
+    const { activation, consentNonce } = getDb().transaction(() => {
+      const a = createActivation({
+        lang,
+        metadata: {
+          name: userName,
+          gender,
+          phone: typeof body.phone === 'string' ? body.phone : null,
+          email: typeof body.email === 'string' ? body.email : null,
+          src,
+          ...consent,
+        },
+      });
+      const n = consent.policyVersion
+        ? createConsentNonce({
+            activationCode: a.code,
+            policyVersion: consent.policyVersion,
+            consentedAt: consent.consentedAt!,
+            source: src,
+          }).nonce
+        : null;
+      return { activation: a, consentNonce: n };
+    })();
 
     const botUsername = await PILOT_BOT_USERNAME_PROMISE;
     const telegramDeepLink = `https://telegram.me/${botUsername}?start=${activation.code}`;
@@ -414,21 +435,28 @@ export async function handleProvision(req: http.IncomingMessage, res: http.Serve
     // actually wrote it (Elia, 2026-07-30).
     const hasName = userName !== 'User';
     const isJobSignup = body.src === 'agent4job' || body.src === 'jobs';
-    const whatsappText = isJobSignup
+    const whatsappBody = isJobSignup
       ? lang === 'en'
         ? `Hello Johnny\nI came through the job search service\nI would like to begin\n\nActivation code: ${activation.code}`
         : `שלום ג׳וני\nהגעתי דרך שירות חיפוש העבודה\nאשמח להתחיל\n\nקוד הפעלה: ${activation.code}`
       : lang === 'en'
         ? `Hey Johnny,\n${hasName ? `I'm ${userName}, ` : ''}happy to start working together! 🙂\n\nActivation code: ${activation.code}`
         : `אהלן ג'וני,\n${hasName ? `אני ${userName}, ` : ''}אשמח להתחיל לעבוד יחד! 🙂\n\nקוד הפעלה: ${activation.code}`;
+    // The consent nonce is ALWAYS the last line ("ref: cn_…") — the landing
+    // keeps that line verbatim when it swaps the opener text.
+    const whatsappText = consentNonce ? `${whatsappBody}\n${consentNonceLine(consentNonce)}` : whatsappBody;
     const whatsappDeepLink = whatsappPhoneNumber
       ? `https://wa.me/${whatsappPhoneNumber.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappText)}`
       : null;
 
-    log.info('Provision: activation created', { code: activation.code, userName, lang });
+    log.info('Provision: activation created', { code: activation.code, userName, lang, consentNonce: !!consentNonce });
     json(res, 200, {
       telegram: { deepLink: telegramDeepLink, fallbackLink: telegramFallbackLink },
-      whatsapp: whatsappDeepLink ? { deepLink: whatsappDeepLink } : null,
+      whatsapp: whatsappDeepLink ? { deepLink: whatsappDeepLink, text: whatsappText } : null,
+      // Additive (2026-10-06): lets a proxy/landing carry the nonce explicitly
+      // instead of parsing it out of the wa.me text. null when no consent.
+      consentNonce,
+      policyVersion: consent.policyVersion ?? null,
     });
   } catch (err) {
     log.error('Provision: failed', { err, userName });

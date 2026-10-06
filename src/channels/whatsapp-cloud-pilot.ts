@@ -31,6 +31,12 @@ import {
   walkupLang,
 } from '../modules/pilot-activation/activation.js';
 import { consumeActivation, createActivation, findActivePilotByUser } from '../modules/pilot-activation/db.js';
+import {
+  bindConsentNonce,
+  findConsentNonceInText,
+  hasConsentRecordForUser,
+  walkupConsentGateEnabled,
+} from '../modules/pilot-activation/consent-nonce.js';
 import { getLatestMembershipByUser } from '../modules/permissions/db/agent-group-members.js';
 import { provisionPilotAtPress } from '../provision-handler.js';
 import { mirrorToSupervisor, outboundMirrorText, wireJoniChat } from './telegram-joni.js';
@@ -293,6 +299,37 @@ async function sendVoiceViaCloudApi(toNumber: string, audio: Buffer): Promise<vo
   if (!sendRes.ok) throw new Error(`WhatsApp voice send failed (${sendRes.status})`);
 }
 
+/**
+ * Walk-up consent binding (Shellanoo spec, 2026-10-06) — user-facing copy.
+ * Every reply here ends the turn WITHOUT provisioning; nothing reaches an
+ * agent. Language follows the message (walkupLang: Hebrew unless clearly
+ * English).
+ */
+const CONSENT_FEEDBACK = {
+  phoneMismatch: {
+    he: 'הקישור הזה כבר שימש מספר אחר. כדי להתחיל, פתח/י את הקישור מחדש מדף ההרשמה ממכשיר זה. 🙂',
+    en: 'This link was already used from another number. To start, open the link again from the signup page on this device. 🙂',
+  },
+  expired: {
+    he: 'הקישור הזה פג תוקף (קישורים תקפים ל-24 שעות). אפשר לפתוח קישור חדש מדף ההרשמה. 🙂',
+    en: 'This link has expired (links are valid for 24 hours). Open a new one from the signup page. 🙂',
+  },
+  needsConsent: {
+    he: 'כדי שאוכל להתחיל צריך קודם לאשר את מדיניות הפרטיות בדף ההרשמה ולפתוח את השיחה משם. 🙂',
+    en: 'Before we start, please accept the privacy policy on the signup page and open the chat from there. 🙂',
+  },
+  storageFailure: {
+    he: 'משהו השתבש אצלנו לרגע. נסה/י לשלוח את ההודעה שוב בעוד דקה.',
+    en: 'Something went wrong on our side for a moment. Please send the message again in a minute.',
+  },
+} as const;
+
+function consentFeedback(key: keyof typeof CONSENT_FEEDBACK, text: string): string {
+  const landing = (process.env.WALKUP_CONSENT_LANDING_URL ?? '').trim();
+  const base = CONSENT_FEEDBACK[key][walkupLang(text)];
+  return landing && (key === 'needsConsent' || key === 'expired' || key === 'phoneMismatch') ? `${base}\n${landing}` : base;
+}
+
 /** Delivery resolves adapters by mg.instance — make sure ours is stamped. */
 function stampInstance(platformId: string): void {
   getDb()
@@ -464,8 +501,49 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
             const isWired = existingMg ? getMessagingGroupAgents(existingMg.id).length > 0 : false;
 
             if (!existingMg || !isWired) {
-              const activationCode = findPilotCodeInText(text);
+              let activationCode = findPilotCodeInText(text);
               const userId = `whatsapp:${sender}`;
+
+              // Walk-up consent binding (2026-10-06). We are inside the Chat
+              // SDK's onInbound, which @chat-adapter/whatsapp invokes only
+              // AFTER X-Hub-Signature-256 verified (dist/index.js
+              // handleWebhook → verifySignature → 401 otherwise), so `sender`
+              // is the verified phone. Bind nonce → verified phone atomically
+              // and write the consent row in the same transaction. A storage
+              // failure blocks continuation (no provisioning, nonce stays
+              // pending so the same message can be retried). A nonce resolves
+              // to its activation code, so the landing may drop the code line.
+              const consentNonce = findConsentNonceInText(text);
+              if (consentNonce) {
+                let bind;
+                try {
+                  bind = bindConsentNonce(consentNonce, userId);
+                } catch (err) {
+                  log.error('WhatsApp Cloud consent bind: storage failure — blocked', { err, userId });
+                  await sendText(platformId, consentFeedback('storageFailure', text));
+                  return;
+                }
+                if (bind.status === 'phone-mismatch') {
+                  log.warn('WhatsApp Cloud consent bind rejected: nonce bound to another phone', { userId });
+                  await sendText(platformId, consentFeedback('phoneMismatch', text));
+                  return;
+                }
+                if (bind.status === 'expired') {
+                  log.warn('WhatsApp Cloud consent nonce expired', { userId });
+                  await sendText(platformId, consentFeedback('expired', text));
+                  return;
+                }
+                if (bind.status === 'unknown') {
+                  log.warn('WhatsApp Cloud consent nonce unknown — treating as plain walk-up', { userId });
+                } else {
+                  log.info('WhatsApp Cloud consent bound', {
+                    userId,
+                    policyVersion: bind.row.policy_version,
+                    idempotent: bind.status === 'already-bound',
+                  });
+                  activationCode = activationCode ?? bind.row.activation_code;
+                }
+              }
               // One agent per sender: returning users are rewired, never
               // re-provisioned. Two lookups — see whatsapp.ts rationale.
               const existingAgentId = (() => {
@@ -581,6 +659,26 @@ export function wrapWithPilotProvisioning(bridge: ChannelAdapter): ChannelAdapte
                   });
                   return; // code message consumed
                 } else {
+                  // Walk-up gate (2026-10-06): a code-less, nonce-less first
+                  // contact provisions ONLY when a consent_records row is
+                  // already bound to this verified phone. Read failure →
+                  // block (nothing is created). WALKUP_CONSENT_GATE=off
+                  // restores the old behaviour for staging.
+                  if (walkupConsentGateEnabled()) {
+                    let consented: boolean;
+                    try {
+                      consented = hasConsentRecordForUser(userId);
+                    } catch (err) {
+                      log.error('WhatsApp Cloud walk-up gate: storage failure — blocked', { err, userId });
+                      await sendText(platformId, consentFeedback('storageFailure', text));
+                      return;
+                    }
+                    if (!consented) {
+                      log.warn('WhatsApp Cloud walk-up blocked: no consent record for sender', { userId });
+                      await sendText(platformId, consentFeedback('needsConsent', text));
+                      return;
+                    }
+                  }
                   // Walk-up flow: first message with no code. Mint + consume a
                   // real activation row (not a synthetic one) so the dashboard
                   // gets name/source attribution — the landing's code-less
