@@ -1,0 +1,9 @@
+be3fc2147268feb5509eacd152678fc2  /home/daniela/nanoclaw-v2/src/channels/whatsapp-cloud-pilot.ts
+79e4bb22030a14448d96bc55a1c3481a  /home/daniela/nanoclaw-v2/dist/channels/whatsapp-cloud-pilot.js
+ce657556deb1a18a11d3e73e29c01ee1  /home/daniela/nanoclaw-v2/src/provision-handler.ts
+654f50295e39c3057c3a1242baed49cf  /home/daniela/nanoclaw-v2/dist/provision-handler.js
+e2578a6768e4510c481e86cb34883d86  /home/daniela/nanoclaw-v2/src/db/migrations/index.ts
+4663bb0ebb8321bfda7373742ddeba63  /home/daniela/nanoclaw-v2/dist/db/migrations/index.js
+c710fb3d9901df2bb4522ed6815c55a2  /home/daniela/nanoclaw-v2/groups/dm-with-elia-ben-cnaan/agent_for_job_app/index.html
+b7b7be5a791b4db1a24f25e96970178c  /home/daniela/nanoclaw-v2/groups/dm-with-elia-ben-cnaan/nanohub_demo/api/register.js
+14429e07523514850e552594be6b3a4d  /root/nanoclaw-v2/groups/dm-with-shellanoo/landing/index.html
